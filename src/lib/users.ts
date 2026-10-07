@@ -8,12 +8,25 @@ type Tx = Parameters<Parameters<typeof withTenant>[1]>[0];
 type Actor = { id: string; access: Access };
 class Refused extends Error {}
 
-export async function listUsers(companyId: string) {
+// The directory (PRD 4): q matches name, email or a department's name.
+export async function listUsers(companyId: string, q = "") {
+  const like = `%${q.trim().replace(/[\\%_]/g, "\\$&")}%`;
   return withTenant(companyId, async (tx) => {
     const people = await tx
       .select({ id: user.id, name: user.name, email: user.email, deactivatedAt: user.deactivatedAt })
       .from(user)
+      .where(
+        q.trim()
+          ? sql`${user.name} ilike ${like} or ${user.email} ilike ${like} or exists (select 1 from department_members m
+              join departments d on d.id = m.department_id where m.user_id = ${user.id} and d.name ilike ${like})`
+          : undefined,
+      )
       .orderBy(user.name);
+    const memberOf = await tx
+      .select({ userId: departmentMembers.userId, name: departments.name, isManager: departmentMembers.isManager })
+      .from(departmentMembers)
+      .innerJoin(departments, eq(departments.id, departmentMembers.departmentId))
+      .orderBy(departments.name);
     const held = await tx
       .select({ userId: userRoles.userId, name: roles.name })
       .from(userRoles)
@@ -25,7 +38,11 @@ export async function listUsers(companyId: string) {
       .where(and(isNull(invitations.acceptedAt), gt(invitations.expiresAt, new Date())))
       .orderBy(invitations.email);
     return {
-      users: people.map((p) => ({ ...p, roles: held.filter((h) => h.userId === p.id).map((h) => h.name) })),
+      users: people.map((p) => ({
+        ...p,
+        roles: held.filter((h) => h.userId === p.id).map((h) => h.name),
+        departments: memberOf.filter((m) => m.userId === p.id).map(({ name, isManager }) => ({ name, isManager })),
+      })),
       pending,
     };
   });

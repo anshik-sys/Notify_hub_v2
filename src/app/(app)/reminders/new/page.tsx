@@ -27,6 +27,7 @@ export default async function NewReminder(props: PageProps<"/reminders/new">) {
           links: [],
           company: false,
           departmentIds: [],
+          groupIds: [],
           userIds: [],
           emails: "",
           when: "now",

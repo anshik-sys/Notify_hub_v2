@@ -14,7 +14,7 @@ export default async function InviteUser(props: PageProps<"/users/invite">) {
   const error = firstParam((await props.searchParams).error);
 
   return (
-    <Page title="Invite someone" back={{ href: "/users", label: "People" }} error={error}>
+    <Page title="Invite someone" back={{ href: "/users", label: "Team" }} error={error}>
       <Form action={inviteUser}>
         <Field label="Email" name="email" type="email" autoComplete="off" required />
         {roles.length > 0 && (

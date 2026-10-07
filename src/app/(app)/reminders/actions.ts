@@ -30,7 +30,8 @@ export async function saveReminder(fd: FormData) {
   const id = str(fd, "id");
   if (id && !isUuid(id)) notFound();
   const departmentIds = all(fd, "departments");
-  if (!departmentIds.every(isUuid)) notFound();
+  const groupIds = all(fd, "groups");
+  if (!departmentIds.every(isUuid) || !groupIds.every(isUuid)) notFound();
   const back = id ? `/reminders/${id}/edit` : "/reminders/new";
 
   const parsed = validateInput(
@@ -42,6 +43,7 @@ export async function saveReminder(fd: FormData) {
       linkUrls: all(fd, "linkUrl"),
       company: fd.get("company") === "on",
       departmentIds,
+      groupIds,
       userIds: all(fd, "users"),
       emails: str(fd, "emails"),
       when: str(fd, "when"),

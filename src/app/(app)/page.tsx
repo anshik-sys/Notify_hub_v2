@@ -11,6 +11,7 @@ import { listPendingApprovals } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { myOpenTasks } from "@/lib/tasks";
 import { formatInZone } from "@/lib/time";
+import { groupsOf } from "@/lib/groups";
 import { getUser } from "@/lib/users";
 import { dashboardStats, dueByDate, filterUrl, upcoming } from "@/lib/views";
 
@@ -30,7 +31,7 @@ export default async function Home() {
   const viewer = { id: user.id, access };
   const seesReminders = can(access, "reminders.create") || can(access, "reminders.view_all");
   const tz = company.timeZone;
-  const [me, roles, pending, tasks, stats, next, activity] = await Promise.all([
+  const [me, roles, pending, tasks, stats, next, activity, myGroups] = await Promise.all([
     getUser(companyId, user.id),
     visibleRoles(companyId),
     can(access, "reminders.approve") ? listPendingApprovals(companyId) : [],
@@ -38,6 +39,7 @@ export default async function Home() {
     seesReminders ? dashboardStats(companyId, viewer, tz) : null,
     seesReminders ? upcoming(companyId, viewer) : [],
     listNotifications(companyId, user.id).then((n) => n.items.slice(0, 8)),
+    groupsOf(companyId, user.id),
   ]);
   const roleNames = roles.filter((r) => me?.roleIds.includes(r.id)).map((r) => r.name);
 
@@ -140,6 +142,16 @@ export default async function Home() {
           <Hint>You’re not in a department yet. An admin or department manager can add you.</Hint>
         )}
       </Section>
+
+      {myGroups.length > 0 && (
+        <Section title="Your groups">
+          <List>
+            {myGroups.map((g) => (
+              <ListRow key={g.id} href={`/groups/${g.id}`} title={g.name} />
+            ))}
+          </List>
+        </Section>
+      )}
 
       <Section title="Your roles">
         <Hint>{roleNames.join(", ")}</Hint>

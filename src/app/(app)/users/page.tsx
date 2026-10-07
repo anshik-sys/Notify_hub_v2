@@ -1,34 +1,54 @@
 import { notFound } from "next/navigation";
-import { Button, firstParam, LinkButton, Page, Section } from "@/components/form";
+import { Avatar } from "@/components/avatar";
+import { FilterBar } from "@/components/filters";
+import { Button, Field, firstParam, LinkButton, Page, Section } from "@/components/form";
 import { Badge, Muted, Table } from "@/components/table";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { listUsers } from "@/lib/users";
 import { revokeInvite } from "./actions";
+import styles from "./page.module.css";
 
 export default async function Users(props: PageProps<"/users">) {
   const { companyId, access } = await requireMember();
   if (!can(access, "users.view")) notFound();
-  const { users, pending } = await listUsers(companyId);
-  const { error, notice } = await props.searchParams;
+  const sp = await props.searchParams;
+  const q = firstParam(sp.q)?.slice(0, 100) ?? "";
+  const { users, pending } = await listUsers(companyId, q);
   const canInvite = can(access, "users.create");
+  const showRoles = can(access, "users.manage_roles");
 
   return (
     <Page
-      title="People"
-      error={firstParam(error)}
-      notice={firstParam(notice)}
-      actions={canInvite && <LinkButton href="/users/invite">Invite someone</LinkButton>}
+      title="Team"
+      error={firstParam(sp.error)}
+      notice={firstParam(sp.notice)}
+      actions={
+        <>
+          <LinkButton href="/groups" variant="secondary">
+            Groups
+          </LinkButton>
+          {canInvite && <LinkButton href="/users/invite">Invite someone</LinkButton>}
+        </>
+      }
     >
+      <FilterBar action="/users" clearHref={q ? "/users" : undefined}>
+        <Field label="Search" name="q" type="search" placeholder="Name, email or department" defaultValue={q} />
+      </FilterBar>
       <Table
-        columns={["Name", "Email", "Roles", "Status"]}
+        columns={["Name", "Email", "Departments", ...(showRoles ? ["Roles"] : []), "Status"]}
+        empty={q ? "Nobody matches that." : undefined}
         rows={users.map((u) => ({
           key: u.id,
           href: `/users/${u.id}`,
           cells: [
-            u.name,
+            <span key="n" className={styles.person}>
+              <Avatar name={u.name} />
+              {u.name}
+            </span>,
             u.email,
-            <Muted key="r">{u.roles.join(", ")}</Muted>,
+            <Muted key="d">{u.departments.map((d) => (d.isManager ? `${d.name} (manager)` : d.name)).join(", ") || "—"}</Muted>,
+            ...(showRoles ? [<Muted key="r">{u.roles.join(", ")}</Muted>] : []),
             u.deactivatedAt ? (
               <Badge key="s" tone="danger">
                 Deactivated

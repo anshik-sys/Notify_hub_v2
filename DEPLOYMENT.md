@@ -38,6 +38,10 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0021: `groups` + `group_members`, and `'group'` as a reminder target
+kind. It also adds `groups.create` to the Member system role (everyone can make
+groups, decided with the user).
+
 Migration 0020: `reminders.tags` (text[], GIN index). Existing reminders get no tags.
 
 Migration 0019: `notifications` + `notification_mutes`. No backfill: the
@@ -182,6 +186,8 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Home: each stat card's number matches the list it opens. Reminders: search by a recipient's name finds it; filters and page 2 survive a reload and the back button.
 - [ ] Tags: add "Finance, Q3" to a reminder → shown as chips; clicking one lists reminders with that tag.
 - [ ] My tasks: Mark done moves it to Done and stays on the page; Calendar shows a daily reminder on each remaining day, not on a skipped one.
+- [ ] Groups: a member creates a group of teammates and sends to it (no approval needed); adding someone from another department sends their upcoming reminder back to "Needs approval" and the admin is notified. Only the creator or an admin can edit it.
+- [ ] Team: searching a department's name lists its members, with their departments shown.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

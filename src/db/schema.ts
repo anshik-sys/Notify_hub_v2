@@ -289,15 +289,15 @@ export const reminderTargets = pgTable(
     companyId: uuid()
       .notNull()
       .references(() => companies.id),
-    kind: text().$type<"user" | "department" | "company" | "email" | "slack_channel">().notNull(),
-    // user id, department id, email, or Slack channel id; null for kind = company.
+    kind: text().$type<"user" | "department" | "group" | "company" | "email" | "slack_channel">().notNull(),
+    // user, department or group id, email, or Slack channel id; null for kind = company.
     ref: text(),
     // Display name at pick time (Slack channel name), so the page needn't call Slack.
     label: text(),
   },
   (t) => [
     index().on(t.reminderId),
-    check("reminder_targets_kind_valid", sql`${t.kind} in ('user','department','company','email','slack_channel')`),
+    check("reminder_targets_kind_valid", sql`${t.kind} in ('user','department','group','company','email','slack_channel')`),
     tenantPolicy("company_id"),
   ],
 ).enableRLS();
@@ -570,4 +570,36 @@ export const notificationMutes = pgTable(
     channel: text().notNull(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.event, t.channel] }), tenantPolicy("company_id")],
+).enableRLS();
+
+// Custom distribution lists (PRD 4). Anyone with groups.create makes one; the
+// creator or groups.manage edits it. Resolved to members at send time.
+export const groups = pgTable(
+  "groups",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    name: text().notNull(),
+    createdBy: text().references(() => user.id, { onDelete: "set null" }),
+    createdAt: ts().notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("groups_company_name_idx").on(t.companyId, sql`lower(${t.name})`), tenantPolicy("company_id")],
+).enableRLS();
+
+export const groupMembers = pgTable(
+  "group_members",
+  {
+    groupId: uuid()
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index().on(t.userId), tenantPolicy("company_id")],
 ).enableRLS();

@@ -45,9 +45,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </NavLink>
           )}
           {can(access, "users.view") && (
-            <NavLink href="/users" icon="people">
-              People
-            </NavLink>
+            <>
+              <NavLink href="/users" icon="people">
+                Team
+              </NavLink>
+              <NavLink href="/groups" icon="groups">
+                Groups
+              </NavLink>
+            </>
           )}
           {can(access, "departments.view") && (
             <NavLink href="/departments" icon="departments">

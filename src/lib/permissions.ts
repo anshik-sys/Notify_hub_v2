@@ -29,6 +29,8 @@ export const PERMISSION_GROUPS = {
     "departments.edit": "Edit",
     "departments.delete": "Delete",
     "departments.manage_members": "Add and remove members",
+    "groups.create": "Create groups",
+    "groups.manage": "Edit and delete anyone's groups",
   },
   Company: {
     "company.view": "View settings",

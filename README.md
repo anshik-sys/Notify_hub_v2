@@ -336,3 +336,12 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
 - **The calendar expands series from their rule** (`between()`), from the next
   occurrence, minus recorded (skipped) ones, up to 500 scheduled reminders
   per request.
+- **Groups (PRD 4)** resolve to their active members at send time, like
+  departments. Anyone with `groups.create` (given to the Member role by
+  migration 0021) makes one; the creator or `groups.manage` edits it.
+  - **Adding members re-checks scope** (`recheckGroupReminders`). A member
+    could otherwise send to an in-scope group and widen it later. Any upcoming
+    reminder to the group whose creator couldn't reach a newly added person
+    goes back to "Needs approval", and approvers are told.
+  - **A group can't be deleted while an upcoming reminder uses it**, so a
+    schedule never silently loses its recipients.

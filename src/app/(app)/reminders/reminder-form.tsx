@@ -16,6 +16,7 @@ export type ReminderDefaults = {
   links: { label: string; url: string }[];
   company: boolean;
   departmentIds: string[];
+  groupIds: string[];
   userIds: string[];
   emails: string;
   when: "now" | "later";
@@ -123,6 +124,7 @@ export function ReminderForm({
   defaults,
   departments,
   people,
+  groups,
   timeZone,
   defaultSender,
   slackChannels,
@@ -131,6 +133,7 @@ export function ReminderForm({
   defaults: ReminderDefaults;
   departments: DepartmentChoice[];
   people: Person[];
+  groups: { id: string; name: string; members: number }[];
   timeZone: string;
   defaultSender: string;
   /** The company's public Slack channels; null when Slack isn't connected. */
@@ -223,6 +226,18 @@ export function ReminderForm({
               value: d.id,
               label: `${d.name} (${d.members.length})`,
               checked: defaults.departmentIds.includes(d.id),
+            }))}
+          />
+        )}
+
+        {groups.length > 0 && (
+          <CheckboxGroup
+            legend="Groups (need approval if they include people outside your departments)"
+            name="groups"
+            options={groups.map((g) => ({
+              value: g.id,
+              label: `${g.name} (${g.members})`,
+              checked: defaults.groupIds.includes(g.id),
             }))}
           />
         )}

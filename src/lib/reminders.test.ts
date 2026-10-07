@@ -39,6 +39,7 @@ const raw = (over: Partial<RawReminder> = {}): RawReminder => ({
   linkUrls: [],
   company: false,
   departmentIds: [],
+  groupIds: [],
   userIds: [],
   emails: "",
   when: "now",
@@ -359,7 +360,7 @@ test("channels (PRD 5.3)", () => {
   assert.match(v({ userIds: ["u"], channels: [] }).error!, /at least one channel/);
   assert.match(v({ userIds: ["u"], channels: ["slack"] }, null).error!, /isn't connected/);
   assert.match(v({ company: true, channels: ["slack"] }).error!, /whole company on Slack, pick a Slack channel/);
-  assert.match(v({ emails: "x@y.test", channels: ["slack"] }).error!, /Slack needs a channel, people or a department/);
+  assert.match(v({ emails: "x@y.test", channels: ["slack"] }).error!, /Slack needs a channel, people, a department or a group/);
   assert.match(v({ channels: ["email", "slack"], slackChannelIds: ["C1"] }).error!, /Email needs people/);
   assert.match(v({ userIds: ["u"], channels: ["email"], slackChannelIds: ["C1"] }).error!, /Tick Slack/);
   assert.match(v({ userIds: ["u"], channels: ["slack"], slackChannelIds: ["C9"] }).error!, /no longer exists/);
@@ -443,4 +444,12 @@ test("tags: lowercased, de-duplicated, validated", () => {
   assert.match((parseTags(Array.from({ length: 11 }, (_, i) => `t${i}`).join(",")) as { error: string }).error, /At most 10/);
   const v = validateInput(raw({ userIds: [alice], tags: "A, b" }), "UTC", "S");
   assert.deepEqual("input" in v && v.input?.tags, ["a", "b"]);
+});
+
+test("validateInput: a group alone is a recipient for email and Slack", () => {
+  const g = "11111111-1111-4111-8111-111111111111";
+  const v = validateInput(raw({ groupIds: [g, g] }), "UTC", "S");
+  assert.deepEqual("input" in v && v.input?.targets, [{ kind: "group", ref: g }]);
+  const sl = validateInput(raw({ groupIds: [g], channels: ["slack"] }), "UTC", "S", new Date(), []);
+  assert.ok("input" in sl);
 });

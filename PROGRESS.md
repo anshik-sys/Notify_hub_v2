@@ -2,6 +2,52 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — groups and the Team directory (PRD 4, PRD 8 "Team")
+
+- **Decided with the user:** everyone can create groups. The new permission
+  `groups.create` was added to the Member role (migration 0021), and admins can
+  take it away per role. `groups.manage` lets admins edit anyone's groups.
+- **What's in place:**
+  - **Groups** (sidebar → Groups): create, rename, add people (the same
+    picker as reminders), remove, delete. Everyone who can see the directory
+    can see who's in a group, since you need to know who it reaches before
+    you send to it.
+  - **A group is a recipient:** a "Groups" list in the reminder form. It's
+    resolved at send time, gets Slack DMs like a department, and shows as
+    "X (group)". The reminder search matches group names too.
+  - **Team** (was People): search by name, email or department; initials
+    avatars, departments (manager marked), status. Roles only show to people
+    who can assign them.
+  - **Home** lists "Your groups".
+- **The approval loophole, closed:** the scope check runs on resolved
+  recipients, so sending to a group of teammates needs no approval. Without
+  a re-check, a member could then add anyone to the group. Adding members
+  now re-checks every upcoming reminder to that group. If the creator
+  couldn't reach a newly added person, it goes back to "Needs approval", the
+  approvers are notified, and the editor sees how many were affected.
+  Adding a teammate changes nothing.
+- **Delete is blocked while an upcoming reminder uses the group**, so a
+  schedule never silently loses its recipients.
+- **Verified against `next start` + worker + Mailpit:**
+  - alice made "Ops crew" with bob; a "now" reminder to it reached bob,
+    and a later one stayed Scheduled;
+  - adding carol (Sales) → "1 upcoming reminder … now needs approval", the
+    reminder went pending, and the admin got an in-app notice plus an email;
+    the reason reads "the Ops crew group (has people outside your
+    departments), carol@…";
+  - bob's direct rename/remove POSTs → refused; the admin's rename → OK; a
+    duplicate name (different case) → refused;
+  - delete while in use → "Used by 1 upcoming reminder", and after
+    cancelling it, deleted;
+  - Team search "ops" → alice and bob; no Roles column for bob, shown for
+    the admin.
+
+  98 tests pass (new: `groups.test.ts`, plus directory, validation and RLS
+  cases).
+- **Not in this step:** sharing a reminder's visibility with groups (PRD 5.4
+  sharing isn't built yet), avatar uploads, nested groups, Slack user-group
+  sync.
+
 ## 2026-10-07 — dashboard, All reminders, My tasks, calendar, tags (PRD 8, phase A)
 
 - **Scope, decided with the user:** the views first, with tags (PRD 5.1)

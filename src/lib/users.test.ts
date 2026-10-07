@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { authDb } from "./auth";
 import { type Access, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "./permissions";
 import { seeder } from "./test-helpers";
-import { setActive, setUserRoles } from "./users";
+import { listUsers, setActive, setUserRoles } from "./users";
 
 const s = seeder();
 let admin: { id: string; access: Access };
@@ -64,4 +64,16 @@ test("deactivating deletes sessions", async () => {
   assert.equal(await setActive(admin, s.companyId, victim, true), null);
   const { rows } = await s.owner.query(`select deactivated_at from "user" where id = $1`, [victim]);
   assert.equal(rows[0].deactivated_at, null);
+});
+
+test("directory: departments listed; search by name, email or department", async () => {
+  const pat = await s.user();
+  await s.owner.query(`update "user" set name = 'Pat Smith' where id = $1`, [pat]);
+  const { rows } = await s.owner.query("insert into departments (company_id, name) values ($1, 'Field Ops') returning id", [s.companyId]);
+  await s.owner.query("insert into department_members values ($1, $2, $3, true)", [s.companyId, rows[0].id, pat]);
+  const ids = async (q: string) => (await listUsers(s.companyId, q)).users.map((u) => u.id);
+  assert.deepEqual(await ids("field"), [pat]);
+  assert.deepEqual(await ids("pat sm"), [pat]);
+  assert.deepEqual(await ids("%"), []); // literal
+  assert.deepEqual((await listUsers(s.companyId)).users.find((u) => u.id === pat)!.departments, [{ name: "Field Ops", isManager: true }]);
 });

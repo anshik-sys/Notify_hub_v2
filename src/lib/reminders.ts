@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { aliasedTable, and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { attachments, deliveries, departmentMembers, departments, reminderOccurrences, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
+import { attachments, deliveries, departmentMembers, departments, groupMembers, groups, reminderOccurrences, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
 import { addNotifications, mutedFor } from "./notifications";
@@ -44,6 +44,7 @@ export type RawReminder = {
   linkUrls: string[];
   company: boolean;
   departmentIds: string[];
+  groupIds: string[];
   userIds: string[];
   emails: string;
   when: string; // "now" | "later"
@@ -94,6 +95,7 @@ export function validateInput(
     ? [{ kind: "company", ref: null }]
     : [
         ...[...new Set(raw.departmentIds)].map((ref) => ({ kind: "department" as const, ref })),
+        ...[...new Set(raw.groupIds)].map((ref) => ({ kind: "group" as const, ref })),
         ...[...new Set(raw.userIds)].map((ref) => ({ kind: "user" as const, ref })),
       ];
   targets.push(...emails.map((ref) => ({ kind: "email" as const, ref })));
@@ -106,14 +108,14 @@ export function validateInput(
   if (channels.includes("slack")) {
     if (!slack) return { error: "Slack isn't connected. An admin can connect it under Integrations." };
     if (slackChannels.some((c) => !c)) return { error: "One of the Slack channels no longer exists." };
-    const people = targets.some((t) => t.kind === "user" || t.kind === "department");
+    const people = targets.some((t) => t.kind === "user" || t.kind === "department" || t.kind === "group");
     if (raw.company && !slackChannels.length)
       return { error: "To send to the whole company on Slack, pick a Slack channel. Everyone isn't messaged one by one." };
     if (!people && !raw.company && !slackChannels.length)
-      return { error: "Slack needs a channel, people or a department." };
+      return { error: "Slack needs a channel, people, a department or a group." };
   }
   if (channels.includes("email") && !targets.length)
-    return { error: "Email needs people, a department, the whole company or email addresses." };
+    return { error: "Email needs people, a department, a group, the whole company or email addresses." };
   targets.push(...slackChannels.map((c) => ({ kind: "slack_channel" as const, ref: c!.id, label: c!.name })));
   if (targets.length === 0) return { error: "Choose at least one recipient." };
 
@@ -206,6 +208,19 @@ export async function outOfScope(tx: Tx, companyId: string, actor: Actor, target
   if (otherDepts.length) {
     const names = await tx.select({ name: departments.name }).from(departments).where(inArray(departments.id, otherDepts));
     reasons.push(...names.map((n) => `the ${n.name} department`));
+  }
+  // A group with anyone outside the sender's scope needs approval (PRD 4); its
+  // outsiders are also listed by email below.
+  const groupIds = targets.filter((t) => t.kind === "group").map((t) => t.ref!);
+  if (groupIds.length) {
+    const members = await tx
+      .select({ name: groups.name, userId: groupMembers.userId })
+      .from(groupMembers)
+      .innerJoin(groups, eq(groups.id, groupMembers.groupId))
+      .innerJoin(user, eq(user.id, groupMembers.userId))
+      .where(and(eq(groupMembers.companyId, companyId), inArray(groupMembers.groupId, groupIds), isNull(user.deactivatedAt)));
+    const wide = new Set(members.filter((m) => !inScope.has(m.userId)).map((m) => m.name));
+    reasons.push(...[...wide].map((n) => `the ${n} group (has people outside your departments)`));
   }
   reasons.push(...resolved.users.filter((u) => !inScope.has(u.id)).map((u) => u.email));
   reasons.push(...resolved.external.map((e) => `${e} (outside the company)`));
@@ -411,6 +426,36 @@ export async function updateReminder(
   return null;
 }
 
+// Group members were added (PRD 4): a scheduled reminder to that group whose
+// creator couldn't send to one of the new people without approval goes back
+// to pending_approval, and approvers are told. Otherwise a member could send
+// to an in-scope group and widen it afterwards. Returns how many flipped.
+export async function recheckGroupReminders(companyId: string, groupId: string, addedUserIds: string[]) {
+  if (!addedUserIds.length) return 0;
+  const flipped = await withTenant(companyId, async (tx) => {
+    const affected = await tx
+      .select({ id: reminders.id, title: reminders.title, createdBy: reminders.createdBy })
+      .from(reminders)
+      .innerJoin(reminderTargets, eq(reminderTargets.reminderId, reminders.id))
+      .where(and(eq(reminderTargets.kind, "group"), eq(reminderTargets.ref, groupId), inArray(reminders.status, ["scheduled", "paused"])))
+      .for("update", { of: reminders });
+    const added = await tx.select({ email: user.email }).from(user).where(inArray(user.id, addedUserIds));
+    const addedEmails = new Set(added.map((a) => a.email.toLowerCase()));
+    const out: { id: string; title: string; approvers: string[] }[] = [];
+    for (const r of affected) {
+      const targets = await tx.select().from(reminderTargets).where(eq(reminderTargets.reminderId, r.id));
+      const creator = { id: r.createdBy, access: await loadAccess(companyId, r.createdBy) };
+      const reasons = await outOfScope(tx, companyId, creator, targets, await resolveRecipients(tx, companyId, targets));
+      if (!reasons.some((x) => addedEmails.has(x))) continue;
+      await tx.update(reminders).set({ status: "pending_approval", decidedBy: null, decidedAt: null }).where(eq(reminders.id, r.id));
+      out.push({ ...r, approvers: await approverEmails(tx, companyId, r.id) });
+    }
+    return out;
+  });
+  for (const r of flipped) await notifyApprovers(r.approvers, r.title, r.id);
+  return flipped.length;
+}
+
 export async function cancelReminder(actor: Actor, companyId: string, id: string) {
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
@@ -535,12 +580,18 @@ export async function getReminder(companyId: string, id: string) {
     const userNames = userIds.length
       ? await tx.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, userIds))
       : [];
+    const groupIds = targets.filter((t) => t.kind === "group").map((t) => t.ref!);
+    const groupNames = groupIds.length
+      ? await tx.select({ id: groups.id, name: groups.name }).from(groups).where(inArray(groups.id, groupIds))
+      : [];
     const label = (t: Target) =>
       t.kind === "company"
         ? "Everyone in the company"
         : t.kind === "department"
           ? `${deptNames.find((d) => d.id === t.ref)?.name ?? "Deleted department"} (department)`
-          : t.kind === "user"
+          : t.kind === "group"
+            ? `${groupNames.find((g) => g.id === t.ref)?.name ?? "Deleted"} (group)`
+            : t.kind === "user"
             ? (userNames.find((u) => u.id === t.ref)?.name ?? "Removed person")
             : t.kind === "slack_channel"
               ? `#${t.label ?? t.ref} (Slack)`

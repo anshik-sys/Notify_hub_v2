@@ -16,7 +16,7 @@ export default async function UserDetail(props: PageProps<"/users/[id]">) {
   const roles = can(access, "users.manage_roles") ? await visibleRoles(companyId) : [];
 
   return (
-    <Page title={person.name} back={{ href: "/users", label: "People" }} error={firstParam(error)} notice={firstParam(notice)}>
+    <Page title={person.name} back={{ href: "/users", label: "Team" }} error={firstParam(error)} notice={firstParam(notice)}>
       <Hint>
         {person.email}
         {person.deactivatedAt && " · Deactivated"}

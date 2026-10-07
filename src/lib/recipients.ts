@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
-import { departmentMembers, user } from "@/db/schema";
+import { departmentMembers, groupMembers, user } from "@/db/schema";
 
 // Imports only the schema: the worker uses this too and must not pull in the
 // web app's DB client.
@@ -12,7 +12,7 @@ export type Tx = PgTransaction<any, any, any>;
 // slack_channel targets don't resolve to people (the worker posts to the
 // channel); label is the channel name, for display.
 export type Target = {
-  kind: "user" | "department" | "company" | "email" | "slack_channel";
+  kind: "user" | "department" | "group" | "company" | "email" | "slack_channel";
   ref: string | null;
   label?: string | null;
 };
@@ -30,7 +30,7 @@ export async function resolveRecipients(tx: Tx, companyId: string, targets: Targ
   if (targets.some((t) => t.kind === "company")) {
     rows = await tx.select(pick).from(user).where(active);
   } else {
-    const [userIds, deptIds] = [refs("user"), refs("department")];
+    const [userIds, deptIds, groupIds] = [refs("user"), refs("department"), refs("group")];
     if (userIds.length) rows.push(...(await tx.select(pick).from(user).where(and(active, inArray(user.id, userIds)))));
     if (deptIds.length)
       rows.push(
@@ -39,6 +39,14 @@ export async function resolveRecipients(tx: Tx, companyId: string, targets: Targ
           .from(departmentMembers)
           .innerJoin(user, eq(user.id, departmentMembers.userId))
           .where(and(active, eq(departmentMembers.companyId, companyId), inArray(departmentMembers.departmentId, deptIds)))),
+      );
+    if (groupIds.length)
+      rows.push(
+        ...(await tx
+          .select(pick)
+          .from(groupMembers)
+          .innerJoin(user, eq(user.id, groupMembers.userId))
+          .where(and(active, eq(groupMembers.companyId, companyId), inArray(groupMembers.groupId, groupIds)))),
       );
   }
   // A typed email belonging to a company member is that member.

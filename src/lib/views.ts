@@ -101,12 +101,14 @@ export async function searchReminders(companyId: string, viewer: Viewer, timeZon
         sql`${reminders.description} ilike ${like}`,
         sql`${reminders.shortId} ilike ${like}`,
         sql`exists (select 1 from unnest(${reminders.tags}) tg where tg ilike ${like})`,
-        // Recipients: typed emails and channel names, people and departments by name.
+        // Recipients: typed emails and channel names; people, departments and groups by name.
         sql`exists (select 1 from reminder_targets t
           left join "user" u on t.kind = 'user' and u.id = t.ref
           left join departments dp on t.kind = 'department' and dp.id::text = t.ref
+          left join groups g on t.kind = 'group' and g.id::text = t.ref
           where t.reminder_id = ${reminders.id}
-            and (t.ref ilike ${like} or t.label ilike ${like} or u.name ilike ${like} or u.email ilike ${like} or dp.name ilike ${like}))`,
+            and (t.ref ilike ${like} or t.label ilike ${like} or u.name ilike ${like} or u.email ilike ${like}
+              or dp.name ilike ${like} or g.name ilike ${like}))`,
       ),
     );
   }

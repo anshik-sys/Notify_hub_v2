@@ -46,6 +46,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           links: r.links,
           company: r.targets.some((t) => t.kind === "company"),
           departmentIds: refs("department"),
+          groupIds: refs("group"),
           userIds: refs("user"),
           emails: refs("email").join("\n"),
           // A "Now" reminder (or one whose time has passed while it waited for

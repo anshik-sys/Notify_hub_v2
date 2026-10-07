@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import { db, withTenant } from "./index";
-import { attachmentBlobs, attachments, departments, notificationMutes, notifications, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
+import { attachmentBlobs, attachments, departments, groupMembers, groups, notificationMutes, notifications, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
 import { ALL_PERMISSIONS, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "@/lib/permissions";
 
 // Seeds as the owner (bypasses RLS), then reads through the app role.
@@ -13,7 +13,7 @@ const a = randomUUID();
 const b = randomUUID();
 
 after(async () => {
-  for (const table of ["notifications", "notification_mutes", "slack_installations", "reminders", "department_members", "user_roles", "roles", "departments"]) {
+  for (const table of ["groups", "notifications", "notification_mutes", "slack_installations", "reminders", "department_members", "user_roles", "roles", "departments"]) {
     await owner.query(`delete from ${table} where company_id = any($1)`, [[a, b]]);
   }
   await owner.query(`delete from "user" where company_id = any($1)`, [[a, b]]);
@@ -84,6 +84,11 @@ test("slack installations and task assignments are tenant-isolated", async () =>
   await owner.query("insert into notification_mutes values ($1, $2, 'mention', 'email')", [b, `u-${b}`]);
   assert.equal((await withTenant(a, (tx) => tx.select().from(notifications))).length, 0);
   assert.equal((await withTenant(a, (tx) => tx.select().from(notificationMutes))).length, 0);
+  const [{ id: gb }] = (await owner.query("insert into groups (company_id, name) values ($1, 'B group') returning id", [b])).rows;
+  await owner.query("insert into group_members values ($1, $2, $3)", [gb, b, `u-${b}`]);
+  assert.equal((await withTenant(a, (tx) => tx.select().from(groups))).length, 0);
+  assert.equal((await withTenant(a, (tx) => tx.select().from(groupMembers))).length, 0);
+  await assert.rejects(withTenant(a, (tx) => tx.insert(groupMembers).values({ groupId: gb, companyId: b, userId: `u-${b}` })));
   await assert.rejects(withTenant(a, (tx) => tx.insert(notificationMutes).values({ companyId: b, userId: `u-${b}`, event: "x", channel: "email" })));
   await assert.rejects(
     withTenant(a, (tx) =>
@@ -134,7 +139,7 @@ test("loadAccess: admin gets everything, member its role, manager its department
   assert.equal(adminAccess.permissions.size, ALL_PERMISSIONS.length);
 
   const memberAccess = await loadAccess(a, member);
-  assert.deepEqual([...memberAccess.permissions].sort(), ["departments.view", "reminders.create", "reminders.view", "users.view"]);
+  assert.deepEqual([...memberAccess.permissions].sort(), ["departments.view", "groups.create", "reminders.create", "reminders.view", "users.view"]);
   assert.deepEqual([...memberAccess.managedDepartments], [rows[0].id]);
 
   // Same user id asked under another tenant: nothing.
