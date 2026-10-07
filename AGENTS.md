@@ -11,6 +11,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 # Rules for this repo
 
 - Follow `WORKING_AGREEMENT.md`. Never commit; no attribution trailers.
+- End every completed step with a **Next step**: one recommendation for what to build next and why it comes first. It goes after the commit message.
 - Next.js 16, React 19, Drizzle 0.45, pg-boss 12. Check `node_modules` docs, not memory.
 - Import alias: `@/*` -> `src/*`.
 - **Styling: plain CSS Modules, no Tailwind.** Each component gets its own
