@@ -8,6 +8,7 @@ import { lookupByEmail, openDm, postMessage, reminderMessage, SlackError, upload
 import { between, nextAfter } from "@/lib/recurrence";
 import { formatInZone } from "@/lib/time";
 import { sendMail } from "@/lib/mail";
+import { addNotifications } from "@/lib/notifications";
 import { resolveRecipients } from "@/lib/recipients";
 import { ownerDb } from "./db";
 
@@ -67,6 +68,18 @@ async function createOccurrence(tx: Tx, r: Reminder, occursAt: Date) {
       ...targets.filter((t) => t.kind === "slack_channel").map((t) => ({ channel: "slack" as const, address: t.ref!, userId: null })),
     );
   }
+  // The notification centre: once per person, whatever the channels.
+  await addNotifications(
+    tx,
+    users.map((u) => ({
+      companyId: r.companyId,
+      userId: u.id,
+      kind: r.isTask ? "task" : "reminder",
+      reminderId: r.id,
+      text: r.isTask ? `${r.senderName} assigned you a task` : `${r.senderName} sent you a reminder`,
+      dedupeKey: `occ:${occ.id}`,
+    })),
+  );
   // A task's assignees: every internal recipient, once, whatever the channels.
   if (r.isTask && users.length)
     await tx
@@ -319,6 +332,7 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
       .set({ status: final ? "failed" : "queued", lastError: String((e as Error).message ?? e).slice(0, 500) })
       .where(eq(deliveries.id, d.id));
     if (final) {
+      await notifyFailed(d);
       await finish(d);
       return "failed";
     }
@@ -332,6 +346,22 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
   return "sent";
 }
 
+// Tells the creator, once per occurrence however many deliveries failed.
+async function notifyFailed(d: { companyId: string; reminderId: string; occurrenceId: string }) {
+  const [r] = await ownerDb.select({ createdBy: reminders.createdBy }).from(reminders).where(eq(reminders.id, d.reminderId));
+  if (!r) return;
+  await addNotifications(ownerDb, [
+    {
+      companyId: d.companyId,
+      userId: r.createdBy,
+      kind: "failed",
+      reminderId: d.reminderId,
+      text: "Some deliveries failed",
+      dedupeKey: `failed:${d.occurrenceId}`,
+    },
+  ]).catch((e) => console.error("failed-delivery notification", e));
+}
+
 // Each tick: fail rows stuck in `sending`, and return queued rows that lost
 // their job (e.g. enqueue failed after dispatch committed) for re-enqueueing.
 export async function sweep() {
@@ -339,8 +369,11 @@ export async function sweep() {
     .update(deliveries)
     .set({ status: "failed", lastError: "Outcome unknown: the worker stopped mid-send. Not resent, to avoid a duplicate." })
     .where(and(eq(deliveries.status, "sending"), lt(deliveries.updatedAt, new Date(Date.now() - STUCK_AFTER_MS))))
-    .returning({ reminderId: deliveries.reminderId, occurrenceId: deliveries.occurrenceId });
-  for (const d of stuck) await finish(d);
+    .returning({ companyId: deliveries.companyId, reminderId: deliveries.reminderId, occurrenceId: deliveries.occurrenceId });
+  for (const d of stuck) {
+    await notifyFailed(d);
+    await finish(d);
+  }
 
   const orphans = await ownerDb
     .select({ id: deliveries.id })

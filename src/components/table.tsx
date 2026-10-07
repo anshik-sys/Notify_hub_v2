@@ -4,7 +4,9 @@
 import Link from "next/link";
 import styles from "./table.module.css";
 
-export type TableRow = { key: string; href?: string; cells: React.ReactNode[] };
+// plain: a full page load with no prefetch, for links to routes that change
+// something when opened (e.g. marking a notification read).
+export type TableRow = { key: string; href?: string; plain?: boolean; cells: React.ReactNode[] };
 
 export function Table({ columns, rows, empty }: { columns: string[]; rows: TableRow[]; empty?: string }) {
   if (rows.length === 0 && empty) return <p className={styles.empty}>{empty}</p>;
@@ -25,7 +27,11 @@ export function Table({ columns, rows, empty }: { columns: string[]; rows: Table
             <tr key={r.key} className={r.href ? `${styles.tr} ${styles.linked}` : styles.tr}>
               {r.cells.map((cell, i) => (
                 <td key={i} className={i === 0 ? `${styles.td} ${styles.first}` : styles.td}>
-                  {i === 0 && r.href ? (
+                  {i === 0 && r.href && r.plain ? (
+                    <a href={r.href} className={styles.link}>
+                      {cell}
+                    </a>
+                  ) : i === 0 && r.href ? (
                     <Link href={r.href} className={styles.link}>
                       {cell}
                     </Link>

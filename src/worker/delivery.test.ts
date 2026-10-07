@@ -58,6 +58,10 @@ test("dispatch: parallel runs make one delivery per recipient", async () => {
   assert.equal(await dispatchDue(enqueue, s.companyId, inTwoHours), 0); // nothing left due
   const occ = await q("select status from reminder_occurrences where reminder_id = $1", [reminderId]);
   assert.deepEqual(occ, [{ status: "sending" }]);
+  // One notification per person (alice, bob), not per channel; none for the external address.
+  const n = await q("select user_id, kind from notifications where reminder_id = $1", [reminderId]);
+  assert.equal(n.length, 2);
+  assert.ok(n.every((x) => x.kind === "reminder"));
 });
 
 test("deliver: one email even when claimed twice; retries then fails", async () => {
@@ -76,6 +80,9 @@ test("deliver: one email even when claimed twice; retries then fails", async () 
   await q("update deliveries set attempts = $2 where id = $1", [second.id, MAX_ATTEMPTS - 1]);
   assert.equal(await deliverOne(second.id, failingSend), "failed");
   assert.equal(await deliverOne(second.id), "skipped"); // failed is final
+  assert.deepEqual(await q("select user_id, kind from notifications where reminder_id = $1 and kind = 'failed'", [reminderId]), [
+    { user_id: creator, kind: "failed" },
+  ]);
 
   assert.deepEqual((await q("select status from reminders where id = $1", [reminderId]))[0], { status: "sending" });
   assert.equal(await deliverOne(third.id), "sent");
@@ -102,6 +109,8 @@ test("sweep: stuck sends fail (never resent), old queued rows come back for re-e
   assert.equal(row.status, "failed");
   assert.match(row.last_error, /Not resent/);
   assert.equal(await mailpit(`stuck@${s.domain}`), 0);
+  // Another failure on the same occurrence: still one notification.
+  assert.equal((await q("select 1 from notifications where reminder_id = $1 and kind = 'failed'", [reminderId])).length, 1);
 });
 
 // A daily series anchored at a fixed UTC time; "now" for dispatch is passed
@@ -431,6 +440,7 @@ test("send now on a repeating task: one extra occurrence, schedule untouched", a
   const [r] = await q("select send_at, send_now_at, status from reminders where id = $1", [id]);
   assert.deepEqual([r.send_at.getTime(), r.send_now_at, r.status], [before, null, "scheduled"]);
   assert.equal((await q("select 1 from task_assignments where reminder_id = $1", [id])).length, 1);
+  assert.deepEqual(await q("select user_id, kind from notifications where reminder_id = $1", [id]), [{ user_id: alice, kind: "task" }]);
   assert.equal(await dispatchManual(enqueue, s.companyId), 0); // nothing left
   await q("update reminders set status = 'cancelled' where id = $1", [id]);
 });

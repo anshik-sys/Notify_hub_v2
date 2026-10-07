@@ -4,6 +4,7 @@ import { reminderOccurrences, reminders, slackInstallations, taskAssignments, us
 import { authDb } from "./auth";
 import { decrypt } from "./crypto";
 import { respond, updateMessage, usersInfo, withStatus } from "./slack";
+import { notifyIfAllDone } from "./tasks";
 import { formatInZone, toLocalInput, zonedToUtc } from "./time";
 
 // A Mark done / Snooze click. The button's value is the occurrence; the person
@@ -50,7 +51,10 @@ export async function handleTaskAction(c: Click, f?: typeof fetch, now = new Dat
       .for("update", { of: taskAssignments });
     if (!row) return null;
     if (c.actionId === "task_done") {
-      if (!row.a.doneAt) await tx.update(taskAssignments).set({ doneAt: now, snoozedUntil: null }).where(eq(taskAssignments.id, row.a.id));
+      if (!row.a.doneAt) {
+        await tx.update(taskAssignments).set({ doneAt: now, snoozedUntil: null }).where(eq(taskAssignments.id, row.a.id));
+        await notifyIfAllDone(tx, inst.companyId, c.occurrenceId);
+      }
       return { ...row, doneAt: row.a.doneAt ?? now, until: null };
     }
     if (row.a.doneAt) return { ...row, doneAt: row.a.doneAt, until: null };

@@ -66,3 +66,15 @@ test("open tasks and a fresh second occurrence", async () => {
   assert.equal(mine?.dueAt?.toISOString(), "2026-01-08T10:00:00.000Z");
   assert.equal((await myOpenTasks(s.companyId, bob)).length, 1);
 });
+
+test("the creator hears once when everyone is done", async () => {
+  const done = async () => (await q("select kind from notifications where user_id = $1 and kind = 'tasks_done'", [alice])).length;
+  await q("update task_assignments set done_at = null where occurrence_id = $1", [occ1]); // fresh start
+  assert.equal(await setDone(alice, s.companyId, dA, true), null);
+  assert.equal(await done(), 0);
+  assert.equal(await setDone(bob, s.companyId, dB, true), null);
+  assert.equal(await done(), 1);
+  await setDone(bob, s.companyId, dB, false);
+  await setDone(bob, s.companyId, dB, true);
+  assert.equal(await done(), 1); // undo and redo: still once
+});

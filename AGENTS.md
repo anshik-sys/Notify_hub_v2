@@ -42,6 +42,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - A new integration secret: store it with `encrypt()` (`src/lib/crypto.ts`), never in plain text.
 - Migrations that rename a column: drizzle-kit asks interactively. Keep renames in their own migration (see 0012) and answer the prompt (`expect`), or it may drop and recreate the column.
 - File bytes: only through `src/lib/storage.ts`. Validate every upload with `checkFile` (`src/lib/attachments.ts`) before saving; never trust the extension or the browser's Content-Type.
+- A new event a person should hear about: write it with `addNotifications` (`src/lib/notifications.ts`) in the event's transaction. If it also goes by email or Slack, add it to `MUTABLE` and check `mutedFor` before sending. Reminders and tasks themselves are never mutable.
 - Mail goes through `sendMail()` in `src/lib/mail.ts`, one recipient per call. Dev mail lands in Mailpit (http://localhost:8025).
 - Do not "simplify" the three DB roles, the transaction-local `set_config`, or the `nullif` in the policy. See README.
 - `pnpm typecheck` runs `next typegen` first; plain `tsc` fails on `LayoutProps`.

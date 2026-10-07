@@ -67,6 +67,18 @@
   box-shadow: 0 0 0 1px var(--border);
 }
 
+.count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  font-size: 0.75rem;
+  line-height: 20px;
+  text-align: center;
+}
+
 .content {
   min-width: 0;
   padding: 32px 40px 48px;

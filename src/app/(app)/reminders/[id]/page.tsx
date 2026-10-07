@@ -7,6 +7,7 @@ import { can } from "@/lib/permissions";
 import { describe } from "@/lib/recurrence";
 import { deliveryLog, getReminder, isDelayed, listAttachments, reminderAccess, statusLabel } from "@/lib/reminders";
 import { formatSize } from "@/lib/format";
+import { markReadForReminder } from "@/lib/notifications";
 import { requireMember } from "@/lib/session";
 import { myTaskStatus, taskProgress } from "@/lib/tasks";
 import { formatInZone } from "@/lib/time";
@@ -29,6 +30,8 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   const r = await getReminder(companyId, id);
   const seeAs = r && (await reminderAccess(companyId, { id: user.id, email: user.email, access }, r));
   if (!r || !seeAs) notFound();
+  // Arriving from an email or Slack link reads what I was told about it.
+  await markReadForReminder(companyId, user.id, r.id);
   // Recipients see the reminder itself; the log and recipient list are for its owners.
   const log = seeAs === "full" ? await deliveryLog(companyId, r.id) : null;
   // Owners see everyone's progress on the latest occurrence; anyone assigned sees their own.

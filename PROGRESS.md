@@ -2,6 +2,58 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — notification centre and preferences (PRD 7.5)
+
+- **What's in place:**
+  - "Notifications" in the sidebar with an unread count;
+  - a list of what's new for me: reminders and tasks sent to me, approvals
+    waiting on me, mentions, comments on my reminders, my reminder
+    approved/rejected, everyone done on my task, deliveries that failed;
+  - "Mark all read", and "Show older" past 50;
+  - Notifications → Preferences: email/Slack on or off for approvals,
+    decisions and mentions.
+- **Decided with the user:** preferences cover NotifyHub's own messages
+  only. Reminders and tasks arrive the way the sender chose; nobody can mute
+  company comms. In-app is always on.
+- **Written at event time, not derived on read.** Reading "what's new" from
+  six tables per page load would be slow and hard to mark read. Each writer
+  inserts in the event's own transaction:
+  - dispatch writes one per person per occurrence (not per channel), so it's
+    exactly-once along with the deliveries;
+  - "failed" and "all done" are once per occurrence via a dedupe key;
+  - "all done" locks the occurrence, so two people finishing at the same
+    moment don't both miss it.
+- **Deliberately not per-person "done":** a 100-person task would bury
+  everything else. The creator hears once, when the last one is done.
+- **Opening a notification is a small GET route** that marks it read and
+  redirects. Marking it read inside the reminder page wouldn't do: the layout
+  (which shows the count) renders alongside the page, so the count would be
+  stale on arrival. The list uses a plain link, because a prefetching `<Link>`
+  could mark things read just by showing them. Arriving from an email link
+  still marks it read on the reminder page; the count catches up on the next
+  click.
+- **Verified against `next start` + worker + Mailpit:**
+  - a reminder to Ops → bob "1 unread"; clicking it → the reminder, and the
+    badge gone; alice opening bob's notification → 404;
+  - a task to bob and carol → carol has "task"; alice's "all done" stays 0
+    after bob, then 1 after carol;
+  - an out-of-scope reminder → the admin gets an in-app approval plus
+    1 email; the admin turns emails off → the next one is in-app only (2 in
+    the app, still 1 email); the reject → alice sees "Rejected: Wrong team";
+  - carol mentioning bob → bob gets "mention" (it links to the comment)
+    plus an email; alice (the creator) gets "comment";
+  - alice's "Mark all read" → no badge; bob's unread untouched.
+
+  86 tests pass (new: `notifications.test.ts`, plus cases in delivery,
+  reminders, comments, tasks and `rls.test.ts`).
+- **Not in this step:**
+  - live push: the count updates as you move around, with no polling (add
+    it if people ask);
+  - per-item "mark unread";
+  - cleanup of old rows;
+  - Slack for approvals and decisions;
+  - the person's own time zone (times show in the company's).
+
 ## 2026-10-07 — preview, send now, send a test (PRD 5.12)
 
 - **What's in place:**

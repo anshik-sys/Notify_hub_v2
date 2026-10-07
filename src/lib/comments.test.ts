@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { authDb } from "./auth";
 import { addComment, deleteComment, editComment, listComments } from "./comments";
 import { COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "./permissions";
+import { setMutes } from "./notifications";
 import { seeder } from "./test-helpers";
 
 const s = seeder();
@@ -124,4 +125,23 @@ test("edit and delete permissions; soft delete keeps replies", async () => {
     ((await addComment(await actor(bob), s.companyId, reminderId, { body: "x", parentId: top.id, mentionIds: [] })) as { error: string }).error,
     /was deleted/,
   );
+});
+
+test("notifications: mentions in-app (email unless muted); the creator hears about new comments", async () => {
+  await q("delete from notifications where company_id = $1", [s.companyId]);
+  mails.length = 0;
+  await setMutes(s.companyId, bob, ["mention:email"]);
+  const kinds = async (userId: string) => (await q("select kind from notifications where user_id = $1 order by created_at", [userId])).map((x) => x.kind);
+  const c = await addComment(await actor(alice), s.companyId, reminderId, { body: `@${name(bob)} look`, mentionIds: [bob] }, { send });
+  assert.ok("id" in c);
+  assert.deepEqual(await kinds(bob), ["mention"]);
+  assert.deepEqual(mails, []); // bob muted mention emails
+  assert.deepEqual(await kinds(creator), ["comment"]);
+  // Mentioning the creator: one "mention", no extra "comment".
+  await addComment(await actor(alice), s.companyId, reminderId, { body: `@${name(creator)} ok?`, mentionIds: [creator] }, { send });
+  assert.deepEqual(await kinds(creator), ["comment", "mention"]);
+  // The creator's own comment notifies nobody.
+  await addComment(await actor(creator), s.companyId, reminderId, { body: "noted", mentionIds: [] }, { send });
+  assert.deepEqual(await kinds(creator), ["comment", "mention"]);
+  await setMutes(s.companyId, bob, []);
 });

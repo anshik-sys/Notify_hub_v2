@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { commentMentions, comments, reminders, user } from "@/db/schema";
 import { sendMail } from "./mail";
+import { addNotifications, mutedFor } from "./notifications";
 import { type Access, can, loadAccess } from "./permissions";
 import { reminderAccess } from "./reminders";
 import { lookupByEmail, openDm, postMessage } from "./slack";
@@ -55,7 +56,8 @@ async function cleanMentions(companyId: string, body: string, ids: string[]) {
   return people.filter((p) => body.includes(`@${p.name}`));
 }
 
-// Notifies the people who can see the reminder; returns the names of those who can't.
+// Notifies the people who can see the reminder: in-app always, email and Slack
+// unless muted. Returns the names of those who can't see it, and the ids told.
 async function notify(
   companyId: string,
   author: Actor,
@@ -69,6 +71,7 @@ async function notify(
   const url = `${process.env.BETTER_AUTH_URL}/reminders/${reminder.id}#comment-${commentId}`;
   const quote = body.length > 500 ? `${body.slice(0, 500)}…` : body;
   const inst = await getInstallation(companyId).catch(() => null);
+  const told: string[] = [];
   for (const p of people) {
     if (p.id === author.id) continue;
     const viewer = { id: p.id, email: p.email, access: await loadAccess(companyId, p.id) };
@@ -76,14 +79,33 @@ async function notify(
       skipped.push(p.name);
       continue;
     }
+    told.push(p.id);
+  }
+  const muted = await withTenant(companyId, async (tx) => {
+    await addNotifications(
+      tx,
+      told.map((userId) => ({
+        companyId,
+        userId,
+        kind: "mention",
+        reminderId: reminder.id,
+        commentId,
+        actorId: author.id,
+        text: `${author.name} mentioned you: ${short(body)}`,
+      })),
+    );
+    return mutedFor(tx, told, "mention");
+  });
+  for (const p of people.filter((x) => told.includes(x.id))) {
     const text = `${author.name} mentioned you on "${reminder.title}":\n\n${quote}`;
-    await (deps.send ?? sendMail)({
-      to: p.email,
-      subject: `${author.name} mentioned you: ${reminder.title}`,
-      text,
-      links: [{ label: "Open the discussion", url }],
-    }).catch((e) => console.error("mention email failed", e));
-    if (inst)
+    if (!muted.has(`${p.id}:email`))
+      await (deps.send ?? sendMail)({
+        to: p.email,
+        subject: `${author.name} mentioned you: ${reminder.title}`,
+        text,
+        links: [{ label: "Open the discussion", url }],
+      }).catch((e) => console.error("mention email failed", e));
+    if (inst && !muted.has(`${p.id}:slack`))
       try {
         const token = inst.token();
         const slackUser = await lookupByEmail(token, p.email, deps.slackFetch);
@@ -98,8 +120,10 @@ async function notify(
         console.error("mention Slack DM failed", e);
       }
   }
-  return skipped;
+  return { skipped, told };
 }
+
+const short = (body: string) => (body.length > 140 ? `${body.slice(0, 140)}…` : body);
 
 export async function addComment(
   actor: Actor,
@@ -129,7 +153,24 @@ export async function addComment(
         await tx.insert(commentMentions).values(people.map((p) => ({ commentId: row.id, companyId, userId: p.id })));
       return row.id;
     });
-    return { id, skipped: await notify(companyId, actor, reminder, id, body, people, deps) };
+    const { skipped, told } = await notify(companyId, actor, reminder, id, body, people, deps);
+    // The creator hears about every new comment by someone else (in-app only),
+    // unless this one already mentioned them.
+    if (reminder.createdBy !== actor.id && !told.includes(reminder.createdBy))
+      await withTenant(companyId, (tx) =>
+        addNotifications(tx, [
+          {
+            companyId,
+            userId: reminder.createdBy,
+            kind: "comment",
+            reminderId,
+            commentId: id,
+            actorId: actor.id,
+            text: `${actor.name} commented: ${short(body)}`,
+          },
+        ]),
+      );
+    return { id, skipped };
   });
   return result;
 }
@@ -157,7 +198,7 @@ export async function editComment(
     });
     // Only people newly mentioned by this edit hear about it.
     const fresh = people.filter((p) => !before.has(p.id));
-    return { id: commentId, reminderId: c.reminderId, skipped: await notify(companyId, actor, reminder, commentId, body, fresh, deps) };
+    return { id: commentId, reminderId: c.reminderId, skipped: (await notify(companyId, actor, reminder, commentId, body, fresh, deps)).skipped };
   });
 }
 

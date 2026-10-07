@@ -307,3 +307,16 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
 - **"Send me a test" isn't a delivery.** It sends from the web process, to the
   clicking user only, and writes no `deliveries`, occurrences or task rows, so
   it never shows in counts, history or follow-ups.
+- **Notifications (PRD 7.5) are rows written when the event happens**, in the
+  same transaction as the event where possible (the occurrence, the decision,
+  the task update). A `dedupe_key` (`occ:`, `done:`, `failed:` + occurrence id)
+  makes repeatable writers (worker retries, undo/redo) insert once.
+- **Preferences are opt-out rows** (`notification_mutes`; no row = on), and
+  they only cover NotifyHub's own messages: approvals, decisions, mentions.
+  Reminders and tasks always arrive the way the sender chose (decided with the
+  user). In-app is always on.
+- **Opening a notification goes through `GET /notifications/[id]`**, which
+  marks it read and redirects. The sidebar count is rendered by the layout,
+  which runs alongside the page, so marking read inside the reminder page
+  would leave the count stale for that load. The list uses a plain `<a>` (no
+  prefetch), so only a real click marks it read.

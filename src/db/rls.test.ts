@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import { db, withTenant } from "./index";
-import { attachmentBlobs, attachments, departments, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
+import { attachmentBlobs, attachments, departments, notificationMutes, notifications, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
 import { ALL_PERMISSIONS, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "@/lib/permissions";
 
 // Seeds as the owner (bypasses RLS), then reads through the app role.
@@ -13,7 +13,7 @@ const a = randomUUID();
 const b = randomUUID();
 
 after(async () => {
-  for (const table of ["slack_installations", "reminders", "department_members", "user_roles", "roles", "departments"]) {
+  for (const table of ["notifications", "notification_mutes", "slack_installations", "reminders", "department_members", "user_roles", "roles", "departments"]) {
     await owner.query(`delete from ${table} where company_id = any($1)`, [[a, b]]);
   }
   await owner.query(`delete from "user" where company_id = any($1)`, [[a, b]]);
@@ -80,6 +80,11 @@ test("slack installations and task assignments are tenant-isolated", async () =>
   assert.equal((await withTenant(a, (tx) => tx.select().from(taskAssignments))).length, 0);
   assert.equal((await withTenant(a, (tx) => tx.select().from(attachments))).length, 0);
   assert.equal((await withTenant(a, (tx) => tx.select().from(attachmentBlobs))).length, 0);
+  await owner.query("insert into notifications (company_id, user_id, kind, text) values ($1, $2, 'reminder', 'B only')", [b, `u-${b}`]);
+  await owner.query("insert into notification_mutes values ($1, $2, 'mention', 'email')", [b, `u-${b}`]);
+  assert.equal((await withTenant(a, (tx) => tx.select().from(notifications))).length, 0);
+  assert.equal((await withTenant(a, (tx) => tx.select().from(notificationMutes))).length, 0);
+  await assert.rejects(withTenant(a, (tx) => tx.insert(notificationMutes).values({ companyId: b, userId: `u-${b}`, event: "x", channel: "email" })));
   await assert.rejects(
     withTenant(a, (tx) =>
       tx.insert(slackInstallations).values({ companyId: b, teamId: "T-other", teamName: "x", botTokenEnc: "x", botUserId: "U" }),

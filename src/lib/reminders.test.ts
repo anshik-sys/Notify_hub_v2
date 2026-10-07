@@ -21,6 +21,7 @@ import {
 } from "./reminders";
 import { checkFile } from "./attachments";
 import { resolveRecipients } from "./recipients";
+import { setMutes } from "./notifications";
 import { seeder } from "./test-helpers";
 import { toLocalInput } from "./time";
 
@@ -416,4 +417,18 @@ test("attachments: saved with the reminder, removable, capped, tenant-isolated",
   assert.match((await updateReminder(me, s.companyId, created.id, { ...base, title: "Too many" }, many))!, /at most 20/);
   assert.equal((await getReminder(s.companyId, created.id))!.title, "With files"); // rolled back
   assert.equal((await listAttachments(s.companyId, created.id)).length, 2);
+});
+
+test("notifications: approvers in-app (email unless muted); the creator hears the decision", async () => {
+  const q = async (sql: string, params: unknown[] = []) => (await s.owner.query(sql, params)).rows;
+  const input = { title: "N", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets: [{ kind: "department" as const, ref: sales }] };
+  await setMutes(s.companyId, admin, ["approval:email", "decided:email"]);
+  const r = await createReminder(await actor(alice), s.companyId, input);
+  assert.ok("id" in r);
+  const kinds = async (userId: string) => (await q("select kind from notifications where reminder_id = $1 and user_id = $2", [r.id, userId])).map((x) => x.kind);
+  assert.deepEqual(await kinds(admin), ["approval"]); // muted email, still in-app
+  assert.equal(await decideReminder(await actor(admin), s.companyId, r.id, false, "No"), null);
+  assert.deepEqual(await kinds(alice), ["decided"]);
+  assert.match((await q("select text from notifications where reminder_id = $1 and user_id = $2", [r.id, alice]))[0].text, /Rejected: No/);
+  await setMutes(s.companyId, admin, []);
 });

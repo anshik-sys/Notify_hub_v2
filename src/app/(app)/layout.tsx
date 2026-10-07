@@ -1,3 +1,4 @@
+import { unreadCount } from "@/lib/notifications";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import styles from "./layout.module.css";
@@ -7,7 +8,9 @@ import { NavLink } from "./nav-link";
 // page beside it. Below 768px the sidebar becomes a top bar.
 // Links are hidden by permission for tidiness only; every page checks again.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { company, access } = await requireMember();
+  const { user, companyId, company, access } = await requireMember();
+  // Fresh on every navigation; no polling (add it if people ask).
+  const unread = await unreadCount(companyId, user.id);
 
   return (
     <div className={styles.shell}>
@@ -19,6 +22,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <nav className={styles.nav} aria-label="Main">
           <NavLink href="/" icon="home">
             Home
+          </NavLink>
+          <NavLink href="/notifications" icon="notifications" count={unread}>
+            Notifications
           </NavLink>
           {(can(access, "reminders.create") || can(access, "reminders.view_all")) && (
             <NavLink href="/reminders" icon="reminders">

@@ -518,3 +518,53 @@ export const commentMentions = pgTable(
   },
   (t) => [primaryKey({ columns: [t.commentId, t.userId] }), tenantPolicy("company_id")],
 ).enableRLS();
+
+// In-app notification centre (PRD 7.5). One row per person per event, written
+// when the event happens. dedupe_key makes repeatable events (worker retries,
+// undo/redo) insert once.
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: text().notNull(),
+    reminderId: uuid().references(() => reminders.id, { onDelete: "cascade" }),
+    commentId: uuid().references(() => comments.id, { onDelete: "cascade" }),
+    actorId: text().references(() => user.id, { onDelete: "set null" }),
+    text: text().notNull(),
+    dedupeKey: text(),
+    createdAt: ts().notNull().defaultNow(),
+    readAt: ts(),
+  },
+  (t) => [
+    index().on(t.userId, t.createdAt.desc()),
+    index("notifications_unread_idx").on(t.userId).where(isNull(t.readAt)),
+    uniqueIndex().on(t.userId, t.dedupeKey),
+    check(
+      "notifications_kind_valid",
+      sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed')`,
+    ),
+    tenantPolicy("company_id"),
+  ],
+).enableRLS();
+
+// Opt-outs: a row turns one event off on one channel. No row = on.
+export const notificationMutes = pgTable(
+  "notification_mutes",
+  {
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    event: text().notNull(),
+    channel: text().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.event, t.channel] }), tenantPolicy("company_id")],
+).enableRLS();

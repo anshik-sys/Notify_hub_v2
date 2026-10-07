@@ -4,6 +4,7 @@ import { withTenant } from "@/db";
 import { attachments, deliveries, departmentMembers, departments, reminderOccurrences, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
+import { addNotifications, mutedFor } from "./notifications";
 import { putBlob } from "./storage";
 import { resolveRecipients, type Target, type Tx } from "./recipients";
 import { type Access, can, COMPANY_ADMIN_ROLE_ID, loadAccess } from "./permissions";
@@ -203,9 +204,11 @@ export async function outOfScope(tx: Tx, companyId: string, actor: Actor, target
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"; // Crockford base32: no I, L, O, U
 const shortId = () => `R-${[...randomBytes(6)].map((b) => ALPHABET[b % 32]).join("")}`;
 
-async function approverEmails(tx: Tx) {
+// Every approver gets it in the notification centre; returns the emails of
+// those who haven't muted approval emails.
+async function approverEmails(tx: Tx, companyId: string, reminderId: string) {
   const rows = await tx
-    .selectDistinct({ email: user.email })
+    .selectDistinct({ id: user.id, email: user.email })
     .from(userRoles)
     .innerJoin(roles, eq(roles.id, userRoles.roleId))
     .innerJoin(user, eq(user.id, userRoles.userId))
@@ -215,7 +218,16 @@ async function approverEmails(tx: Tx) {
         or(eq(roles.id, COMPANY_ADMIN_ROLE_ID), sql`'reminders.approve' = any(${roles.permissions})`),
       ),
     );
-  return rows.map((r) => r.email);
+  await addNotifications(
+    tx,
+    rows.map((r) => ({ companyId, userId: r.id, kind: "approval", reminderId, text: "Needs your approval" })),
+  );
+  const muted = await mutedFor(
+    tx,
+    rows.map((r) => r.id),
+    "approval",
+  );
+  return rows.filter((r) => !muted.has(`${r.id}:email`)).map((r) => r.email);
 }
 
 async function notifyApprovers(emails: string[], title: string, id: string) {
@@ -312,7 +324,7 @@ export async function createReminder(actor: Actor, companyId: string, input: Rem
       await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
       await saveAttachments(tx, companyId, id, actor.id, files, []);
       await notifyIfDue(tx, status, input.sendAt);
-      return { id, approvers: status === "pending_approval" ? await approverEmails(tx) : [] };
+      return { id, approvers: status === "pending_approval" ? await approverEmails(tx, companyId, id) : [] };
     }),
   );
   if ("error" in result) return result;
@@ -375,7 +387,7 @@ export async function updateReminder(
       await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
       await saveAttachments(tx, companyId, id, actor.id, files, removeAttachmentIds);
       await notifyIfDue(tx, status, input.sendAt);
-      return { approvers: status === "pending_approval" ? await approverEmails(tx) : [] };
+      return { approvers: status === "pending_approval" ? await approverEmails(tx, companyId, id) : [] };
     }),
   );
   if ("error" in result) return result.error;
@@ -417,7 +429,18 @@ export async function decideReminder(actor: Actor, companyId: string, id: string
         .where(eq(reminders.id, id));
       if (approve) await notifyIfDue(tx, "scheduled", current.sendAt);
       const [creator] = await tx.select({ email: user.email }).from(user).where(eq(user.id, current.createdBy));
-      return { title: current.title, creatorEmail: creator?.email };
+      await addNotifications(tx, [
+        {
+          companyId,
+          userId: current.createdBy,
+          kind: "decided",
+          reminderId: id,
+          actorId: actor.id,
+          text: approve ? "Approved" : `Rejected: ${reason}`,
+        },
+      ]);
+      const muted = await mutedFor(tx, [current.createdBy], "decided");
+      return { title: current.title, creatorEmail: muted.size ? undefined : creator?.email };
     }),
   );
   if ("error" in result) return result.error;

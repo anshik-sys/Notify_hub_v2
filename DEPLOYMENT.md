@@ -38,6 +38,9 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0019: `notifications` + `notification_mutes`. No backfill: the
+notification centre starts empty and fills from new events.
+
 Migration 0018: `reminders.send_now_at` (Send now on a recurring reminder),
 with a partial index. Deploy the worker with it: an older worker ignores the
 column, so a Send now on a recurring reminder would sit until it's upgraded.
@@ -172,6 +175,8 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Comment on a reminder mentioning a colleague (pick them from the @ list): they get an email (and a Slack DM); mentioning someone who can't see the reminder shows "can't see this reminder" and sends nothing.
 - [ ] New reminder form: the Preview updates as you type (email and, with Slack ticked, the Slack message). On a saved reminder, "Send me a test" → one "[Test] …" email (and a Slack DM) to you only, and no change to its sent count.
 - [ ] Send now on a daily reminder: recipients get it within seconds and "Next" doesn't move; on a one-time reminder for next week, it's sent now and shows Sent.
+- [ ] Send a reminder to a colleague: their sidebar shows "Notifications 1"; clicking it in Notifications opens the reminder and the count goes away. "Mark all read" clears the rest.
+- [ ] Notifications → Preferences: untick approval emails; a new out-of-scope reminder shows up in Notifications but sends no approval email.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".
