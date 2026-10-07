@@ -1,0 +1,190 @@
+/* Mobile-first. Touch targets: buttons and inputs 48px, rows and small
+   buttons 44px (Apple HIG minimum). 16px input text stops iOS zooming in. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px 16px 32px;
+}
+
+.center {
+  flex: 1;
+  justify-content: center;
+  max-width: 420px;
+  padding-top: max(32px, env(safe-area-inset-top));
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  min-height: 44px;
+  margin: -8px 0 -16px;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.error,
+.notice {
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+}
+
+.error {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+.notice {
+  background: var(--surface);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--fg);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.input:read-only {
+  background: var(--surface);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.primary {
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+}
+
+.secondary {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--fg);
+}
+
+.danger {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+/* For actions inside list rows. */
+.small {
+  width: auto;
+  min-height: 44px;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+}
+
+.hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.legend {
+  padding: 0 4px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  font-size: 0.9375rem;
+}
+
+.checkbox + .checkbox {
+  border-top: 1px solid var(--border);
+}
+
+.checkboxInput {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--primary-bg);
+}
+
+.group:disabled .checkbox,
+.checkbox:has(:disabled) {
+  color: var(--muted);
+}
+
+.linkButton {
+  text-decoration: none;
+}

@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, googleEnabled } from "@/lib/auth";
-import { Button, errorUrl, Field, firstParam, Form, FormPage, Hint, safeNext } from "../form";
+import { Button, errorUrl, Field, firstParam, Form, Page, Hint, safeNext } from "@/components/form";
 
 async function signIn(formData: FormData) {
   "use server";
@@ -35,7 +35,7 @@ async function signInWithGoogle() {
 export default async function SignIn(props: PageProps<"/sign-in">) {
   const { error, notice, next } = await props.searchParams;
   return (
-    <FormPage title="Sign in" error={firstParam(error)} notice={firstParam(notice)}>
+    <Page center title="Sign in" error={firstParam(error)} notice={firstParam(notice)}>
       <Form action={signIn}>
         <input type="hidden" name="next" value={safeNext(firstParam(next))} />
         <Field label="Email" name="email" type="email" autoComplete="email" required />
@@ -44,12 +44,12 @@ export default async function SignIn(props: PageProps<"/sign-in">) {
       </Form>
       {googleEnabled && (
         <Form action={signInWithGoogle}>
-          <Button>Continue with Google</Button>
+          <Button variant="secondary">Continue with Google</Button>
         </Form>
       )}
       <Hint>
         New company? <Link href="/sign-up">Create an account</Link>
       </Hint>
-    </FormPage>
+    </Page>
   );
 }

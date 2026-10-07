@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Button, CheckboxGroup, firstParam, Form, Hint, Page, Section } from "@/components/form";
+import { List, ListRow } from "@/components/list";
 import { can, canGrant, MEMBER_ROLE_ID, visibleRoles } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { getUser } from "@/lib/users";
-import { Button, CheckboxGroup, firstParam, Form, FormPage, Hint } from "../../form";
 import { saveUserRoles, toggleActive } from "../actions";
 
 export default async function UserDetail(props: PageProps<"/users/[id]">) {
@@ -16,23 +16,23 @@ export default async function UserDetail(props: PageProps<"/users/[id]">) {
   const roles = can(access, "users.manage_roles") ? await visibleRoles(companyId) : [];
 
   return (
-    <FormPage title={person.name} error={firstParam(error)} notice={firstParam(notice)}>
+    <Page title={person.name} back={{ href: "/users", label: "People" }} error={firstParam(error)} notice={firstParam(notice)}>
       <Hint>
         {person.email}
         {person.deactivatedAt && " · Deactivated"}
       </Hint>
 
-      <Hint>
-        {person.departments.length === 0
-          ? "Not in any department."
-          : person.departments.map((d, i) => (
-              <span key={d.id}>
-                {i > 0 && ", "}
-                <Link href={`/departments/${d.id}`}>{d.name}</Link>
-                {d.isManager && " (manager)"}
-              </span>
+      <Section title="Departments">
+        {person.departments.length > 0 ? (
+          <List>
+            {person.departments.map((d) => (
+              <ListRow key={d.id} href={`/departments/${d.id}`} title={d.name} badge={d.isManager ? "Manager" : undefined} />
             ))}
-      </Hint>
+          </List>
+        ) : (
+          <Hint>Not in any department.</Hint>
+        )}
+      </Section>
 
       {roles.length > 0 && (
         <Form action={saveUserRoles}>
@@ -57,16 +57,12 @@ export default async function UserDetail(props: PageProps<"/users/[id]">) {
           <input type="hidden" name="userId" value={person.id} />
           <input type="hidden" name="active" value={person.deactivatedAt ? "true" : "false"} />
           {person.deactivatedAt ? (
-            <Button>Reactivate</Button>
+            <Button variant="secondary">Reactivate</Button>
           ) : (
             <Button variant="danger">Deactivate and sign out everywhere</Button>
           )}
         </Form>
       )}
-
-      <Hint>
-        <Link href="/users">All people</Link>
-      </Hint>
-    </FormPage>
+    </Page>
   );
 }

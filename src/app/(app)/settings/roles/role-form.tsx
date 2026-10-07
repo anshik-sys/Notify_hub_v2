@@ -1,5 +1,5 @@
 import { PERMISSION_GROUPS } from "@/lib/permissions";
-import { Button, Checkbox, CheckboxGroup, Field, Form, Hint } from "../../form";
+import { Button, Checkbox, CheckboxGroup, Field, Form, Hint } from "@/components/form";
 import { deleteRole, saveRole } from "./actions";
 
 type Role = { id: string; name: string; permissions: string[]; system: boolean; admin: boolean };

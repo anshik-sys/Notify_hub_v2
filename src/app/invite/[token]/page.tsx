@@ -4,7 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { acceptInvitation, accountExists, findInvitation } from "@/lib/invitations";
-import { Button, errorUrl, Field, firstParam, Form, FormPage, Hint } from "../../form";
+import { Button, errorUrl, Field, firstParam, Form, Page, Hint } from "@/components/form";
 
 // Public page: the token in the URL is the only credential.
 async function joinAsCurrentUser(formData: FormData) {
@@ -48,9 +48,9 @@ export default async function Invite(props: PageProps<"/invite/[token]">) {
   const invite = await findInvitation(token);
   if (!invite)
     return (
-      <FormPage title="Invite" error={error}>
+      <Page center title="Invite" error={error}>
         <Hint>This invite is invalid, expired or already used. Ask your admin for a new one.</Hint>
-      </FormPage>
+      </Page>
     );
 
   const title = `Join ${invite.companyName}`;
@@ -59,35 +59,35 @@ export default async function Invite(props: PageProps<"/invite/[token]">) {
   if (session) {
     if (session.user.email.toLowerCase() !== invite.email)
       return (
-        <FormPage title={title} error={error}>
+        <Page center title={title} error={error}>
           <Hint>
             This invite is for {invite.email}, but you’re signed in as {session.user.email}. Sign out, then open the
             link again.
           </Hint>
-        </FormPage>
+        </Page>
       );
     return (
-      <FormPage title={title} error={error}>
+      <Page center title={title} error={error}>
         <Form action={joinAsCurrentUser}>
           <input type="hidden" name="token" value={token} />
           <Button>Join {invite.companyName}</Button>
         </Form>
-      </FormPage>
+      </Page>
     );
   }
 
   if (await accountExists(invite.email))
     return (
-      <FormPage title={title} error={error}>
+      <Page center title={title} error={error}>
         <Hint>
           You already have an account as {invite.email}.{" "}
           <Link href={`/sign-in?next=${encodeURIComponent(`/invite/${token}`)}`}>Sign in to accept</Link>
         </Hint>
-      </FormPage>
+      </Page>
     );
 
   return (
-    <FormPage title={title} error={error}>
+    <Page center title={title} error={error}>
       <Form action={createAccountAndJoin}>
         <input type="hidden" name="token" value={token} />
         <Field label="Email" value={invite.email} readOnly />
@@ -95,6 +95,6 @@ export default async function Invite(props: PageProps<"/invite/[token]">) {
         <Field label="Password" name="password" type="password" autoComplete="new-password" minLength={8} required />
         <Button>Create account and join</Button>
       </Form>
-    </FormPage>
+    </Page>
   );
 }

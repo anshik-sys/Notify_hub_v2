@@ -12,7 +12,7 @@ import {
 import { can, type Permission } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { isUuid } from "@/lib/validate";
-import { errorUrl } from "../form";
+import { errorUrl } from "@/components/form";
 
 // departmentId given: manager permissions count for departments the user manages.
 async function requirePermission(permission: Permission, departmentId?: string) {

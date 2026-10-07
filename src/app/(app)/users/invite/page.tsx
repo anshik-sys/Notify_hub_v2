@@ -1,9 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { can, canGrant, MEMBER_ROLE_ID, visibleRoles } from "@/lib/permissions";
 import { listDepartments } from "@/lib/departments";
 import { requireMember } from "@/lib/session";
-import { Button, CheckboxGroup, Field, firstParam, Form, FormPage, Hint } from "../../form";
+import { Button, CheckboxGroup, Field, firstParam, Form, Page } from "@/components/form";
 import { inviteUser } from "../actions";
 
 export default async function InviteUser(props: PageProps<"/users/invite">) {
@@ -15,7 +14,7 @@ export default async function InviteUser(props: PageProps<"/users/invite">) {
   const error = firstParam((await props.searchParams).error);
 
   return (
-    <FormPage title="Invite someone" error={error}>
+    <Page title="Invite someone" back={{ href: "/users", label: "People" }} error={error}>
       <Form action={inviteUser}>
         <Field label="Email" name="email" type="email" autoComplete="off" required />
         {roles.length > 0 && (
@@ -26,9 +25,6 @@ export default async function InviteUser(props: PageProps<"/users/invite">) {
         )}
         <Button>Send invite</Button>
       </Form>
-      <Hint>
-        <Link href="/users">All people</Link>
-      </Hint>
-    </FormPage>
+    </Page>
   );
 }

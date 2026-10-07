@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { createCompany } from "@/lib/onboarding";
-import { Button, errorUrl, Field, firstParam, Form, FormPage, Hint, SelectField } from "../form";
+import { Button, errorUrl, Field, firstParam, Form, Page, Hint, SelectField } from "@/components/form";
 
 const TIME_ZONES = ["UTC", ...Intl.supportedValuesOf("timeZone")];
 
@@ -22,13 +22,13 @@ export default async function Onboarding(props: PageProps<"/onboarding">) {
   if (!session) redirect(error ? errorUrl("/sign-in", "That link is invalid or expired. Sign in to get a new one.") : "/sign-in");
   if (session.user.companyId) redirect("/");
   return (
-    <FormPage title="Set up your company" error={error}>
+    <Page center title="Set up your company" error={error}>
       <Form action={onboard}>
         <Field label="Company name" name="name" autoComplete="organization" maxLength={100} required />
         <SelectField label="Time zone" name="timeZone" defaultValue="UTC" options={TIME_ZONES} />
         <Hint>Your company domain is taken from your email: {session.user.email.split("@")[1]}</Hint>
         <Button>Create company</Button>
       </Form>
-    </FormPage>
+    </Page>
   );
 }

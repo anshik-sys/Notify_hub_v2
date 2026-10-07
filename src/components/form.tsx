@@ -1,19 +1,32 @@
-// Shared bits for the auth and onboarding forms.
+// The UI kit: page frame, form controls, buttons. Mobile-first: every control
+// is full width and at least 44px tall. See form.module.css.
+import Link from "next/link";
 import styles from "./form.module.css";
 
-export function FormPage({
+export function Page({
   title,
+  back,
   error,
   notice,
+  center,
   children,
 }: {
   title: string;
+  /** Shown above the title, e.g. { href: "/users", label: "People" }. */
+  back?: { href: string; label: string };
   error?: string;
   notice?: string;
+  /** Vertically centred, narrow: for sign-in style screens outside the app shell. */
+  center?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <main className={styles.page}>
+    <main className={center ? `${styles.page} ${styles.center}` : styles.page}>
+      {back && (
+        <Link href={back.href} className={styles.back}>
+          <span aria-hidden="true">‹</span> {back.label}
+        </Link>
+      )}
       <h1 className={styles.title}>{title}</h1>
       {error && (
         <p role="alert" className={styles.error}>
@@ -27,6 +40,15 @@ export function FormPage({
       )}
       {children}
     </main>
+  );
+}
+
+export function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.sectionTitle}>{title}</h2>
+      {children}
+    </section>
   );
 }
 
@@ -69,7 +91,7 @@ export function SelectField({
 export function Checkbox({ label, ...props }: { label: React.ReactNode } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className={styles.checkbox}>
-      <input type="checkbox" {...props} />
+      <input type="checkbox" className={styles.checkboxInput} {...props} />
       {label}
     </label>
   );
@@ -96,8 +118,23 @@ export function CheckboxGroup({
   );
 }
 
-export function Button({ variant, ...props }: { variant?: "danger" } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button className={variant === "danger" ? `${styles.button} ${styles.danger}` : styles.button} {...props} />;
+export function Button({
+  variant = "primary",
+  size,
+  className,
+  ...props
+}: { variant?: "primary" | "secondary" | "danger"; size?: "small" } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  const classes = [styles.button, styles[variant], size === "small" && styles.small, className].filter(Boolean);
+  return <button className={classes.join(" ")} {...props} />;
+}
+
+// Navigation that looks like the primary button (a link, not a form submit).
+export function LinkButton({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} className={`${styles.button} ${styles.primary} ${styles.linkButton}`}>
+      {children}
+    </Link>
+  );
 }
 
 export function Hint({ children }: { children: React.ReactNode }) {

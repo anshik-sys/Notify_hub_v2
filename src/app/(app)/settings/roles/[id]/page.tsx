@@ -1,11 +1,10 @@
 import { eq } from "drizzle-orm";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { withTenant } from "@/db";
 import { roles } from "@/db/schema";
 import { can, COMPANY_ADMIN_ROLE_ID } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
-import { firstParam, FormPage, Hint } from "../../../form";
+import { firstParam, Page } from "@/components/form";
 import { isUuid } from "@/lib/validate";
 import { RoleForm } from "../role-form";
 
@@ -20,7 +19,7 @@ export default async function EditRole(props: PageProps<"/settings/roles/[id]">)
   const error = firstParam((await props.searchParams).error);
 
   return (
-    <FormPage title={role.name} error={error}>
+    <Page title={role.name} back={{ href: "/settings/roles", label: "Roles" }} error={error}>
       <RoleForm
         role={{
           id: role.id,
@@ -30,9 +29,6 @@ export default async function EditRole(props: PageProps<"/settings/roles/[id]">)
           admin: role.id === COMPANY_ADMIN_ROLE_ID,
         }}
       />
-      <Hint>
-        <Link href="/settings/roles">All roles</Link>
-      </Hint>
-    </FormPage>
+    </Page>
   );
 }

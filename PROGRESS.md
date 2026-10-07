@@ -2,6 +2,39 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — mobile-web restyle, departments on home
+
+- **Why:** the user pointed out that the screens were designed like a desktop
+  website (a narrow centred column, small text-link actions), but the product is
+  used as a mobile web app.
+
+  There was no written rule, so I decided one and recorded it in `AGENTS.md`:
+  mobile first, 48/56/44px touch targets, an app shell with a bottom tab bar,
+  back links at the top, and screens built only from the kit.
+- **Structure:**
+  - signed-in pages moved into the `(app)` route group (URLs unchanged) so they
+    share `layout.tsx`;
+  - the UI kit moved to `src/components/` with an `@/` import, because the move
+    broke the relative imports. That also prevents it happening again;
+  - `FormPage` was renamed `Page`, and gained `back` and `center`;
+  - new `Section`, `LinkButton`, and `List`/`ListRow`, which replace three copies
+    of list CSS in the users, departments and roles pages.
+- **First client component:** `nav-link.tsx`, needed only for `usePathname()`
+  to mark the active tab. Everything else stays server-rendered.
+- **`requireMember()` is now `cache()`d**, since the layout and the page both
+  call it.
+- **The home page** shows "Your departments" (with a Manager badge), your roles,
+  and sign-out. Its old links moved to the tab bar.
+- **Verified against `next start` with curl:**
+  - every page returns 200 for the admin;
+  - the manager gets 404 on invite and roles pages;
+  - tab sets per role are right; the active tab is marked on sub-pages;
+  - the manager's home shows Ops as Manager, and Ops shows them add/remove only;
+  - the viewport meta carries `viewport-fit=cover`.
+
+  12 tests pass. **Not checked visually.** That's the user's call on a phone: the
+  tab bar over the iPhone home indicator, row actions wrapping, and dark mode.
+
 ## 2026-10-07 — departments, managers, members (phase B)
 
 - **What's in place:**

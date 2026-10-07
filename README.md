@@ -16,16 +16,17 @@ One package, two processes, one Postgres:
 | `src/lib/auth.ts` | Better Auth config and `authDb` (role `notifyhub_auth`). |
 | `src/lib/permissions.ts` | Permission catalogue, system role ids, `can()`, `loadAccess()`. |
 | `src/lib/session.ts` | `requireMember()`: session + company + permissions, or redirect. |
-| `src/app/settings/roles/` | Custom role management (`roles.manage`). |
+| `src/app/(app)/settings/roles/` | Custom role management (`roles.manage`). |
 | `src/lib/invitations.ts` | Create, find, accept and revoke invites. |
 | `src/lib/users.ts` | Directory, role assignment, activation, last-admin guard. |
 | `src/lib/departments.ts` | Departments, members, managers. |
-| `src/app/departments/` | Department list and detail pages. |
+| `src/app/(app)/departments/` | Department list and detail pages. |
 | `src/lib/test-helpers.ts` | `seeder()` for DB tests: one throwaway company per test file. |
-| `src/app/users/`, `src/app/invite/[token]` | People pages and the public invite accept page. |
+| `src/app/(app)/users/`, `src/app/invite/[token]` | People pages and the public invite accept page. |
 | `src/lib/mail.ts` | `sendMail()`: one recipient per message, over SMTP (Mailpit in dev, SES in prod). |
 | `src/lib/onboarding.ts` | Creates a company and attaches the signed-in user, in one transaction. |
-| `src/app/form.tsx` + `form.module.css` | Shared form components (FormPage, Field, Button, …). |
+| `src/components/form.tsx`, `list.tsx` | The UI kit (`Page`, `Section`, `Form`, `Field`, `Button`, `LinkButton`, `List`, `ListRow`, …), each with its own `.module.css`. |
+| `src/app/(app)/` | Signed-in pages, wrapped by `layout.tsx`: the app shell (top bar, bottom tab bar). The route group doesn't change URLs. |
 | `src/app/globals.css` | Design tokens (CSS variables, light and dark) and element defaults. |
 | `src/app/sign-in`, `sign-up`, `onboarding` | Server-rendered forms posting to server actions. No client-side auth code. |
 | `src/app/api/auth/[...all]` | Better Auth's HTTP endpoints (sessions, OAuth callbacks). |
@@ -75,6 +76,11 @@ pnpm worker      # scheduler
 - **Manager permissions are fixed in code** (`MANAGER_PERMISSIONS`) and apply
   only when `can()` is given a department the user manages
   (`department_members.is_manager`).
+- **`requireMember()` is wrapped in React `cache()`.** The app layout and the page
+  both call it, and it only runs once per request. Without `cache()` every page
+  load would do the session and permission queries twice.
+- **The tab bar hides tabs by permission for tidiness only.** Pages enforce access
+  themselves.
 - **Invite tokens:** only the SHA-256 is stored. Accepting claims the invite with
   `WHERE accepted_at IS NULL AND expires_at > now()`, so it's single use even
   when two clicks race. Accepting marks the email verified, because the link

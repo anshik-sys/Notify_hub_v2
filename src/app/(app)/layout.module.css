@@ -1,0 +1,63 @@
+.shell {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.topBar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  padding: env(safe-area-inset-top) 16px 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.company {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Room for the fixed tab bar, including the iPhone home indicator. */
+.content {
+  flex: 1;
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+.tabBar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  max-width: 120px;
+  min-height: 56px;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.tab[aria-current="page"] {
+  color: var(--fg);
+}

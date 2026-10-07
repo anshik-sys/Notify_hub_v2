@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { Button, errorUrl, Field, firstParam, Form, FormPage, Hint } from "../form";
+import { Button, errorUrl, Field, firstParam, Form, Page, Hint } from "@/components/form";
 
 async function signUp(formData: FormData) {
   "use server";
@@ -32,7 +32,7 @@ async function signUp(formData: FormData) {
 export default async function SignUp(props: PageProps<"/sign-up">) {
   const error = firstParam((await props.searchParams).error);
   return (
-    <FormPage title="Create an account" error={error}>
+    <Page center title="Create an account" error={error}>
       <Form action={signUp}>
         <Field label="Full name" name="name" autoComplete="name" required />
         <Field label="Work email" name="email" type="email" autoComplete="email" required />
@@ -42,6 +42,6 @@ export default async function SignUp(props: PageProps<"/sign-up">) {
       <Hint>
         Have an account? <Link href="/sign-in">Sign in</Link>
       </Hint>
-    </FormPage>
+    </Page>
   );
 }

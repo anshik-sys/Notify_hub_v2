@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   title: "NotifyHub",
   robots: { index: false, follow: false },
 };
+
+// viewport-fit=cover: lets the app shell pad for the notch and home indicator.
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

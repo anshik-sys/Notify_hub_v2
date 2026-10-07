@@ -6,7 +6,7 @@ import { can, type Permission } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { setActive, setUserRoles } from "@/lib/users";
 import { isUuid } from "@/lib/validate";
-import { errorUrl } from "../form";
+import { errorUrl } from "@/components/form";
 
 async function requirePermission(permission: Permission) {
   const member = await requireMember();
