@@ -1,0 +1,26 @@
+.switcher {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* 44px tap targets; the chosen one looks pressed. */
+.option {
+  min-height: 44px;
+  border: 0;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.option[aria-pressed="true"] {
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+}

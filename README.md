@@ -117,6 +117,10 @@ pnpm worker      # sends reminders; without it they sit "Scheduled" and show "De
   transaction that schedules a due reminder (create, edit, approve). The
   worker `LISTEN`s and dispatches at once; the minute tick is only a safety
   net. pg-boss's own queue `notify` wakes the deliver workers.
+- **Theme comes from a cookie, read on the server** (`src/lib/theme.ts`). The
+  root layout puts `data-theme` on `<html>`, so the first paint is right: no
+  flash, no client JS. No attribute means following the device. This is why
+  the root layout reads `cookies()`; don't make it static.
 - **"Delayed" is derived, not reported.** `isDelayed()` means Scheduled over a
   minute past due, or Sending with no progress for 2 minutes. That only
   happens when no worker is running or it's badly behind. There's no heartbeat

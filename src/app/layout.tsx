@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { currentTheme } from "@/lib/theme";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,9 +21,14 @@ export const metadata: Metadata = {
 // viewport-fit=cover: lets the app shell pad for the notch and home indicator.
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const theme = await currentTheme();
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable}`}
+      data-theme={theme === "system" ? undefined : theme}
+    >
       <body>{children}</body>
     </html>
   );

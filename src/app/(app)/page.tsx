@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { Button, Hint, Page, Section } from "@/components/form";
 import { List, ListRow } from "@/components/list";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { auth } from "@/lib/auth";
 import { can, visibleRoles } from "@/lib/permissions";
 import { listPendingApprovals } from "@/lib/reminders";
@@ -51,6 +52,10 @@ export default async function Home() {
 
       <Section title="Your roles">
         <Hint>{roleNames.join(", ")}</Hint>
+      </Section>
+
+      <Section title="Appearance">
+        <ThemeSwitcher />
       </Section>
 
       <Section title="Account">

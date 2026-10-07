@@ -2,6 +2,33 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — theme switch (system / light / dark)
+
+- **Why:** the user asked for a light theme. The light colours already
+  existed, but the app only followed the device setting, so on a dark-mode
+  device light was unreachable. PRD 8 wants a remembered choice that follows
+  the system by default.
+- **How:** a `theme` cookie (1 year, per device), read in the root layout,
+  which sets `<html data-theme>`. The CSS dark tokens apply under
+  `prefers-color-scheme: dark` unless the theme is `light`, and always under
+  `data-theme="dark"`. `color-scheme` is set, so date pickers and selects
+  match.
+- **Rejected:** localStorage with a client script. It flashes the wrong theme
+  before hydration and needs an inline blocking script. The cookie costs
+  nothing, since every page is already server-rendered per request.
+- **The switch** is a segmented control (System / Light / Dark, 44px buttons,
+  `aria-pressed`) on Home under "Appearance". It's a plain form posting to a
+  server action, with no client JS.
+- **Verified against `next start`:**
+  - with no cookie there's no attribute (the device decides);
+  - Light, Dark and System each set or clear the attribute on Home,
+    Reminders and the sign-in page, and the pressed button matches;
+  - a bogus value is ignored;
+  - the compiled CSS contains `:root:not([data-theme=light])` inside the
+    dark media query, and `:root[data-theme=dark]`.
+
+  **Not checked:** how it looks. That's for the user, in the browser.
+
 ## 2026-10-07 — recurring reminders
 
 - **What's in place:**

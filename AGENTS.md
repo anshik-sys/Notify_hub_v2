@@ -25,6 +25,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   Those names show up in devtools as `form-module__<hash>__field`, which is why
   we chose this. Colours and radii come from the variables in `globals.css`;
   `globals.css` holds only variables and element defaults, never component styles.
+- **Themes:** a new colour variable goes in all three places in `globals.css`: `:root` (light), the `prefers-color-scheme: dark` block and `:root[data-theme="dark"]`. The two dark blocks must stay identical. Never hard-code a colour in a module.
 - Drizzle uses `casing: "snake_case"` in both `drizzle.config.ts` and `src/db/index.ts`. Keep them in sync.
 - Every tenant table: `company_id` column, `tenantPolicy(...)`, `.enableRLS()`. Add a case to `src/db/rls.test.ts`.
 - Tenant reads and writes go through `withTenant()`. The web app never uses the owner URL.
