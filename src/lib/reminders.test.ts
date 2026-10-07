@@ -8,12 +8,13 @@ import {
   decideReminder,
   getReminder,
   outOfScope,
+  reminderAccess,
   type RawReminder,
-  resolveRecipients,
   type Target,
   updateReminder,
   validateInput,
 } from "./reminders";
+import { resolveRecipients } from "./recipients";
 import { seeder } from "./test-helpers";
 
 const s = seeder();
@@ -160,4 +161,28 @@ test("lifecycle: create, approve, reject, edit, widen, cancel", async () => {
   assert.equal(await cancelReminder(await actor(alice), s.companyId, own.id), null);
   assert.match((await updateReminder(await actor(alice), s.companyId, own.id, input([{ kind: "user", ref: bob }])))!, /no longer/);
   assert.match((await decideReminder(await actor(admin), s.companyId, own.id, true))!, /isn't waiting/);
+});
+
+test("reminderAccess: owners full, recipients via delivery row, others none", async () => {
+  const r = await createReminder(await actor(alice), s.companyId, {
+    title: "Seen by",
+    description: "",
+    links: [],
+    senderName: "S",
+    sendAt: new Date(),
+    targets: [{ kind: "department", ref: ops }],
+  });
+  assert.ok("id" in r);
+  const ref = { id: r.id, createdBy: alice };
+  const viewer = async (id: string) => ({ ...(await actor(id)), email: `${id}@${s.domain}` });
+  assert.equal(await reminderAccess(s.companyId, await viewer(alice), ref), "full");
+  assert.equal(await reminderAccess(s.companyId, await viewer(bob), ref), "full"); // alice's manager
+  assert.equal(await reminderAccess(s.companyId, await viewer(carol), ref), null);
+  await s.owner.query("insert into deliveries (company_id, reminder_id, email, user_id) values ($1, $2, $3, $4)", [
+    s.companyId,
+    r.id,
+    `${carol}@${s.domain}`,
+    carol,
+  ]);
+  assert.equal(await reminderAccess(s.companyId, await viewer(carol), ref), "recipient");
 });

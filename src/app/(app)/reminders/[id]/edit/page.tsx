@@ -8,6 +8,9 @@ import { isUuid } from "@/lib/validate";
 import { recipientChoices } from "../../form-data";
 import { ReminderForm } from "../../reminder-form";
 
+// Server-rendered per request, so "now" is the request time.
+const isPast = (d: Date) => d.getTime() <= Date.now();
+
 export default async function EditReminder(props: PageProps<"/reminders/[id]/edit">) {
   const { id } = await props.params;
   if (!isUuid(id)) notFound();
@@ -16,7 +19,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
   // Same rule as updateReminder: creator or reminders.edit, and not yet sent.
   if (!r || !(user.id === r.createdBy || can(access, "reminders.edit"))) notFound();
   if (!["pending_approval", "rejected", "scheduled"].includes(r.status)) notFound();
-  const choices = await recipientChoices(companyId, access);
+  const choices = await recipientChoices(companyId, user.id, access);
   const error = firstParam((await props.searchParams).error);
   const refs = (kind: string) => r.targets.filter((t) => t.kind === kind).map((t) => t.ref!);
 
@@ -36,8 +39,10 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           departmentIds: refs("department"),
           userIds: refs("user"),
           emails: refs("email").join("\n"),
-          when: "later",
-          sendAtLocal: toLocalInput(r.sendAt, company.timeZone),
+          // A "Now" reminder (or one whose time has passed while it waited for
+          // approval) reopens as "Now"; a past "later" time would fail validation.
+          when: isPast(r.sendAt) ? "now" : "later",
+          sendAtLocal: isPast(r.sendAt) ? "" : toLocalInput(r.sendAt, company.timeZone),
         }}
       />
     </Page>

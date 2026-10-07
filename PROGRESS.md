@@ -2,6 +2,60 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — reminders send for real; edit fix; recipient picker
+
+- **What the user reported:**
+  - "Now" didn't send. Expected: delivery wasn't built yet;
+  - edit needed checking. A real bug: the edit page always pre-picked "At a
+    set time" with the original time, so a pending or rejected "Now" reminder
+    couldn't be resubmitted ("Pick a time in the future");
+  - recipients needed per-teammate ticking and a searchable people dropdown.
+- **Delivery engine (0008 `deliveries`, `src/worker/delivery.ts`):**
+  - dispatch: SKIP LOCKED + `unique(reminder_id, email)`;
+  - the send claims its row; up to 5 attempts with pg-boss backoff, then
+    `failed`;
+  - the sweep fails stuck `sending` rows and **never resends them**. We
+    rejected at-least-once: a retry after an SMTP timeout is exactly how a
+    person gets the same reminder twice.
+- **"Now" means now:** the web app runs `pg_notify('reminders_due')` in the
+  scheduling transaction, and the worker LISTENs. Approving an overdue
+  reminder fires it the same way.
+  - First measurement: 3.8s for 2 people and **10.3s for 5**, because pg-boss
+    polls every 2s and ran one job at a time.
+  - Fixed with pg-boss queue `notify` and `localConcurrency: 10`: **0.2s for a
+    5-person company-wide send.**
+- **Recipients can open what they received** (`reminderAccess` →
+  "recipient"). They see the reminder, but not the recipient list or the log.
+  Owners get a delivery log ("5 sent · 0 failed · 0 pending" plus per-person
+  rows).
+- **Recipient picker:**
+  - your departments show as open sections with "Everyone in X" plus each
+    teammate as a tick;
+  - other departments are whole-department choices marked "need approval";
+  - people is a searchable combobox (`people-picker.tsx`, the second client
+    component), with chips carrying hidden inputs and a `<noscript>`
+    multi-select fallback;
+  - teammates pre-fill as ticks, not chips, so edit doesn't show them twice.
+- `resolveRecipients` moved to `src/lib/recipients.ts` (schema-only imports)
+  so the worker doesn't load the web app's DB client.
+- **Verified against `next start` + `pnpm worker` + Mailpit:**
+  - ticked teammates both got "Now" within seconds, each To only themselves,
+    From "… via NotifyHub", Reply-To the creator, with the link;
+  - whole company → pending, no mail → approve → all 5 sent;
+  - recipient 200 (no log); non-recipient 404;
+  - a rejected "Now" edit reopens as "Now" and resubmits → approve → sent;
+  - worker down → stays Scheduled → restart sends once;
+  - **exact-subject Mailpit count: every reminder reached each person exactly
+    once across two restarts.**
+
+  23 tests pass, including parallel dispatch, a double claim, retries → failed,
+  and the sweep.
+- **Side effect in the dev DB:** the first worker start sent 2 "Now" reminders
+  the user had created while testing phase 1. That's the intended catch-up
+  behaviour.
+- **Not checked:** the picker's look and feel on a phone (search, chips,
+  department sections), and a real SES send.
+
 ## 2026-10-07 — reminders phase 1: create, scope, approval
 
 - **What's in place:**

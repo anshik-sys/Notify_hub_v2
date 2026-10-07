@@ -6,9 +6,9 @@ import { recipientChoices } from "../form-data";
 import { ReminderForm } from "../reminder-form";
 
 export default async function NewReminder(props: PageProps<"/reminders/new">) {
-  const { companyId, company, access } = await requireMember();
+  const { user, companyId, company, access } = await requireMember();
   if (!can(access, "reminders.create")) notFound();
-  const choices = await recipientChoices(companyId, access);
+  const choices = await recipientChoices(companyId, user.id, access);
   const error = firstParam((await props.searchParams).error);
 
   return (

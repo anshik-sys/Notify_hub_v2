@@ -1,5 +1,5 @@
 import { isNull, sql } from "drizzle-orm";
-import { boolean, check, index, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // Tenant isolation: every tenant table carries company_id and a policy that
 // only matches rows of the company set by withTenant(). Unset => no rows.
@@ -269,6 +269,39 @@ export const reminderTargets = pgTable(
   (t) => [
     index().on(t.reminderId),
     check("reminder_targets_kind_valid", sql`${t.kind} in ('user','department','company','email')`),
+    tenantPolicy("company_id"),
+  ],
+).enableRLS();
+
+// One row per (reminder, recipient email): the unique key is what makes a
+// second send of the same reminder to the same person impossible. Written by
+// the worker (owner connection); read by the web for the delivery log.
+export const deliveries = pgTable(
+  "deliveries",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    reminderId: uuid()
+      .notNull()
+      .references(() => reminders.id, { onDelete: "cascade" }),
+    email: text().notNull(),
+    userId: text().references(() => user.id, { onDelete: "set null" }),
+    status: text().$type<"queued" | "sending" | "sent" | "failed">().notNull().default("queued"),
+    attempts: integer().notNull().default(0),
+    lastError: text(),
+    sentAt: ts(),
+    updatedAt: ts()
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+    createdAt: ts().notNull().defaultNow(),
+  },
+  (t) => [
+    unique().on(t.reminderId, t.email),
+    index().on(t.status, t.updatedAt),
+    check("deliveries_status_valid", sql`${t.status} in ('queued','sending','sent','failed')`),
     tenantPolicy("company_id"),
   ],
 ).enableRLS();

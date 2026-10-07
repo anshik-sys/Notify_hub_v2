@@ -7,7 +7,7 @@ Not deployed yet. This records what production will need.
 | Process | Command | Notes |
 |---|---|---|
 | web | `pnpm build && pnpm start` | Stateless; scale horizontally. |
-| worker | `pnpm worker` (uses `tsx`; swap for a compiled build before prod) | Long-running. Must not run on serverless. pg-boss makes several replicas safe. |
+| worker | `pnpm worker` (uses `tsx`; swap for a compiled build before prod) | Long-running. Must not run on serverless. Several replicas are safe (SKIP LOCKED plus the delivery claim). 10 parallel sends per process. |
 
 Both processes need a container host with a persistent process (Fly, Railway, ECS).
 
@@ -33,8 +33,16 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
-Migration 0007 adds `reminders` and `reminder_targets` (tenant RLS). Nothing
-sends yet: delivery comes with 0008 and the worker.
+Migration 0008 adds `deliveries`. **The worker must be running or nothing is
+sent.** It needs `OWNER_DATABASE_URL`, `SMTP_URL`, `MAIL_FROM` and
+`BETTER_AUTH_URL` (for the "Open in NotifyHub" link), and still `DATABASE_URL`
+and `AUTH_DATABASE_URL` for now, because shared modules check they're set.
+`OWNER_DATABASE_URL` must be a **direct session connection**:
+`LISTEN reminders_due` and pg-boss's listener don't work through a
+transaction-mode pooler (PgBouncer). Without them, sends still happen, but
+only on the minute tick.
+
+Migration 0007 adds `reminders` and `reminder_targets` (tenant RLS).
 
 Migration 0006 adds `invitations.department_ids` and lets `notifyhub_auth`
 read departments and insert memberships (invite acceptance).
@@ -78,6 +86,8 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Sign up → verification email arrives (check spam and the `From`) → link lands on onboarding → home shows the company name; sign out returns to `/sign-in`.
 - [ ] Invite someone → email arrives → accept link creates the account and lands on the company → the same link again says "already used".
 - [ ] As a member, a reminder to your own department is "Scheduled", and one to another department is "Needs approval"; admins get an email.
+- [ ] "Now" to two people: both emails arrive within seconds, each addressed only to that person, Reply-To the creator; the reminder shows "2 sent".
+- [ ] Stop the worker, create a "Now" reminder (it stays Scheduled), start the worker: it's sent once.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

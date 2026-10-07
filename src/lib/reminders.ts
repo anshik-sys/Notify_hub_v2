@@ -1,17 +1,13 @@
 import { randomBytes } from "node:crypto";
 import { aliasedTable, and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import type { PgTransaction } from "drizzle-orm/pg-core";
 import { withTenant } from "@/db";
-import { departmentMembers, departments, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
+import { deliveries, departmentMembers, departments, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
 import { sendMail } from "./mail";
+import { resolveRecipients, type Target, type Tx } from "./recipients";
 import { type Access, can, COMPANY_ADMIN_ROLE_ID, loadAccess } from "./permissions";
 import { zonedToUtc } from "./time";
 
-// Any drizzle transaction: the web's withTenant one, or the worker's owner one.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Tx = PgTransaction<any, any, any>;
-
-export type Target = { kind: "user" | "department" | "company" | "email"; ref: string | null };
+export type { Target };
 export type ReminderInput = {
   title: string;
   description: string;
@@ -90,40 +86,6 @@ export function validateInput(raw: RawReminder, timeZone: string, defaultSender:
 
 // --- Recipients and scope ---------------------------------------------------
 
-// Targets -> who actually gets it, as of now. Used for the scope check and at
-// send time. Filters by companyId explicitly as well: the worker's connection
-// bypasses RLS.
-export async function resolveRecipients(tx: Tx, companyId: string, targets: Target[]) {
-  const active = and(eq(user.companyId, companyId), isNull(user.deactivatedAt));
-  const pick = { id: user.id, email: user.email };
-  const refs = (kind: Target["kind"]) => targets.filter((t) => t.kind === kind).map((t) => t.ref!);
-  const emails = refs("email");
-  let rows: { id: string; email: string }[] = [];
-
-  if (targets.some((t) => t.kind === "company")) {
-    rows = await tx.select(pick).from(user).where(active);
-  } else {
-    const [userIds, deptIds] = [refs("user"), refs("department")];
-    if (userIds.length) rows.push(...(await tx.select(pick).from(user).where(and(active, inArray(user.id, userIds)))));
-    if (deptIds.length)
-      rows.push(
-        ...(await tx
-          .select(pick)
-          .from(departmentMembers)
-          .innerJoin(user, eq(user.id, departmentMembers.userId))
-          .where(and(active, eq(departmentMembers.companyId, companyId), inArray(departmentMembers.departmentId, deptIds)))),
-      );
-  }
-  // A typed email belonging to a company member is that member.
-  if (emails.length)
-    rows.push(...(await tx.select(pick).from(user).where(and(active, inArray(sql`lower(${user.email})`, emails)))));
-
-  const users = new Map<string, { id: string; email: string }>();
-  for (const r of rows) users.set(r.email.toLowerCase(), { id: r.id, email: r.email.toLowerCase() });
-  const external = emails.filter((e) => !users.has(e));
-  return { users: [...users.values()], external };
-}
-
 type Resolved = Awaited<ReturnType<typeof resolveRecipients>>;
 
 // PRD 5.2. Returns what's out of scope (empty = no approval needed).
@@ -194,6 +156,13 @@ async function checked(tx: Tx, companyId: string, actor: Actor, input: ReminderI
   return outOfScope(tx, companyId, actor, input.targets, resolved);
 }
 
+// Wakes the worker (LISTEN reminders_due) so "now" means now. Postgres only
+// delivers it if this transaction commits. The worker's minute tick catches
+// anything a missed notification would have left behind.
+async function notifyIfDue(tx: Tx, status: ReminderStatus, sendAt: Date) {
+  if (status === "scheduled" && sendAt.getTime() <= Date.now()) await tx.execute(sql`select pg_notify('reminders_due', '')`);
+}
+
 async function refusals<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
   try {
     return await fn();
@@ -220,6 +189,7 @@ export async function createReminder(actor: Actor, companyId: string, input: Rem
         else if (attempt > 3) throw new Error("could not allocate a short id");
       }
       await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
+      await notifyIfDue(tx, status, input.sendAt);
       return { id, approvers: status === "pending_approval" ? await approverEmails(tx) : [] };
     }),
   );
@@ -265,6 +235,7 @@ export async function updateReminder(actor: Actor, companyId: string, id: string
         .where(eq(reminders.id, id));
       await tx.delete(reminderTargets).where(eq(reminderTargets.reminderId, id));
       await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
+      await notifyIfDue(tx, status, input.sendAt);
       return { approvers: status === "pending_approval" ? await approverEmails(tx) : [] };
     }),
   );
@@ -305,6 +276,7 @@ export async function decideReminder(actor: Actor, companyId: string, id: string
           rejectionReason: approve ? null : reason,
         })
         .where(eq(reminders.id, id));
+      if (approve) await notifyIfDue(tx, "scheduled", current.sendAt);
       const [creator] = await tx.select({ email: user.email }).from(user).where(eq(user.id, current.createdBy));
       return { title: current.title, creatorEmail: creator?.email };
     }),
@@ -322,8 +294,25 @@ export async function decideReminder(actor: Actor, companyId: string, id: string
 
 // --- Reading -----------------------------------------------------------------
 
-// PRD 5.4, the parts that exist so far: creator, view_all, approvers, managers of a
-// department the creator is in. Recipients join in with deliveries (phase 2).
+// PRD 5.4, the parts that exist so far: creator, view_all, approvers, managers
+// of a department the creator is in, and anyone it was delivered to.
+// "full" = may see the delivery log; recipients only see the reminder itself.
+export async function reminderAccess(
+  companyId: string,
+  viewer: Actor & { email: string },
+  r: { id: string; createdBy: string },
+): Promise<"full" | "recipient" | null> {
+  if (await canSeeReminder(companyId, viewer, r.createdBy)) return "full";
+  const [got] = await withTenant(companyId, (tx) =>
+    tx
+      .select({ id: deliveries.id })
+      .from(deliveries)
+      .where(and(eq(deliveries.reminderId, r.id), eq(deliveries.email, viewer.email.toLowerCase())))
+      .limit(1),
+  );
+  return got ? "recipient" : null;
+}
+
 export async function canSeeReminder(companyId: string, viewer: Actor, createdBy: string) {
   // Approvers must be able to open what they're asked to review.
   if (viewer.id === createdBy || can(viewer.access, "reminders.view_all") || can(viewer.access, "reminders.approve"))
@@ -414,3 +403,22 @@ export const STATUS_LABELS: Record<ReminderStatus, string> = {
   sent: "Sent",
   cancelled: "Cancelled",
 };
+
+export async function deliveryLog(companyId: string, reminderId: string) {
+  const rows = await withTenant(companyId, (tx) =>
+    tx
+      .select({
+        id: deliveries.id,
+        email: deliveries.email,
+        status: deliveries.status,
+        sentAt: deliveries.sentAt,
+        lastError: deliveries.lastError,
+        attempts: deliveries.attempts,
+      })
+      .from(deliveries)
+      .where(eq(deliveries.reminderId, reminderId))
+      .orderBy(deliveries.email),
+  );
+  const count = (s: string) => rows.filter((r) => r.status === s).length;
+  return { rows, counts: { sent: count("sent"), failed: count("failed"), pending: count("queued") + count("sending") } };
+}

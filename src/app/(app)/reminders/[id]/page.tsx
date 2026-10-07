@@ -3,19 +3,24 @@ import { notFound } from "next/navigation";
 import { Button, Field, firstParam, Form, Hint, LinkButton, Page, Section } from "@/components/form";
 import { List, ListRow } from "@/components/list";
 import { can } from "@/lib/permissions";
-import { canSeeReminder, getReminder, STATUS_LABELS } from "@/lib/reminders";
+import { deliveryLog, getReminder, reminderAccess, STATUS_LABELS } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { formatInZone } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
 import { cancelReminderAction, decideReminderAction } from "../actions";
 import styles from "./page.module.css";
 
+const DELIVERY_LABELS = { queued: "Queued", sending: "Sending", sent: "Sent", failed: "Failed" } as const;
+
 export default async function ReminderDetail(props: PageProps<"/reminders/[id]">) {
   const { id } = await props.params;
   if (!isUuid(id)) notFound();
   const { user, companyId, company, access } = await requireMember();
   const r = await getReminder(companyId, id);
-  if (!r || !(await canSeeReminder(companyId, { id: user.id, access }, r.createdBy))) notFound();
+  const seeAs = r && (await reminderAccess(companyId, { id: user.id, email: user.email, access }, r));
+  if (!r || !seeAs) notFound();
+  // Recipients see the reminder itself; the log and recipient list are for its owners.
+  const log = seeAs === "full" ? await deliveryLog(companyId, r.id) : null;
   const error = firstParam((await props.searchParams).error);
 
   const editable = ["pending_approval", "rejected", "scheduled"].includes(r.status);
@@ -23,7 +28,11 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   const mayDecide = r.status === "pending_approval" && can(access, "reminders.approve");
 
   return (
-    <Page title={r.title} back={{ href: "/reminders", label: "Reminders" }} error={error}>
+    <Page
+      title={r.title}
+      back={seeAs === "full" ? { href: "/reminders", label: "Reminders" } : { href: "/", label: "Home" }}
+      error={error}
+    >
       <p className={styles.status}>
         <span className={styles.badge}>{STATUS_LABELS[r.status]}</span>
         <span>{r.shortId}</span>
@@ -60,13 +69,39 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
         </Section>
       )}
 
-      <Section title="Recipients">
-        <List>
-          {r.targetLabels.map((label, i) => (
-            <ListRow key={i} title={label} />
-          ))}
-        </List>
-      </Section>
+      {seeAs === "full" && (
+        <Section title="Recipients">
+          <List>
+            {r.targetLabels.map((label, i) => (
+              <ListRow key={i} title={label} />
+            ))}
+          </List>
+        </Section>
+      )}
+
+      {log && log.rows.length > 0 && (
+        <Section title="Delivery">
+          <Hint>
+            {log.counts.sent} sent · {log.counts.failed} failed · {log.counts.pending} pending
+          </Hint>
+          <List>
+            {log.rows.map((d) => (
+              <ListRow
+                key={d.id}
+                title={d.email}
+                badge={DELIVERY_LABELS[d.status]}
+                meta={
+                  d.status === "sent" && d.sentAt
+                    ? formatInZone(d.sentAt, company.timeZone)
+                    : d.lastError
+                      ? `${d.lastError} (attempt ${d.attempts})`
+                      : undefined
+                }
+              />
+            ))}
+          </List>
+        </Section>
+      )}
 
       {mayDecide && (
         <Section title="Approval">

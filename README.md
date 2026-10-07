@@ -10,7 +10,8 @@ One package, two processes, one Postgres:
 | Path | What |
 |---|---|
 | `src/app/` | Next.js 16 web app and API (App Router). |
-| `src/worker/index.ts` | Long-running worker: pg-boss queue, per-minute scheduler tick. Run with `pnpm worker`. |
+| `src/worker/` | Long-running worker (`pnpm worker`): `delivery.ts` (dispatch, deliver, sweep), `db.ts` (owner connection), `index.ts` (pg-boss + LISTEN). Never imported by the web app. |
+| `src/lib/recipients.ts` | `resolveRecipients()`: imports only the schema, so the worker can use it. |
 | `src/db/schema.ts` | Drizzle schema, including RLS policies. |
 | `src/db/index.ts` | `db` client (role `notifyhub_app`) and `withTenant()`. |
 | `src/lib/auth.ts` | Better Auth config and `authDb` (role `notifyhub_auth`). |
@@ -84,6 +85,25 @@ pnpm worker      # scheduler
   load would do the session and permission queries twice.
 - **The tab bar hides tabs by permission for tidiness only.** Pages enforce access
   themselves.
+- **Exactly-once delivery (`src/worker/delivery.ts`):**
+  - dispatch turns a due reminder into one `deliveries` row per person.
+    `FOR UPDATE SKIP LOCKED` keeps overlapping runs off the same reminder, and
+    `unique(reminder_id, email)` makes a second row impossible;
+  - each send *claims* its row with `UPDATE … WHERE status='queued'`, so only
+    one caller can win;
+  - **deliberately at-most-once at the edge:** if the worker dies after SMTP
+    accepted a message but before marking it sent, the row stays `sending`. The
+    sweep marks it `failed` ("outcome unknown") after 10 minutes and **never
+    resends it**. Don't "fix" this into a retry: that's how people get two
+    emails.
+- **"Now" is immediate via `pg_notify('reminders_due')`,** sent inside the
+  transaction that schedules a due reminder (create, edit, approve). The
+  worker `LISTEN`s and dispatches at once; the minute tick is only a safety
+  net. pg-boss's own queue `notify` wakes the deliver workers.
+- **The worker connects as the table owner (no RLS).** Every worker query
+  filters by company or by ids it got from a company-scoped row. The test-only
+  `dispatchDue(…, onlyCompany)` exists so a test run can't dispatch real dev
+  reminders.
 - **Reminders store *targets*, not recipients.** "Ops department" stays a
   target, and `resolveRecipients()` turns targets into people at the moment of
   use (PRD 5.2). It filters by `company_id` explicitly as well as through RLS,
