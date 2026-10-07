@@ -2,6 +2,53 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — reminders phase 1: create, scope, approval
+
+- **What's in place:**
+  - `reminders` and `reminder_targets` (0007);
+  - `/reminders` list, new, detail, edit, cancel;
+  - `/approvals` queue; approve or reject (a reason is required, and the
+    creator is emailed); approvers are emailed on submit;
+  - a Reminders tab, and "Approvals waiting (N)" on home.
+
+  **Nothing sends yet.** The worker comes in phase 2.
+- **Targets, not recipients, are stored.** They're resolved at use time
+  (PRD 5.2). One `resolveRecipients()` serves both the scope check and (next)
+  the worker, so the two can't disagree about who gets it.
+- **Scope check** follows PRD 5.2. Department targets the sender isn't in are
+  flagged by name, and resolved people by email. That's what the "needs
+  approval" banner shows.
+- **Approval-widening rule:** editing keeps an approval only if the new
+  targets are a subset of the old ones. We rejected comparing resolved people,
+  because membership changes between approval and edit would flip the result
+  for reasons the editor can't see.
+- **Time zones:** `src/lib/time.ts` uses only Intl. A DST gap moves forward and
+  an overlap takes the earlier time (Temporal "compatible"); tested on New York
+  2026 transitions. Inputs are in the company zone.
+- **`sendMail` takes an options object** (several links, `fromName`,
+  `replyTo`). The from-*address* never changes, only its display name.
+- **`requireMember()` also returns the company** (name, time zone). The layout
+  already queried it, so it's still one query per request.
+- **Known gap:** a validation error on the reminder form redirects back and
+  loses what was typed. Accepted for now: no client JS, and `required` covers
+  most cases. Fix with `useActionState` if it bites.
+- **Verified against `next start` + Mailpit with curl:**
+  - in-scope → Scheduled; out-of-scope → Needs approval, with the admin
+    emailed and the banner naming Sales and carol;
+  - 09:30 Asia/Kolkata is stored as 04:00 UTC;
+  - `<b>` and `<script>` in title and description render escaped;
+  - visibility: creator, manager and admin 200; another department's member 404;
+  - **direct calls:** alice approving her own reminder → 404; carol cancelling
+    or editing alice's → refused, nothing written;
+  - reject without a reason is refused; with one, alice gets the email;
+  - resubmit → pending; approve → scheduled with `decided_by`; cancelled →
+    the edit page is 404.
+
+  19 tests pass.
+- **Script lesson:** the first run lost a test user to Better Auth's sign-up
+  rate limit (more than 3 sign-ups in 10s from one IP). The rate limit working
+  is correct; the script now spaces them.
+
 ## 2026-10-07 — mobile-web restyle, departments on home
 
 - **Why:** the user pointed out that the screens were designed like a desktop

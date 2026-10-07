@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { Button, Hint, Page, Section } from "@/components/form";
 import { List, ListRow } from "@/components/list";
 import { auth } from "@/lib/auth";
-import { visibleRoles } from "@/lib/permissions";
+import { can, visibleRoles } from "@/lib/permissions";
+import { listPendingApprovals } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { getUser } from "@/lib/users";
 
@@ -14,12 +15,22 @@ async function signOut() {
 }
 
 export default async function Home() {
-  const { user, companyId } = await requireMember();
-  const [me, roles] = await Promise.all([getUser(companyId, user.id), visibleRoles(companyId)]);
+  const { user, companyId, access } = await requireMember();
+  const [me, roles, pending] = await Promise.all([
+    getUser(companyId, user.id),
+    visibleRoles(companyId),
+    can(access, "reminders.approve") ? listPendingApprovals(companyId) : [],
+  ]);
   const roleNames = roles.filter((r) => me?.roleIds.includes(r.id)).map((r) => r.name);
 
   return (
     <Page title={`Hi, ${user.name.split(" ")[0]}`}>
+      {pending.length > 0 && (
+        <List>
+          <ListRow href="/approvals" title={`Approvals waiting (${pending.length})`} meta="Reminders that need your OK to send" />
+        </List>
+      )}
+
       <Section title="Your departments">
         {me && me.departments.length > 0 ? (
           <List>

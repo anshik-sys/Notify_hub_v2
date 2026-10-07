@@ -50,6 +50,13 @@
       "when": 1791354654683,
       "tag": "0006_invite_departments",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791357140875,
+      "tag": "0007_reminders",
+      "breakpoints": true
     }
   ]
 }

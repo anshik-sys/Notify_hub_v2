@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import { db, withTenant } from "./index";
-import { departments, roles, user } from "./schema";
+import { departments, reminders, roles, user } from "./schema";
 import { ALL_PERMISSIONS, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "@/lib/permissions";
 
 // Seeds as the owner (bypasses RLS), then reads through the app role.
@@ -13,7 +13,7 @@ const a = randomUUID();
 const b = randomUUID();
 
 after(async () => {
-  for (const table of ["department_members", "user_roles", "roles", "departments"]) {
+  for (const table of ["reminders", "department_members", "user_roles", "roles", "departments"]) {
     await owner.query(`delete from ${table} where company_id = any($1)`, [[a, b]]);
   }
   await owner.query(`delete from "user" where company_id = any($1)`, [[a, b]]);
@@ -44,6 +44,21 @@ test("tenant isolation", async () => {
 
   // Writing into another tenant is rejected by WITH CHECK.
   await assert.rejects(withTenant(a, (tx) => tx.insert(departments).values({ companyId: b, name: "Ops" })));
+});
+
+test("reminders are tenant-isolated", async () => {
+  await owner.query(
+    `insert into reminders (company_id, short_id, created_by, title, sender_name, send_at, status)
+     values ($1, $2, $3, 'B only', 'S', now(), 'scheduled')`,
+    [b, `R-${b.slice(0, 6)}`, `u-${b}`],
+  );
+  const seen = await withTenant(a, (tx) => tx.select().from(reminders));
+  assert.equal(seen.length, 0);
+  await assert.rejects(
+    withTenant(a, (tx) =>
+      tx.insert(reminders).values({ companyId: b, shortId: "R-XXXXXX", createdBy: `u-${a}`, title: "x", senderName: "s", sendAt: new Date(), status: "scheduled" }),
+    ),
+  );
 });
 
 test("app role cannot read auth secrets", async () => {

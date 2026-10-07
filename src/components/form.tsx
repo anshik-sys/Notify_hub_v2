@@ -65,6 +65,15 @@ export function Field({ label, ...props }: { label: string } & React.InputHTMLAt
   );
 }
 
+export function TextArea({ label, ...props }: { label: string } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <label className={styles.field}>
+      {label}
+      <textarea className={`${styles.input} ${styles.textarea}`} {...props} />
+    </label>
+  );
+}
+
 export function SelectField({
   label,
   options,
@@ -113,6 +122,30 @@ export function CheckboxGroup({
       <legend className={styles.legend}>{legend}</legend>
       {options.map((o) => (
         <Checkbox key={o.value} label={o.label} name={name} value={o.value} defaultChecked={o.checked} disabled={o.disabled} />
+      ))}
+    </fieldset>
+  );
+}
+
+export function RadioGroup({
+  legend,
+  name,
+  options,
+  value,
+}: {
+  legend: string;
+  name: string;
+  options: { value: string; label: string }[];
+  value: string;
+}) {
+  return (
+    <fieldset className={styles.group}>
+      <legend className={styles.legend}>{legend}</legend>
+      {options.map((o) => (
+        <label key={o.value} className={styles.checkbox}>
+          <input type="radio" className={styles.checkboxInput} name={name} value={o.value} defaultChecked={o.value === value} />
+          {o.label}
+        </label>
       ))}
     </fieldset>
   );

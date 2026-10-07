@@ -188,3 +188,9 @@
 .linkButton {
   text-decoration: none;
 }
+
+.textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.4;
+}

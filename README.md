@@ -21,6 +21,9 @@ One package, two processes, one Postgres:
 | `src/lib/users.ts` | Directory, role assignment, activation, last-admin guard. |
 | `src/lib/departments.ts` | Departments, members, managers. |
 | `src/app/(app)/departments/` | Department list and detail pages. |
+| `src/lib/reminders.ts` | Reminder input validation, recipient resolution, the send-scope check, create/edit/cancel/approve. |
+| `src/lib/time.ts` | Company-time-zone wall clock ↔ UTC (Intl only, DST-tested). |
+| `src/app/(app)/reminders/`, `src/app/(app)/approvals/` | Reminder pages and the approvals queue. |
 | `src/lib/test-helpers.ts` | `seeder()` for DB tests: one throwaway company per test file. |
 | `src/app/(app)/users/`, `src/app/invite/[token]` | People pages and the public invite accept page. |
 | `src/lib/mail.ts` | `sendMail()`: one recipient per message, over SMTP (Mailpit in dev, SES in prod). |
@@ -81,6 +84,21 @@ pnpm worker      # scheduler
   load would do the session and permission queries twice.
 - **The tab bar hides tabs by permission for tidiness only.** Pages enforce access
   themselves.
+- **Reminders store *targets*, not recipients.** "Ops department" stays a
+  target, and `resolveRecipients()` turns targets into people at the moment of
+  use (PRD 5.2). It filters by `company_id` explicitly as well as through RLS,
+  because the worker's connection bypasses RLS.
+- **Send scope (`outOfScope`):**
+  - holders of `reminders.approve` never need approval;
+  - for everyone else, scope is the members of every department they belong to;
+  - the whole company, another department, anyone outside scope, or an
+    outside email means the reminder waits for approval;
+  - the check always runs as the *creator*, even when an admin edits.
+- **Approval covers the targets it saw.** Editing an approved reminder keeps
+  the approval only if the new targets are a subset of the old ones. Anything
+  new goes back to `pending_approval`.
+- **Send times are entered in the company's time zone** (`company.timeZone`)
+  and stored as UTC. There are no user time zones yet.
 - **Invite tokens:** only the SHA-256 is stored. Accepting claims the invite with
   `WHERE accepted_at IS NULL AND expires_at > now()`, so it's single use even
   when two clicks race. Accepting marks the email verified, because the link

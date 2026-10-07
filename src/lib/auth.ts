@@ -27,9 +27,11 @@ export const auth = betterAuth({
     // Not awaited: sign-up answers the same way for new and existing emails,
     // and waiting on SMTP only for new ones would leak which exist by timing.
     sendVerificationEmail: async ({ user, url }) => {
-      sendMail(user.email, "Verify your email for NotifyHub", `Hi ${user.name},\n\nConfirm your email to finish signing up. The link expires in 1 hour.`, {
-        label: "Verify email",
-        url,
+      sendMail({
+        to: user.email,
+        subject: "Verify your email for NotifyHub",
+        text: `Hi ${user.name},\n\nConfirm your email to finish signing up. The link expires in 1 hour.`,
+        links: [{ label: "Verify email", url }],
       }).catch((e) => console.error("verification email failed", e));
     },
   },

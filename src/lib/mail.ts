@@ -8,15 +8,30 @@ if (!process.env.MAIL_FROM) throw new Error("MAIL_FROM is not set");
 // ponytail: SMTP only; add the SES API when per-company domain verification lands (PRD 7.1 tier 2)
 const transport = nodemailer.createTransport(process.env.SMTP_URL);
 const from = process.env.MAIL_FROM;
+// The bare address inside MAIL_FROM ("Name <addr>" or "addr").
+export const fromAddress = /<([^>]+)>/.exec(from)?.[1] ?? from;
 
 const escape = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-// One recipient per message, always (PRD 5.2): never pass a list here.
-export async function sendMail(to: string, subject: string, text: string, link?: { label: string; url: string }) {
-  const body = link ? `${text}\n\n${link.label}: ${link.url}` : text;
-  const html = `<p>${escape(text).replace(/\n/g, "<br>")}</p>${
-    link ? `<p><a href="${escape(link.url)}">${escape(link.label)}</a></p>` : ""
-  }`;
-  await transport.sendMail({ from, to, subject, text: body, html });
+type Link = { label: string; url: string };
+
+// One recipient per message, always (PRD 5.2): `to` is a single address.
+// fromName replaces the display name of MAIL_FROM; the address never changes
+// (only verified domains may be sent from, PRD 7.1).
+export async function sendMail(m: {
+  to: string;
+  subject: string;
+  text: string;
+  links?: Link[];
+  fromName?: string;
+  replyTo?: string;
+}) {
+  const links = m.links ?? [];
+  const body = [m.text, ...links.map((l) => `${l.label}: ${l.url}`)].join("\n\n");
+  const html =
+    `<p>${escape(m.text).replace(/\n/g, "<br>")}</p>` +
+    links.map((l) => `<p><a href="${escape(l.url)}">${escape(l.label)}</a></p>`).join("");
+  const sender = m.fromName ? { name: m.fromName, address: fromAddress } : from;
+  return transport.sendMail({ from: sender, to: m.to, replyTo: m.replyTo, subject: m.subject, text: body, html });
 }

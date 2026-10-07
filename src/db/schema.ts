@@ -1,5 +1,5 @@
 import { isNull, sql } from "drizzle-orm";
-import { boolean, index, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // Tenant isolation: every tenant table carries company_id and a policy that
 // only matches rows of the company set by withTenant(). Unset => no rows.
@@ -211,5 +211,64 @@ export const invitations = pgTable(
     uniqueIndex().on(t.companyId, t.email).where(isNull(t.acceptedAt)),
     tenantPolicy("company_id"),
     authPolicy,
+  ],
+).enableRLS();
+
+// --- Reminders (PRD 5). Targets are what the creator picked; they're resolved
+// to actual recipients at send time (src/lib/reminders.ts resolveRecipients).
+
+export const REMINDER_STATUSES = ["pending_approval", "rejected", "scheduled", "sending", "sent", "cancelled"] as const;
+export type ReminderStatus = (typeof REMINDER_STATUSES)[number];
+
+export const reminders = pgTable(
+  "reminders",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    shortId: text().notNull().unique(),
+    createdBy: text()
+      .notNull()
+      .references(() => user.id),
+    title: text().notNull(),
+    description: text().notNull().default(""),
+    links: jsonb().$type<{ label: string; url: string }[]>().notNull().default([]),
+    senderName: text().notNull(),
+    sendAt: ts().notNull(),
+    status: text().$type<ReminderStatus>().notNull(),
+    decidedBy: text().references(() => user.id),
+    decidedAt: ts(),
+    rejectionReason: text(),
+    createdAt: ts().notNull().defaultNow(),
+    updatedAt: ts()
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index().on(t.status, t.sendAt),
+    check("reminders_status_valid", sql`${t.status} in ('pending_approval','rejected','scheduled','sending','sent','cancelled')`),
+    tenantPolicy("company_id"),
+  ],
+).enableRLS();
+
+export const reminderTargets = pgTable(
+  "reminder_targets",
+  {
+    reminderId: uuid()
+      .notNull()
+      .references(() => reminders.id, { onDelete: "cascade" }),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    kind: text().$type<"user" | "department" | "company" | "email">().notNull(),
+    // user id, department id, or email; null for kind = company.
+    ref: text(),
+  },
+  (t) => [
+    index().on(t.reminderId),
+    check("reminder_targets_kind_valid", sql`${t.kind} in ('user','department','company','email')`),
+    tenantPolicy("company_id"),
   ],
 ).enableRLS();

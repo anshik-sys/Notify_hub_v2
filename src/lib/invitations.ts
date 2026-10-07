@@ -61,12 +61,12 @@ export async function createInvitation(
   // Awaited: the admin should hear about a failed send. The invite row stays;
   // inviting again replaces it.
   try {
-    await sendMail(
-      email,
-      `You're invited to ${companyName} on NotifyHub`,
-      `${actor.name} invited you to join ${companyName} on NotifyHub. The link expires in ${INVITE_DAYS} days.`,
-      { label: "Accept invite", url: `${process.env.BETTER_AUTH_URL}/invite/${token}` },
-    );
+    await sendMail({
+      to: email,
+      subject: `You're invited to ${companyName} on NotifyHub`,
+      text: `${actor.name} invited you to join ${companyName} on NotifyHub. The link expires in ${INVITE_DAYS} days.`,
+      links: [{ label: "Accept invite", url: `${process.env.BETTER_AUTH_URL}/invite/${token}` }],
+    });
   } catch (e) {
     console.error("invite email failed", e);
     return "The invite was saved but the email failed to send. Try inviting again.";
