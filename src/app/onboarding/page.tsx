@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { createCompany } from "@/lib/onboarding";
-import { buttonClass, errorUrl, Field, firstParam, FormPage, inputClass } from "../form";
+import { Button, errorUrl, Field, firstParam, Form, FormPage, Hint, SelectField } from "../form";
 
 const TIME_ZONES = ["UTC", ...Intl.supportedValuesOf("timeZone")];
 
@@ -23,21 +23,12 @@ export default async function Onboarding(props: PageProps<"/onboarding">) {
   if (session.user.companyId) redirect("/");
   return (
     <FormPage title="Set up your company" error={error}>
-      <form action={onboard} className="flex flex-col gap-4">
+      <Form action={onboard}>
         <Field label="Company name" name="name" autoComplete="organization" maxLength={100} required />
-        <label className="flex flex-col gap-1 text-sm">
-          Time zone
-          <select name="timeZone" defaultValue="UTC" className={inputClass}>
-            {TIME_ZONES.map((tz) => (
-              <option key={tz}>{tz}</option>
-            ))}
-          </select>
-        </label>
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Your company domain is taken from your email: {session.user.email.split("@")[1]}
-        </p>
-        <button className={buttonClass}>Create company</button>
-      </form>
+        <SelectField label="Time zone" name="timeZone" defaultValue="UTC" options={TIME_ZONES} />
+        <Hint>Your company domain is taken from your email: {session.user.email.split("@")[1]}</Hint>
+        <Button>Create company</Button>
+      </Form>
     </FormPage>
   );
 }

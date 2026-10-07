@@ -16,6 +16,8 @@ One package, two processes, one Postgres:
 | `src/lib/auth.ts` | Better Auth config and `authDb` (role `notifyhub_auth`). |
 | `src/lib/mail.ts` | `sendMail()`: one recipient per message, over SMTP (Mailpit in dev, SES in prod). |
 | `src/lib/onboarding.ts` | Creates a company and attaches the signed-in user, in one transaction. |
+| `src/app/form.tsx` + `form.module.css` | Shared form components (FormPage, Field, Button, …). |
+| `src/app/globals.css` | Design tokens (CSS variables, light and dark) and element defaults. |
 | `src/app/sign-in`, `sign-up`, `onboarding` | Server-rendered forms posting to server actions. No client-side auth code. |
 | `src/app/api/auth/[...all]` | Better Auth's HTTP endpoints (sessions, OAuth callbacks). |
 | `drizzle/` | SQL migrations. `0001` is hand-written; `0003` is generated plus hand-added role creation and grants. |

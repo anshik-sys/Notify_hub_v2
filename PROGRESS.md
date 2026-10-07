@@ -2,6 +2,22 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — tailwind replaced with css modules
+
+- **Why:** with Tailwind, an element in devtools is a wall of utility classes,
+  and you can't tell which component it belongs to. With CSS Modules, each
+  component's styles live in one `.module.css` file beside it, and the inspector
+  shows `form-module__<hash>__field`.
+- **Rejected:** plain global CSS files. One namespace for the whole app means
+  `.title` in two components collide, and rules leak between them. CSS Modules
+  are built into Next.js and need no extra setup.
+- Removed `tailwindcss`, `@tailwindcss/postcss` and `postcss.config.mjs`.
+  Colours moved to CSS variables in `globals.css`, with dark-mode overrides.
+- **Checked:** the compiled HTML from `next start` carries the module class names.
+  Values were ported 1:1 from the Tailwind classes (zinc palette, 6px radius,
+  16px input font), so pages should look the same. **Not checked visually**:
+  that's for the user, in the browser.
+
 ## 2026-10-07 — email sending and email verification
 
 - **Closes the domain-claim hole** from the auth entry below. Before this,

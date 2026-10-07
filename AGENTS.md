@@ -11,8 +11,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 # Rules for this repo
 
 - Follow `WORKING_AGREEMENT.md`. Never commit; no attribution trailers.
-- Next.js 16, React 19, Tailwind 4, Drizzle 0.45, pg-boss 12. Check `node_modules` docs, not memory.
+- Next.js 16, React 19, Drizzle 0.45, pg-boss 12. Check `node_modules` docs, not memory.
 - Import alias: `@/*` -> `src/*`.
+- **Styling: plain CSS Modules, no Tailwind.** Each component gets its own
+  `<name>.module.css` beside it, with semantic class names (`.field`, `.signOut`).
+  Those names show up in devtools as `form-module__<hash>__field`, which is why
+  we chose this. Colours and radii come from the variables in `globals.css`;
+  `globals.css` holds only variables and element defaults, never component styles.
 - Drizzle uses `casing: "snake_case"` in both `drizzle.config.ts` and `src/db/index.ts`. Keep them in sync.
 - Every tenant table: `company_id` column, `tenantPolicy(...)`, `.enableRLS()`. Add a case to `src/db/rls.test.ts`.
 - Tenant reads and writes go through `withTenant()`. The web app never uses the owner URL.

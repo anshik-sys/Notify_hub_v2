@@ -1,18 +1,5 @@
 // Shared bits for the auth and onboarding forms.
-
-export const inputClass =
-  "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base dark:border-zinc-700 dark:bg-zinc-900";
-export const buttonClass =
-  "w-full rounded-md bg-zinc-900 px-3 py-2 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900";
-
-export function Field({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      {label}
-      <input className={inputClass} {...props} />
-    </label>
-  );
-}
+import styles from "./form.module.css";
 
 export function FormPage({
   title,
@@ -26,21 +13,59 @@ export function FormPage({
   children: React.ReactNode;
 }) {
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-4 py-8">
-      <h1 className="text-2xl font-semibold">{title}</h1>
+    <main className={styles.page}>
+      <h1 className={styles.title}>{title}</h1>
       {error && (
-        <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">
+        <p role="alert" className={styles.error}>
           {error}
         </p>
       )}
       {notice && (
-        <p role="status" className="rounded-md bg-zinc-100 px-3 py-2 text-sm dark:bg-zinc-800">
+        <p role="status" className={styles.notice}>
           {notice}
         </p>
       )}
       {children}
     </main>
   );
+}
+
+export function Form(props: React.FormHTMLAttributes<HTMLFormElement>) {
+  return <form className={styles.form} {...props} />;
+}
+
+export function Field({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className={styles.field}>
+      {label}
+      <input className={styles.input} {...props} />
+    </label>
+  );
+}
+
+export function SelectField({
+  label,
+  options,
+  ...props
+}: { label: string; options: string[] } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <label className={styles.field}>
+      {label}
+      <select className={styles.input} {...props}>
+        {options.map((o) => (
+          <option key={o}>{o}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+export function Button(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button className={styles.button} {...props} />;
+}
+
+export function Hint({ children }: { children: React.ReactNode }) {
+  return <p className={styles.hint}>{children}</p>;
 }
 
 export const errorUrl = (path: string, message: string) => `${path}?error=${encodeURIComponent(message)}`;

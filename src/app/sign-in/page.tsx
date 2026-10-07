@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, googleEnabled } from "@/lib/auth";
-import { buttonClass, errorUrl, Field, firstParam, FormPage } from "../form";
+import { Button, errorUrl, Field, firstParam, Form, FormPage, Hint } from "../form";
 
 async function signIn(formData: FormData) {
   "use server";
@@ -32,19 +32,19 @@ export default async function SignIn(props: PageProps<"/sign-in">) {
   const { error, notice } = await props.searchParams;
   return (
     <FormPage title="Sign in" error={firstParam(error)} notice={firstParam(notice)}>
-      <form action={signIn} className="flex flex-col gap-4">
+      <Form action={signIn}>
         <Field label="Email" name="email" type="email" autoComplete="email" required />
         <Field label="Password" name="password" type="password" autoComplete="current-password" required />
-        <button className={buttonClass}>Sign in</button>
-      </form>
+        <Button>Sign in</Button>
+      </Form>
       {googleEnabled && (
-        <form action={signInWithGoogle}>
-          <button className={buttonClass}>Continue with Google</button>
-        </form>
+        <Form action={signInWithGoogle}>
+          <Button>Continue with Google</Button>
+        </Form>
       )}
-      <p className="text-sm">
-        New company? <Link href="/sign-up" className="underline">Create an account</Link>
-      </p>
+      <Hint>
+        New company? <Link href="/sign-up">Create an account</Link>
+      </Hint>
     </FormPage>
   );
 }

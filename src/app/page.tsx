@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { withTenant } from "@/db";
 import { companies } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import styles from "./page.module.css";
 
 async function signOut() {
   "use server";
@@ -22,11 +23,11 @@ export default async function Home() {
   );
 
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-4 px-4 py-8">
-      <h1 className="text-2xl font-semibold">{company.name}</h1>
+    <main className={styles.home}>
+      <h1 className={styles.company}>{company.name}</h1>
       <p>Signed in as {session.user.email}</p>
       <form action={signOut}>
-        <button className="underline">Sign out</button>
+        <button className={styles.signOut}>Sign out</button>
       </form>
     </main>
   );
