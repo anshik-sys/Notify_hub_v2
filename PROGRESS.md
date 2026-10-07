@@ -2,6 +2,37 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — Slack phase C: daily digest
+
+- **What's in place:** a "Daily digest" section on Integrations: enabled,
+  time (company zone), channels, people. Once a day the worker posts to each
+  channel and DMs each person:
+  - "Overdue tasks": occurrences past due with at least one assignee not
+    done, shown as "N of M not done";
+  - "Coming up in the next 24 hours": scheduled reminders.
+
+  Each section is capped at 20 lines, with "+K more"; mrkdwn is escaped. An
+  empty digest still posts "Nothing overdue…", so admins can see it running.
+- **Claim:** the same single-UPDATE, company-local-date pattern as task
+  follow-ups (`last_digest_on`). The job has no retries, so at most one a day.
+  Each destination is independent: a deleted channel doesn't stop the DMs.
+- **Content is company-wide** (titles of all reminders due soon), so it only
+  goes where an admin points it. A per-person digest is out of scope.
+- **Validation:** time `HH:MM`; channels must exist in Slack; people must be in
+  the company (RLS); enabled needs at least one destination.
+- **Verified against `next start` + `pnpm worker` + fake Slack:**
+  - a member gets 404 on settings;
+  - "enabled with nobody" is refused;
+  - saved for `#general` + alice at the current minute → one post and one DM,
+    with the overdue task and the reminder 2h out, times in IST;
+  - the next tick → nothing more;
+  - disabling makes it unclaimable.
+
+  The fake Slack ran as a separate workspace (`FAKE_SLACK_TEAM`) so the
+  user's own fake connection wasn't touched. 65 tests pass.
+- **Slack (PRD 7.2) is now complete** apart from testing against a real
+  workspace.
+
 ## 2026-10-07 — Slack phase B: Mark done / Snooze buttons, Slack follow-ups
 
 - **What's in place:**

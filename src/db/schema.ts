@@ -410,9 +410,21 @@ export const slackInstallations = pgTable(
     fallbackChannelId: text(),
     fallbackChannelName: text(),
     installedBy: text().references(() => user.id, { onDelete: "set null" }),
+    // Daily digest (PRD 7.2): overdue tasks + the next 24h, at digestTime in
+    // the company zone, to these channels and people. last_digest_on is the
+    // once-a-day claim (company-local date).
+    digestEnabled: boolean().notNull().default(false),
+    digestTime: text().notNull().default("09:00"),
+    digestChannelIds: text().array().notNull().default(sql`'{}'`),
+    digestUserIds: text().array().notNull().default(sql`'{}'`),
+    lastDigestOn: date({ mode: "string" }),
     createdAt: ts().notNull().defaultNow(),
   },
   // authPolicy: a Slack button click names a workspace (team_id), not a
   // company; the interactions endpoint finds the company through authDb.
-  () => [tenantPolicy("company_id"), authPolicy],
+  (t) => [
+    tenantPolicy("company_id"),
+    authPolicy,
+    check("slack_digest_time_valid", sql`${t.digestTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  ],
 ).enableRLS();

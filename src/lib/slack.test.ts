@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { listChannels, lookupByEmail, reminderMessage, SlackError, SlackRateLimited, slackApi } from "./slack";
+import { digestMessage, listChannels, lookupByEmail, reminderMessage, SlackError, SlackRateLimited, slackApi } from "./slack";
 
 // A fake fetch: records requests, replies with the next canned response.
 function fakeFetch(...replies: { status?: number; json?: object; headers?: Record<string, string> }[]) {
@@ -66,4 +66,17 @@ test("task buttons: DM gets done + snoozes, channel gets done only; value is the
   assert.deepEqual(actions(true).map((e) => e.action_id), ["task_done", "snooze_1h", "snooze_tomorrow", "open"]);
   assert.deepEqual(actions(false).map((e) => e.action_id), ["task_done", "open"]);
   assert.ok(actions(true).filter((e) => e.action_id !== "open").every((e) => e.value === "occ-1"));
+});
+
+test("digestMessage: empty, escaped, capped at 20 lines", () => {
+  const empty = JSON.stringify(digestMessage({ date: "1 Jan", overdue: [], upcoming: [], appUrl: "https://a.test" }).blocks);
+  assert.ok(empty.includes("Nothing overdue and nothing due"));
+  const many = Array.from({ length: 23 }, (_, i) => ({ id: `r${i}`, title: `T<${i}>`, detail: "d" }));
+  const m = digestMessage({ date: "1 Jan", overdue: many, upcoming: [], appUrl: "https://a.test" });
+  const json = JSON.stringify(m.blocks);
+  assert.ok(json.includes("Overdue tasks (23)"));
+  assert.ok(json.includes("<https://a.test/reminders/r0|T&lt;0&gt;>"));
+  assert.ok(json.includes("+3 more in NotifyHub"));
+  assert.ok(!json.includes("r20|"));
+  assert.equal(m.text, "Daily digest: 23 overdue, 0 in the next 24 hours");
 });

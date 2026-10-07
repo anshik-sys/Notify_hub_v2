@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { slackInstallations } from "@/db/schema";
+import { slackInstallations, user } from "@/db/schema";
 import { decrypt, encrypt } from "./crypto";
 import { listChannels, revoke } from "./slack";
 
@@ -82,4 +82,50 @@ export async function channelChoices(companyId: string) {
     console.error("listing Slack channels failed", e);
     return [];
   }
+}
+
+export async function digestSettings(companyId: string) {
+  const [row] = await withTenant(companyId, (tx) =>
+    tx
+      .select({
+        enabled: slackInstallations.digestEnabled,
+        time: slackInstallations.digestTime,
+        channelIds: slackInstallations.digestChannelIds,
+        userIds: slackInstallations.digestUserIds,
+      })
+      .from(slackInstallations)
+      .where(eq(slackInstallations.companyId, companyId)),
+  );
+  return row ?? null;
+}
+
+// Validates against Slack (channels exist) and the company (people are members).
+export async function saveDigestSettings(
+  companyId: string,
+  s: { enabled: boolean; time: string; channelIds: string[]; userIds: string[] },
+) {
+  if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(s.time)) return "Pick a time of day.";
+  const inst = await getInstallation(companyId);
+  if (!inst) return "Slack isn't connected.";
+  const channelIds = [...new Set(s.channelIds)];
+  const userIds = [...new Set(s.userIds)];
+  if (channelIds.length) {
+    const known = new Set((await listChannels(inst.token())).map((c) => c.id));
+    if (!channelIds.every((id) => known.has(id))) return "One of those channels doesn't exist.";
+  }
+  if (userIds.length) {
+    // RLS: someone from another company is simply not found.
+    const found = await withTenant(companyId, (tx) =>
+      tx.select({ id: user.id }).from(user).where(and(inArray(user.id, userIds), isNull(user.deactivatedAt))),
+    );
+    if (found.length !== userIds.length) return "One of those people isn't in your company.";
+  }
+  if (s.enabled && !channelIds.length && !userIds.length) return "Pick at least one channel or person to send the digest to.";
+  await withTenant(companyId, (tx) =>
+    tx
+      .update(slackInstallations)
+      .set({ digestEnabled: s.enabled, digestTime: s.time, digestChannelIds: channelIds, digestUserIds: userIds })
+      .where(eq(slackInstallations.companyId, companyId)),
+  );
+  return null;
 }

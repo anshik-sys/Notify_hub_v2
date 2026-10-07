@@ -1,8 +1,16 @@
 import { notFound, redirect } from "next/navigation";
-import { Button, errorUrl, firstParam, Form, Hint, Page, Section, SelectField } from "@/components/form";
+import { Button, Checkbox, CheckboxGroup, errorUrl, Field, firstParam, Form, Hint, Page, Section, SelectField } from "@/components/form";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
-import { channelChoices, disconnect, getInstallation, setFallbackChannel } from "@/lib/slack-installations";
+import {
+  channelChoices,
+  digestSettings,
+  disconnect,
+  getInstallation,
+  saveDigestSettings,
+  setFallbackChannel,
+} from "@/lib/slack-installations";
+import { listUsers } from "@/lib/users";
 import styles from "./page.module.css";
 
 async function requireManager() {
@@ -25,9 +33,26 @@ async function saveFallback(fd: FormData) {
   redirect(error ? errorUrl("/settings/integrations", error) : "/settings/integrations?notice=Saved.");
 }
 
-export default async function Integrations(props: PageProps<"/settings/integrations">) {
+async function saveDigest(fd: FormData) {
+  "use server";
   const { companyId } = await requireManager();
-  const [inst, channels] = await Promise.all([getInstallation(companyId), channelChoices(companyId)]);
+  const error = await saveDigestSettings(companyId, {
+    enabled: fd.get("digestEnabled") === "on",
+    time: String(fd.get("digestTime") ?? ""),
+    channelIds: fd.getAll("digestChannels").map(String),
+    userIds: fd.getAll("digestUsers").map(String),
+  });
+  redirect(error ? errorUrl("/settings/integrations", error) : "/settings/integrations?notice=Digest%20saved.");
+}
+
+export default async function Integrations(props: PageProps<"/settings/integrations">) {
+  const { companyId, company } = await requireManager();
+  const [inst, channels, digest, people] = await Promise.all([
+    getInstallation(companyId),
+    channelChoices(companyId),
+    digestSettings(companyId),
+    listUsers(companyId).then((r) => r.users.filter((u) => !u.deactivatedAt)),
+  ]);
   const { error, notice } = await props.searchParams;
 
   return (
@@ -46,6 +71,26 @@ export default async function Integrations(props: PageProps<"/settings/integrati
               <Hint>When someone can’t be reached by direct message (no Slack account with their email), the reminder is posted here instead.</Hint>
               <Button>Save</Button>
             </Form>
+            <Section title="Daily digest">
+              <Form action={saveDigest}>
+                <Checkbox label="Send a daily digest" name="digestEnabled" defaultChecked={digest?.enabled} />
+                <Field label={`Time (${company.timeZone})`} name="digestTime" type="time" required defaultValue={digest?.time ?? "09:00"} />
+                <Hint>Overdue tasks, and reminders going out in the next 24 hours, for the whole company.</Hint>
+                {(channels ?? []).length > 0 && (
+                  <CheckboxGroup
+                    legend="Post to channels"
+                    name="digestChannels"
+                    options={(channels ?? []).map((c) => ({ value: c.id, label: `#${c.name}`, checked: digest?.channelIds.includes(c.id) }))}
+                  />
+                )}
+                <CheckboxGroup
+                  legend="Send to people (direct message)"
+                  name="digestUsers"
+                  options={people.map((p) => ({ value: p.id, label: `${p.name} (${p.email})`, checked: digest?.userIds.includes(p.id) }))}
+                />
+                <Button>Save digest</Button>
+              </Form>
+            </Section>
             <form action={disconnectSlack}>
               <Button variant="secondary">Disconnect Slack</Button>
             </form>

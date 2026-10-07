@@ -132,6 +132,13 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   - **snooze** sets `task_assignments.snoozed_until`. The minute tick claims
     due snoozes by clearing the field in the same UPDATE, and re-sends the DM
     once (the job has no retries, on purpose).
+- **Daily Slack digest (`src/worker/digest.ts`):**
+  - once per company per local day at `digest_time`, claimed exactly like
+    follow-ups (`last_digest_on`);
+  - the content is company-wide (overdue tasks with someone not done, plus
+    reminders going out in the next 24h), and goes only where an admin points
+    it;
+  - each destination is independent; no retries, at most one a day.
 - **Task follow-ups go over the task's channels:** email first (a failure
   retries), then a Slack DM whose failure is only logged, so a Slack problem
   never causes a second email.

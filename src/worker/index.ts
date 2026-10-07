@@ -1,6 +1,7 @@
 import { Client } from "pg";
 import { PgBoss } from "pg-boss";
 import { ownerUrl } from "./db";
+import { claimDigests, digestOne } from "./digest";
 import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
 // Long-running process, deployed separately from the web app.
@@ -16,6 +17,7 @@ await boss.createQueue("deliver", { notify: true });
 await boss.updateQueue("deliver", { notify: true }); // createQueue leaves an existing queue as it was
 await boss.createQueue("followup", { notify: true });
 await boss.createQueue("snooze", { notify: true });
+await boss.createQueue("digest", { notify: true });
 
 const enqueue = async (ids: string[]) => {
   for (const deliveryId of ids)
@@ -57,6 +59,10 @@ await boss.work<{ assignmentId: string }>("snooze", { localConcurrency: 10 }, as
   console.log(`snooze ${job.data.assignmentId}: ${await snoozeOne(job.data.assignmentId)}`);
 });
 
+await boss.work<{ companyId: string }>("digest", async ([job]) => {
+  console.log(`digest ${job.data.companyId}:`, await digestOne(job.data.companyId));
+});
+
 await boss.schedule("tick", "* * * * *");
 await boss.work("tick", async () => {
   await enqueue(await sweep());
@@ -66,6 +72,8 @@ await boss.work("tick", async () => {
     await boss.send("followup", { assignmentId }, { retryLimit: 3, retryDelay: 30, retryBackoff: true });
   // Claimed (cleared) once; a failed re-send isn't retried, to never DM twice.
   for (const assignmentId of await claimSnoozes()) await boss.send("snooze", { assignmentId }, { retryLimit: 0 });
+  // One digest per company per local day (claimed); no retries, never twice.
+  for (const companyId of await claimDigests()) await boss.send("digest", { companyId }, { retryLimit: 0 });
 });
 
 // LISTEN needs a plain session connection (not a transaction-mode pooler).

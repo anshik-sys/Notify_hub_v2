@@ -38,6 +38,8 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0015: the daily digest settings on `slack_installations`.
+
 Migration 0014: `task_assignments.snoozed_until`, and `notifyhub_auth` may
 read `slack_installations` (a button click names a workspace, not a company).
 
@@ -146,6 +148,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Integrations → Add to Slack → back on the page, "Connected to <workspace>"; set a fallback channel.
 - [ ] A reminder on Email + Slack to a department plus a channel: emails arrive, each member gets a DM, the channel gets one post; someone without Slack shows up in the fallback channel.
 - [ ] A Slack task: each DM has Mark done / Snooze. Mark done → the DM shows "✅ Done" and the app shows it done; Snooze 1 hour → the DM comes back about an hour later, once.
+- [ ] Integrations → Daily digest: enable it, pick a channel and a person, set the time to a minute from now → one digest in each; nothing more that day.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

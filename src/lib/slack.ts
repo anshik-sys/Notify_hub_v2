@@ -170,3 +170,29 @@ export function withStatus(blocks: { type: string; block_id?: string }[], status
     { type: "actions", block_id: "task", elements: [openButton(appUrl)] },
   ];
 }
+
+// --- Daily digest (PRD 7.2) ----------------------------------------------------------
+
+type DigestLine = { id: string; title: string; detail: string };
+const MAX_LINES = 20;
+
+function digestSection(heading: string, lines: DigestLine[], appUrl: string) {
+  const shown = lines.slice(0, MAX_LINES).map((l) => `• <${appUrl}/reminders/${l.id}|${esc(l.title)}> · ${esc(l.detail)}`);
+  if (lines.length > MAX_LINES) shown.push(`+${lines.length - MAX_LINES} more in NotifyHub`);
+  // Section text is capped at 3000 characters by Slack.
+  return { type: "section", text: { type: "mrkdwn", text: `*${esc(heading)} (${lines.length})*\n${shown.join("\n")}`.slice(0, 2990) } };
+}
+
+export function digestMessage(d: { date: string; overdue: DigestLine[]; upcoming: DigestLine[]; appUrl: string }) {
+  const blocks: unknown[] = [{ type: "header", text: { type: "plain_text", text: `Daily digest · ${d.date}` } }];
+  if (!d.overdue.length && !d.upcoming.length)
+    blocks.push({ type: "section", text: { type: "mrkdwn", text: "Nothing overdue and nothing due in the next 24 hours." } });
+  if (d.overdue.length) blocks.push(digestSection("Overdue tasks", d.overdue, d.appUrl));
+  if (d.upcoming.length) blocks.push(digestSection("Coming up in the next 24 hours", d.upcoming, d.appUrl));
+  blocks.push({
+    type: "actions",
+    elements: [{ type: "button", text: { type: "plain_text", text: "Open NotifyHub" }, url: d.appUrl, action_id: "open" }],
+  });
+  const text = `Daily digest: ${d.overdue.length} overdue, ${d.upcoming.length} in the next 24 hours`;
+  return { text, blocks };
+}
