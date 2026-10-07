@@ -36,6 +36,13 @@
       "when": 1791352929849,
       "tag": "0004_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791353780588,
+      "tag": "0005_invitations",
+      "breakpoints": true
     }
   ]
 }

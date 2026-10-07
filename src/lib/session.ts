@@ -7,7 +7,8 @@ import { loadAccess } from "./permissions";
 // the user's permissions. Callers still check can() for what they do.
 export async function requireMember() {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/sign-in");
+  // Deactivation deletes sessions too; this covers the moment in between.
+  if (!session || session.user.deactivatedAt) redirect("/sign-in");
   const companyId = session.user.companyId;
   if (!companyId) redirect("/onboarding");
   return { user: session.user, companyId, access: await loadAccess(companyId, session.user.id) };

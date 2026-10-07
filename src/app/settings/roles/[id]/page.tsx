@@ -6,7 +6,8 @@ import { roles } from "@/db/schema";
 import { can, COMPANY_ADMIN_ROLE_ID } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { firstParam, FormPage, Hint } from "../../../form";
-import { isUuid, RoleForm } from "../role-form";
+import { isUuid } from "@/lib/validate";
+import { RoleForm } from "../role-form";
 
 export default async function EditRole(props: PageProps<"/settings/roles/[id]">) {
   const { companyId, access } = await requireMember();

@@ -1,6 +1,7 @@
 import { APIError, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
 import { sendMail } from "./mail";
@@ -18,7 +19,9 @@ export const auth = betterAuth({
   database: drizzleAdapter(authDb, { provider: "pg", schema }),
   emailAndPassword: { enabled: true, requireEmailVerification: true },
   emailVerification: {
-    sendOnSignUp: true,
+    // Off: /sign-up sends it explicitly, so accepting an invite (which proves the
+    // mailbox by itself) doesn't also send a verification email.
+    sendOnSignUp: false,
     sendOnSignIn: true,
     autoSignInAfterVerification: true,
     // Not awaited: sign-up answers the same way for new and existing emails,
@@ -45,6 +48,21 @@ export const auth = betterAuth({
     additionalFields: {
       // Set once, by onboarding or invite acceptance. Never from client input.
       companyId: { type: "string", required: false, input: false },
+      deactivatedAt: { type: "date", required: false, input: false },
+    },
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        // Every sign-in method creates a session here, so this blocks them all.
+        before: async (session) => {
+          const [u] = await authDb
+            .select({ deactivatedAt: schema.user.deactivatedAt })
+            .from(schema.user)
+            .where(eq(schema.user.id, session.userId));
+          if (u?.deactivatedAt) throw new APIError("FORBIDDEN", { message: "This account has been deactivated." });
+        },
+      },
     },
   },
   plugins: [nextCookies()],

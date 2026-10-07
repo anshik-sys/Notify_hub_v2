@@ -2,6 +2,50 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — invites, people list, role assignment, deactivation (phase A)
+
+- **Invites:**
+  - the token is hashed at rest;
+  - claiming it is single use and race-safe (conditional UPDATE);
+  - expires after 7 days;
+  - re-inviting replaces the pending invite (partial unique index).
+
+  Accepting marks the email verified. The accept page handles three cases:
+  new account, signed in as the invitee, and existing account signed out
+  (→ `/sign-in?next=`, open-redirect-safe).
+- **`sendOnSignUp` turned off**, and `/sign-up` sends explicitly. Without this,
+  creating the invitee's account would send a pointless verification email.
+  Re-checked: the sign-up page still sends it.
+- **Deactivation has three layers** (session hook, session delete, check in
+  `requireMember`). The app role can't touch `session`, so the guard and the
+  update run in one app-role transaction, and the session delete runs right
+  after on `authDb`. Not atomic. Accepted because `requireMember` refuses the
+  user in that window.
+- **Escalation rule:** you can only grant, remove, or act on people whose roles
+  you could grant. Without it, a custom role with `users.manage_roles` could
+  hand out Company Admin.
+- **Last-admin guard** uses a per-company `FOR UPDATE` lock. Without the lock,
+  two admins demoting each other at once would both pass the count.
+- **Shared `CheckboxGroup`**: the roles form switched to it, and
+  `role-form.module.css` was removed (its styles moved into
+  `form.module.css`).
+- **Verified against `next start` + Mailpit with curl:**
+  - sign-up still emails;
+  - an admin invites, the email arrives, the accept form creates the account,
+    which lands in the company verified with Member, and the reused link is
+    refused;
+  - as a Member, direct calls to invite, grant self admin, and deactivate the
+    admin each get 404 with no write;
+  - the admin demoting themselves as the last admin is refused;
+  - deactivating deletes sessions, bounces the open session, and sign-in says
+    "deactivated"; reactivating restores sign-in;
+  - `?next=//evil.com` falls back to `/`.
+
+  11 tests pass (Mailpit must be running).
+
+  **Not checked:** browser layout; the "existing account → sign in → accept"
+  path end to end (its pieces are tested separately).
+
 ## 2026-10-07 — roles and permissions
 
 - **What's in place:**

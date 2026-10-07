@@ -100,3 +100,11 @@ export async function loadAccess(companyId: string, userId: string): Promise<Acc
 export const visibleRoles = (companyId: string) =>
   withTenant(companyId, (tx) => tx.select().from(roles).orderBy(roles.companyId, roles.name));
 
+
+// Escalation rule: you may grant (or take away, or act on someone holding) a
+// role only if you already hold every permission in it. Company Admin needs
+// every permission, i.e. only admins make or unmake admins.
+export function canGrant(access: Access, role: { id: string; permissions: string[] }) {
+  if (role.id === COMPANY_ADMIN_ROLE_ID) return ALL_PERMISSIONS.every((p) => access.permissions.has(p));
+  return role.permissions.every((p) => isPermission(p) && access.permissions.has(p));
+}

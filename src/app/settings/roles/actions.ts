@@ -7,7 +7,7 @@ import { roles } from "@/db/schema";
 import { can, isPermission } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { errorUrl } from "../../form";
-import { isUuid } from "./role-form";
+import { isUuid } from "@/lib/validate";
 
 const SYSTEM_NAMES = ["company admin", "member"];
 

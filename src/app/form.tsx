@@ -60,6 +60,36 @@ export function SelectField({
   );
 }
 
+export function Checkbox({ label, ...props }: { label: React.ReactNode } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className={styles.checkbox}>
+      <input type="checkbox" {...props} />
+      {label}
+    </label>
+  );
+}
+
+export function CheckboxGroup({
+  legend,
+  name,
+  options,
+  disabled,
+}: {
+  legend: string;
+  name: string;
+  options: { value: string; label: string; checked?: boolean; disabled?: boolean }[];
+  disabled?: boolean;
+}) {
+  return (
+    <fieldset className={styles.group} disabled={disabled}>
+      <legend className={styles.legend}>{legend}</legend>
+      {options.map((o) => (
+        <Checkbox key={o.value} label={o.label} name={name} value={o.value} defaultChecked={o.checked} disabled={o.disabled} />
+      ))}
+    </fieldset>
+  );
+}
+
 export function Button({ variant, ...props }: { variant?: "danger" } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return <button className={variant === "danger" ? `${styles.button} ${styles.danger}` : styles.button} {...props} />;
 }
@@ -69,5 +99,8 @@ export function Hint({ children }: { children: React.ReactNode }) {
 }
 
 export const errorUrl = (path: string, message: string) => `${path}?error=${encodeURIComponent(message)}`;
+
+// Only same-origin paths: "/x" yes, "//evil.com" and "https://…" no.
+export const safeNext = (v: unknown) => (typeof v === "string" && /^\/(?![/\\])/.test(v) ? v : "/");
 
 export const firstParam = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);

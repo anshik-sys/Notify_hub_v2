@@ -25,6 +25,7 @@ export default async function Home() {
     <main className={styles.home}>
       <h1 className={styles.company}>{company.name}</h1>
       <p>Signed in as {user.email}</p>
+      {can(access, "users.view") && <Link href="/users">People</Link>}
       {can(access, "roles.manage") && <Link href="/settings/roles">Roles</Link>}
       <form action={signOut}>
         <button className={styles.signOut}>Sign out</button>

@@ -1,10 +1,6 @@
 import { PERMISSION_GROUPS } from "@/lib/permissions";
-import { Button, Field, Form, Hint } from "../../form";
+import { Button, Checkbox, CheckboxGroup, Field, Form, Hint } from "../../form";
 import { deleteRole, saveRole } from "./actions";
-import styles from "./role-form.module.css";
-
-// Ids come from the URL; Postgres throws on a malformed uuid, so check first.
-export const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
 type Role = { id: string; name: string; permissions: string[]; system: boolean; admin: boolean };
 
@@ -20,15 +16,17 @@ export function RoleForm({ role }: { role?: Role }) {
           <Hint>All permissions, including any added later.</Hint>
         ) : (
           Object.entries(PERMISSION_GROUPS).map(([group, permissions]) => (
-            <fieldset key={group} className={styles.group} disabled={readOnly}>
-              <legend className={styles.legend}>{group}</legend>
-              {Object.entries(permissions).map(([key, label]) => (
-                <label key={key} className={styles.permission}>
-                  <input type="checkbox" name="permissions" value={key} defaultChecked={role?.permissions.includes(key)} />
-                  {label}
-                </label>
-              ))}
-            </fieldset>
+            <CheckboxGroup
+              key={group}
+              legend={group}
+              name="permissions"
+              disabled={readOnly}
+              options={Object.entries(permissions).map(([value, label]) => ({
+                value,
+                label,
+                checked: role?.permissions.includes(value),
+              }))}
+            />
           ))
         )}
         {!readOnly && <Button>{role ? "Save role" : "Create role"}</Button>}
@@ -37,10 +35,7 @@ export function RoleForm({ role }: { role?: Role }) {
         <Form action={deleteRole}>
           <input type="hidden" name="id" value={role.id} />
           {/* A required checkbox stands in for a confirm dialog, without client JS. */}
-          <label className={styles.permission}>
-            <input type="checkbox" required />
-            Delete this role and remove it from everyone who has it
-          </label>
+          <Checkbox label="Delete this role and remove it from everyone who has it" required />
           <Button variant="danger">Delete role</Button>
         </Form>
       )}

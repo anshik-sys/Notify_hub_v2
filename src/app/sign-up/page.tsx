@@ -17,6 +17,11 @@ async function signUp(formData: FormData) {
       },
       headers: await headers(),
     });
+    // Better Auth answers the same for existing emails (no send, same timing).
+    await auth.api.sendVerificationEmail({
+      body: { email: String(formData.get("email")), callbackURL: "/onboarding" },
+      headers: await headers(),
+    });
   } catch (e) {
     if (e instanceof APIError) redirect(errorUrl("/sign-up", e.message));
     throw e;

@@ -17,6 +17,10 @@ One package, two processes, one Postgres:
 | `src/lib/permissions.ts` | Permission catalogue, system role ids, `can()`, `loadAccess()`. |
 | `src/lib/session.ts` | `requireMember()`: session + company + permissions, or redirect. |
 | `src/app/settings/roles/` | Custom role management (`roles.manage`). |
+| `src/lib/invitations.ts` | Create, find, accept and revoke invites. |
+| `src/lib/users.ts` | Directory, role assignment, activation, last-admin guard. |
+| `src/lib/test-helpers.ts` | `seeder()` for DB tests: one throwaway company per test file. |
+| `src/app/users/`, `src/app/invite/[token]` | People pages and the public invite accept page. |
 | `src/lib/mail.ts` | `sendMail()`: one recipient per message, over SMTP (Mailpit in dev, SES in prod). |
 | `src/lib/onboarding.ts` | Creates a company and attaches the signed-in user, in one transaction. |
 | `src/app/form.tsx` + `form.module.css` | Shared form components (FormPage, Field, Button, …). |
@@ -69,6 +73,26 @@ pnpm worker      # scheduler
 - **Manager permissions are fixed in code** (`MANAGER_PERMISSIONS`) and apply
   only when `can()` is given a department the user manages
   (`department_members.is_manager`).
+- **Invite tokens:** only the SHA-256 is stored. Accepting claims the invite with
+  `WHERE accepted_at IS NULL AND expires_at > now()`, so it's single use even
+  when two clicks race. Accepting marks the email verified, because the link
+  proves the mailbox.
+- **`sendOnSignUp` is false on purpose.** `/sign-up` sends the verification email
+  itself; otherwise accepting an invite would also send one. Calling
+  `signUpEmail` from anywhere else sends nothing.
+- **Deactivation is enforced in three places:**
+  - Better Auth's `session.create.before` hook blocks every sign-in method;
+  - `setActive` deletes the user's sessions;
+  - `requireMember()` refuses a deactivated user, covering the moment between
+    the two above.
+
+  Don't remove one because "the other covers it".
+- **Escalation rule (`canGrant`):** you can grant, remove, or act on a person
+  holding a role only if you hold every permission in it. Only admins make or
+  unmake admins.
+- **Last-admin guard:** role and activation changes lock the company row
+  (`FOR UPDATE`) and then require at least one active Company Admin. The lock is
+  what stops two admins demoting each other at the same moment.
 - **`authDb` must not be imported outside `src/lib`.** It sees every company's users.
 - **`user.company_id` is set only server-side.** It's a Better Auth
   `additionalField` with `input: false`. Better Auth rejects it from

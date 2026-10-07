@@ -1,5 +1,5 @@
-import { sql } from "drizzle-orm";
-import { boolean, index, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { isNull, sql } from "drizzle-orm";
+import { boolean, index, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // Tenant isolation: every tenant table carries company_id and a policy that
 // only matches rows of the company set by withTenant(). Unset => no rows.
@@ -63,6 +63,8 @@ export const user = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
     companyId: uuid().references(() => companies.id),
+    // Set = deactivated: no sign-in (Better Auth session hook), sessions deleted.
+    deactivatedAt: ts(),
   },
   (t) => [index().on(t.companyId), tenantPolicy("company_id"), authPolicy],
 ).enableRLS();
@@ -181,4 +183,31 @@ export const departmentMembers = pgTable(
     isManager: boolean().notNull().default(false),
   },
   (t) => [primaryKey({ columns: [t.departmentId, t.userId] }), index().on(t.userId), tenantPolicy("company_id")],
+).enableRLS();
+
+// Only the SHA-256 of the emailed token is stored. authPolicy: the accept page
+// looks an invite up by token before any company is known.
+export const invitations = pgTable(
+  "invitations",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    email: text().notNull(),
+    roleIds: uuid().array().notNull(),
+    invitedBy: text()
+      .notNull()
+      .references(() => user.id),
+    tokenHash: text().notNull().unique(),
+    expiresAt: ts().notNull(),
+    acceptedAt: ts(),
+    createdAt: ts().notNull().defaultNow(),
+  },
+  (t) => [
+    // One pending invite per email per company; re-inviting replaces it.
+    uniqueIndex().on(t.companyId, t.email).where(isNull(t.acceptedAt)),
+    tenantPolicy("company_id"),
+    authPolicy,
+  ],
 ).enableRLS();
