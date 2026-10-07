@@ -2,6 +2,55 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — attachments (PRD 5.7)
+
+- **What's in place:**
+  - up to 5 files per save (10 MB each, 20 per reminder) on the reminder
+    form; on edit, "tick to remove";
+  - an Attachments list on the reminder page; downloads via
+    `/api/attachments/[id]`;
+  - email attaches up to 20 MB and names the rest;
+  - Slack uploads the files into the message's thread.
+- **Storage: Postgres, by the user's choice** (bytea in `attachment_blobs`,
+  metadata in `attachments`), behind `src/lib/storage.ts`. That gives RLS and
+  backups for free, with no new service. The ceiling is database size; the S3
+  move is one file.
+- **Validation is by content:**
+  - magic bytes for PDF, PNG, JPEG, GIF, WEBP, ZIP, OOXML (zip plus
+    `[Content_Types].xml` and `word/`, `xl/` or `ppt/`), legacy Office (OLE);
+  - strict UTF-8 with no NULs for TXT/CSV;
+  - the extension must agree, and the served type is the sniffed one;
+  - CSV formula injection: an RFC 4180 parse, rejecting cells starting
+    `= + - @` / tab / CR unless they're a number or a `+…` phone number. The
+    error names the row and column;
+  - all files are checked before anything is written, so one bad file → an
+    error and nothing saved.
+- **Downloads:** same company (RLS) **plus** reminder visibility; always
+  `attachment`, with `nosniff` and `no-store`.
+- **Bug found by E2E:** files from one save shared `created_at` (`now()` is
+  per transaction), so "upload order" for email was arbitrary. Now
+  `clock_timestamp()`.
+- **Slack:** needs the new scope `files:write`. Old connections get
+  `missing_scope`, so the delivery is still sent, with a "reconnect Slack to
+  allow file uploads" note, and Integrations shows a reconnect hint (scopes
+  are now stored at install). Upload failures never re-post the message.
+- **Verified against `next start` + worker + fake Slack + Mailpit:**
+  - a fake `.pdf` and a `=HYPERLINK` CSV were refused, and nothing was saved;
+  - PDF + PNG + CSV saved with the sniffed types, and all three download
+    **byte-identical**, with attachment/nosniff/no-store headers;
+  - a recipient gets 200; another department gets 404; signed out → sign-in;
+    a bad id → 404;
+  - the email carried all 3; each Slack DM got the 3 files in its thread;
+  - three 9 MB PDFs (a 27 MB upload) → 2 attached, the third named;
+  - the reconnect hint appears only without `files:write`.
+
+  72 tests pass.
+- **An earlier hash mismatch was a script bug,** not the app: zsh doesn't
+  word-split `$IDS`, so curl fetched one bad URL and hashed an empty body.
+- **The user's own fake-connected company** has no stored scopes, so it will
+  show "Reconnect Slack" until they reconnect.
+- **Gap:** no virus scanning (not in the PRD; noted in DEPLOYMENT).
+
 ## 2026-10-07 — Slack phase C: daily digest
 
 - **What's in place:** a "Daily digest" section on Integrations: enabled,

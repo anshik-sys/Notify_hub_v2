@@ -19,7 +19,11 @@ const CHANNELS = [
   { id: "C0RANDOM", name: "random" },
   { id: "C0OPS", name: "ops" },
 ];
-type Msg = { kind: "post" | "update" | "respond"; channel: string; ts: string; text: string; blocks: unknown };
+type Msg = { kind: "post" | "update" | "respond" | "file"; channel: string; ts: string; text: string; blocks: unknown };
+const uploads = new Map<string, { filename: string; bytes: number }>(); // file id -> what was POSTed
+let fileCounter = 1;
+// Scopes granted at install; FAKE_SLACK_SCOPES lets you simulate an old install without files:write.
+const SCOPES = process.env.FAKE_SLACK_SCOPES ?? "chat:write,chat:write.public,channels:read,users:read,users:read.email,im:write,files:write";
 const messages: Msg[] = [];
 let tsCounter = 1000;
 const users = new Map<string, string>(); // slack id -> email
@@ -29,7 +33,7 @@ const slackId = (email: string) => "U" + createHash("sha1").update(email.toLower
 function api(method: string, p: URLSearchParams, auth: string | undefined) {
   if (method === "oauth.v2.access")
     return p.get("code") === "fake-code"
-      ? { ok: true, access_token: TOKEN, bot_user_id: "UBOT", team: TEAM }
+      ? { ok: true, access_token: TOKEN, bot_user_id: "UBOT", scope: SCOPES, team: TEAM }
       : { ok: false, error: "invalid_code" };
   if (auth !== `Bearer ${TOKEN}`) return { ok: false, error: "invalid_auth" };
   switch (method) {
@@ -64,6 +68,20 @@ function api(method: string, p: URLSearchParams, auth: string | undefined) {
       });
       return { ok: true, channel, ts };
     }
+    case "files.getUploadURLExternal": {
+      if (!SCOPES.split(",").includes("files:write")) return { ok: false, error: "missing_scope" };
+      const id = `F${fileCounter++}`;
+      uploads.set(id, { filename: p.get("filename") ?? "", bytes: -1 });
+      return { ok: true, upload_url: `http://localhost:${PORT}/_upload/${id}`, file_id: id };
+    }
+    case "files.completeUploadExternal": {
+      for (const f of JSON.parse(p.get("files") ?? "[]") as { id: string }[]) {
+        const u = uploads.get(f.id);
+        if (!u || u.bytes < 0) return { ok: false, error: "file_not_found" };
+        messages.push({ kind: "file", channel: p.get("channel_id") ?? "", ts: p.get("thread_ts") ?? "", text: `${u.filename} (${u.bytes} bytes)`, blocks: [] });
+      }
+      return { ok: true };
+    }
     default:
       return { ok: false, error: "unknown_method" };
   }
@@ -89,6 +107,15 @@ createServer(async (req, res) => {
     const body = JSON.parse(raw || "{}");
     messages.push({ kind: "respond", channel: body.response_type ?? "", ts: "", text: body.text ?? "", blocks: [] });
     return send(200, { ok: true });
+  }
+  if (url.pathname.startsWith("/_upload/") && req.method === "POST") {
+    let n = 0;
+    for await (const chunk of req) n += (chunk as Buffer).length;
+    const u = uploads.get(url.pathname.slice("/_upload/".length));
+    if (!u) return send(404, {});
+    u.bytes = n;
+    res.writeHead(200);
+    return res.end("OK");
   }
   if (url.pathname === "/_messages") {
     if (req.method === "DELETE") messages.length = 0;

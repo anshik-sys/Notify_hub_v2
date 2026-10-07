@@ -8,6 +8,7 @@ import {
   decideReminder,
   getReminder,
   isDelayed,
+  listAttachments,
   pauseReminder,
   resumeReminder,
   skipNextOccurrence,
@@ -18,6 +19,7 @@ import {
   updateReminder,
   validateInput,
 } from "./reminders";
+import { checkFile } from "./attachments";
 import { resolveRecipients } from "./recipients";
 import { seeder } from "./test-helpers";
 import { toLocalInput } from "./time";
@@ -381,4 +383,37 @@ test("a Slack channel counts as out of scope for non-approvers", async () => {
     outOfScope(tx, s.companyId, await actor(admin), targets, await resolveRecipients(tx, s.companyId, targets)),
   );
   assert.deepEqual(asAdmin, []);
+});
+
+test("attachments: saved with the reminder, removable, capped, tenant-isolated", async () => {
+  const file = (name: string, text: string) => {
+    const r = checkFile(name, new TextEncoder().encode(text));
+    assert.ok("file" in r);
+    return r.file;
+  };
+  const me = await actor(alice);
+  const base = { title: "With files", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets: [{ kind: "department" as const, ref: ops }] };
+  const created = await createReminder(me, s.companyId, base, [file("a.txt", "one"), file("b.csv", "x,1\n")]);
+  assert.ok("id" in created);
+  const list = await listAttachments(s.companyId, created.id); // upload order, even within one save
+  assert.deepEqual(list.map((f) => [f.fileName, f.contentType, f.size]), [
+    ["a.txt", "text/plain; charset=utf-8", 3],
+    ["b.csv", "text/csv; charset=utf-8", 4],
+  ]);
+  const blob = await s.owner.query("select data from attachment_blobs where attachment_id = $1", [list[0].id]);
+  assert.equal(blob.rows[0].data.toString(), "one");
+
+  // Another company sees nothing.
+  assert.deepEqual(await listAttachments(other.companyId, created.id), []);
+
+  // Edit: remove one, add one.
+  assert.equal(await updateReminder(me, s.companyId, created.id, base, [file("c.txt", "three")], [list[0].id]), null);
+  assert.deepEqual((await listAttachments(s.companyId, created.id)).map((f) => f.fileName), ["b.csv", "c.txt"]);
+  assert.equal((await s.owner.query("select 1 from attachment_blobs where attachment_id = $1", [list[0].id])).rowCount, 0); // blob gone too
+
+  // At most 20 per reminder; going over saves nothing.
+  const many = Array.from({ length: 19 }, (_, i) => file(`f${i}.txt`, "x"));
+  assert.match((await updateReminder(me, s.companyId, created.id, { ...base, title: "Too many" }, many))!, /at most 20/);
+  assert.equal((await getReminder(s.companyId, created.id))!.title, "With files"); // rolled back
+  assert.equal((await listAttachments(s.companyId, created.id)).length, 2);
 });

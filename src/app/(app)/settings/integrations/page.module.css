@@ -11,3 +11,12 @@
   font-weight: 600;
   text-decoration: none;
 }
+
+.warning {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+  font-size: 0.9375rem;
+}

@@ -70,3 +70,16 @@
   grid-template-columns: 1fr 1.4fr;
   gap: 12px;
 }
+
+.fileField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.fileInput {
+  font: inherit;
+  font-weight: 400;
+}

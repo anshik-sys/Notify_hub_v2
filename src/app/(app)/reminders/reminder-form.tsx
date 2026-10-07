@@ -1,4 +1,6 @@
 import { Button, Checkbox, CheckboxGroup, Field, Form, Hint, RadioGroup, Section, SelectField, TextArea } from "@/components/form";
+import { ACCEPT, MAX_FILES_PER_SAVE } from "@/lib/attachments";
+import { formatSize } from "@/lib/format";
 import type { RepeatFields } from "@/lib/recurrence";
 import { saveReminder } from "./actions";
 import type { DepartmentChoice, Person } from "./form-data";
@@ -122,6 +124,7 @@ export function ReminderForm({
   timeZone,
   defaultSender,
   slackChannels,
+  attachments = [],
 }: {
   defaults: ReminderDefaults;
   departments: DepartmentChoice[];
@@ -130,6 +133,8 @@ export function ReminderForm({
   defaultSender: string;
   /** The company's public Slack channels; null when Slack isn't connected. */
   slackChannels: { id: string; name: string }[] | null;
+  /** Edit: files already on the reminder. */
+  attachments?: { id: string; fileName: string; size: number }[];
 }) {
   const mine = departments.filter((d) => d.mine);
   const others = departments.filter((d) => !d.mine);
@@ -265,6 +270,21 @@ export function ReminderForm({
         />
         <Field label={`Date and time (${timeZone})`} name="sendAt" type="datetime-local" defaultValue={defaults.sendAtLocal} />
         <Hint>For a repeating reminder, this is the first time; later ones follow from it.</Hint>
+      </Section>
+
+      <Section title="Attachments">
+        {attachments.length > 0 && (
+          <CheckboxGroup
+            legend="Attached (tick to remove)"
+            name="removeAttachments"
+            options={attachments.map((a) => ({ value: a.id, label: `${a.fileName} (${formatSize(a.size)})` }))}
+          />
+        )}
+        <label className={styles.fileField}>
+          Add files (up to {MAX_FILES_PER_SAVE} at a time, 10 MB each)
+          <input type="file" name="files" multiple accept={ACCEPT} className={styles.fileInput} />
+        </label>
+        <Hint>PDF, Office documents, CSV/TXT, images and ZIP. Emails carry up to 20 MB of files; larger ones are linked instead.</Hint>
       </Section>
 
       <RepeatSection r={defaults.repeat} />

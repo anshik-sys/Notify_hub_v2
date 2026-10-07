@@ -2,6 +2,7 @@
 
 import { notFound, redirect } from "next/navigation";
 import { errorUrl } from "@/components/form";
+import { type CheckedFile, checkFile, MAX_FILES_PER_SAVE } from "@/lib/attachments";
 import { can } from "@/lib/permissions";
 import {
   cancelReminder,
@@ -67,13 +68,26 @@ export async function saveReminder(fd: FormData) {
   );
   if (parsed.error !== undefined) redirect(errorUrl(back, parsed.error));
 
+  // Files: every one is checked (content, type, CSV formulas) before anything
+  // is saved, so one bad file means nothing is written.
+  const uploads = fd.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  if (uploads.length > MAX_FILES_PER_SAVE) redirect(errorUrl(back, `Attach at most ${MAX_FILES_PER_SAVE} files at a time.`));
+  const files: CheckedFile[] = [];
+  for (const u of uploads) {
+    const checked = checkFile(u.name, new Uint8Array(await u.arrayBuffer()));
+    if ("error" in checked) redirect(errorUrl(back, checked.error));
+    files.push(checked.file);
+  }
+  const removeAttachmentIds = all(fd, "removeAttachments");
+  if (!removeAttachmentIds.every(isUuid)) notFound();
+
   const me = { id: user.id, access };
   if (id) {
-    const error = await updateReminder(me, companyId, id, parsed.input);
+    const error = await updateReminder(me, companyId, id, parsed.input, files, removeAttachmentIds);
     if (error) redirect(errorUrl(back, error));
     redirect(`/reminders/${id}`);
   }
-  const created = await createReminder(me, companyId, parsed.input);
+  const created = await createReminder(me, companyId, parsed.input, files);
   if ("error" in created) redirect(errorUrl(back, created.error));
   redirect(`/reminders/${created.id}`);
 }

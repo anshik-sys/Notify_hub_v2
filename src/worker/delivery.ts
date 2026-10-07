@@ -1,7 +1,9 @@
 import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
-import { deliveries, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user } from "@/db/schema";
+import { attachments, deliveries, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user } from "@/db/schema";
+import { EMAIL_ATTACHMENT_BUDGET } from "@/lib/attachments";
+import { getBlob } from "@/lib/storage";
 import { decrypt } from "@/lib/crypto";
-import { lookupByEmail, openDm, postMessage, reminderMessage, SlackError } from "@/lib/slack";
+import { lookupByEmail, openDm, postMessage, reminderMessage, SlackError, uploadFile } from "@/lib/slack";
 import { between, nextAfter } from "@/lib/recurrence";
 import { formatInZone } from "@/lib/time";
 import { sendMail } from "@/lib/mail";
@@ -173,9 +175,32 @@ const PERMANENT_SLACK = new Set(["channel_not_found", "is_archived", "invalid_au
 type Delivery = typeof deliveries.$inferSelect;
 type Loaded = { reminder: typeof reminders.$inferSelect; creatorEmail: string; dueAt: Date | null };
 
+// The reminder's files, in upload order (metadata only; bytes on demand).
+const filesOf = (reminderId: string) =>
+  ownerDb
+    .select({ id: attachments.id, fileName: attachments.fileName, contentType: attachments.contentType, size: attachments.size })
+    .from(attachments)
+    .where(eq(attachments.reminderId, reminderId))
+    .orderBy(attachments.createdAt);
+
 async function sendEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
   const task = r.reminder.isTask && r.dueAt;
-  const body = r.reminder.description || r.reminder.title;
+  // Attach in order while the total stays within the budget; the rest are
+  // named in the body (PRD 5.7). ponytail: bytes are re-read per recipient;
+  // cache per dispatch if large company-wide sends with files get slow.
+  const mailFiles: { filename: string; content: Buffer; contentType: string }[] = [];
+  const tooBig: string[] = [];
+  let used = 0;
+  for (const f of await filesOf(r.reminder.id)) {
+    const data = used + f.size <= EMAIL_ATTACHMENT_BUDGET ? await getBlob(ownerDb, f.id) : null;
+    if (data) {
+      mailFiles.push({ filename: f.fileName, content: data, contentType: f.contentType });
+      used += f.size;
+    } else tooBig.push(f.fileName);
+  }
+  const body =
+    (r.reminder.description || r.reminder.title) +
+    (tooBig.length ? `\n\nNot attached (too large for email): ${tooBig.join(", ")}. Download in NotifyHub.` : "");
   await send({
     to: d.address,
     subject: task ? `Task: ${r.reminder.title}` : r.reminder.title,
@@ -189,6 +214,7 @@ async function sendEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
     ],
     fromName: `${r.reminder.senderName} via NotifyHub`,
     replyTo: r.creatorEmail,
+    attachments: mailFiles,
   });
   return {};
 }
@@ -224,17 +250,32 @@ async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
     // Buttons on tasks; snooze only in a real DM (a fallback-channel post is shared).
     task: r.reminder.isTask ? { occurrenceId: d.occurrenceId, dm } : undefined,
   });
+  let posted: { channel: string; ts: string };
   try {
-    const posted = await postMessage(token, channel, msg.text, msg.blocks, f);
-    return {
-      slackChannel: posted.channel,
-      slackTs: posted.ts,
-      lastError: note ? `Sent to #${inst.fallbackChannelName ?? "fallback"}: not on Slack` : null,
-    };
+    posted = await postMessage(token, channel, msg.text, msg.blocks, f);
   } catch (e) {
     if (e instanceof SlackError && PERMANENT_SLACK.has(e.code)) throw new Permanent(`Slack: ${e.code}`);
     throw e;
   }
+  // Files go into the message's thread. The message is already posted, so a
+  // failed upload is noted on the delivery, never retried (that would post the
+  // message again).
+  const notes = note ? [`Sent to #${inst.fallbackChannelName ?? "fallback"}: not on Slack`] : [];
+  let failed = 0;
+  let scopeMissing = false;
+  for (const file of await filesOf(r.reminder.id)) {
+    try {
+      const data = await getBlob(ownerDb, file.id);
+      if (data) await uploadFile(token, { channel: posted.channel, threadTs: posted.ts, filename: file.fileName, data }, f);
+    } catch (e) {
+      console.error("Slack file upload failed", file.id, e);
+      if (e instanceof SlackError && e.code === "missing_scope") scopeMissing = true;
+      failed++;
+    }
+  }
+  if (scopeMissing) notes.push("Files not sent: reconnect Slack to allow file uploads");
+  else if (failed) notes.push(`${failed} file${failed === 1 ? "" : "s"} failed to upload`);
+  return { slackChannel: posted.channel, slackTs: posted.ts, lastError: notes.join("; ") || null };
 }
 
 // slackFetch is for tests (a fake Slack); production uses the real fetch.

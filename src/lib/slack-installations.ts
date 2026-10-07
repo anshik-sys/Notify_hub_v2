@@ -18,6 +18,7 @@ export async function getInstallation(companyId: string) {
         teamName: slackInstallations.teamName,
         fallbackChannelId: slackInstallations.fallbackChannelId,
         fallbackChannelName: slackInstallations.fallbackChannelName,
+        scopes: slackInstallations.scopes,
         tokenEnc: slackInstallations.botTokenEnc,
       })
       .from(slackInstallations)
@@ -31,9 +32,16 @@ export async function getInstallation(companyId: string) {
 export async function saveInstallation(
   companyId: string,
   installedBy: string,
-  i: { teamId: string; teamName: string; token: string; botUserId: string },
+  i: { teamId: string; teamName: string; token: string; botUserId: string; scopes: string[] },
 ) {
-  const values = { teamId: i.teamId, teamName: i.teamName, botTokenEnc: encrypt(i.token), botUserId: i.botUserId, installedBy };
+  const values = {
+    teamId: i.teamId,
+    teamName: i.teamName,
+    botTokenEnc: encrypt(i.token),
+    botUserId: i.botUserId,
+    scopes: i.scopes,
+    installedBy,
+  };
   try {
     await withTenant(companyId, (tx) =>
       tx

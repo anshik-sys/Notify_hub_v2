@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { firstParam, Page } from "@/components/form";
 import { can } from "@/lib/permissions";
-import { getReminder } from "@/lib/reminders";
+import { getReminder, listAttachments } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { toLocalInput } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
@@ -22,7 +22,11 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
   // Same rule as updateReminder: creator or reminders.edit, and not yet sent.
   if (!r || !(user.id === r.createdBy || can(access, "reminders.edit"))) notFound();
   if (!["pending_approval", "rejected", "scheduled", "paused"].includes(r.status)) notFound();
-  const [choices, slackChannels] = await Promise.all([recipientChoices(companyId, user.id, access), channelChoices(companyId)]);
+  const [choices, slackChannels, files] = await Promise.all([
+    recipientChoices(companyId, user.id, access),
+    channelChoices(companyId),
+    listAttachments(companyId, r.id),
+  ]);
   const error = firstParam((await props.searchParams).error);
   const refs = (kind: string) => r.targets.filter((t) => t.kind === kind).map((t) => t.ref!);
 
@@ -31,6 +35,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
       <ReminderForm
         {...choices}
         slackChannels={slackChannels}
+        attachments={files}
         timeZone={company.timeZone}
         defaultSender={`Alerts | ${company.name}`}
         defaults={{

@@ -1,5 +1,5 @@
 import { isNull, sql } from "drizzle-orm";
-import { boolean, check, date, index, integer, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, customType, date, index, integer, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // Tenant isolation: every tenant table carries company_id and a policy that
 // only matches rows of the company set by withTenant(). Unset => no rows.
@@ -409,6 +409,8 @@ export const slackInstallations = pgTable(
     botUserId: text().notNull(),
     fallbackChannelId: text(),
     fallbackChannelName: text(),
+    // Granted bot scopes (from oauth.v2.access), e.g. to tell whether files:write is there.
+    scopes: text().array().notNull().default(sql`'{}'`),
     installedBy: text().references(() => user.id, { onDelete: "set null" }),
     // Daily digest (PRD 7.2): overdue tasks + the next 24h, at digestTime in
     // the company zone, to these channels and people. last_digest_on is the
@@ -427,4 +429,46 @@ export const slackInstallations = pgTable(
     authPolicy,
     check("slack_digest_time_valid", sql`${t.digestTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
   ],
+).enableRLS();
+
+// --- Attachments (PRD 5.7) ---------------------------------------------------------
+// Files live in Postgres (decided with the user): metadata here, bytes in
+// attachment_blobs so listing never loads file contents. Only
+// src/lib/storage.ts touches the blobs (the seam for a later move to S3).
+
+const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
+
+export const attachments = pgTable(
+  "attachments",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    reminderId: uuid()
+      .notNull()
+      .references(() => reminders.id, { onDelete: "cascade" }),
+    fileName: text().notNull(),
+    // From the sniffed content, not the uploader's claim (src/lib/attachments.ts).
+    contentType: text().notNull(),
+    size: integer().notNull(),
+    sha256: text().notNull(),
+    uploadedBy: text().references(() => user.id, { onDelete: "set null" }),
+    createdAt: ts().notNull().defaultNow(),
+  },
+  (t) => [index().on(t.reminderId), tenantPolicy("company_id")],
+).enableRLS();
+
+export const attachmentBlobs = pgTable(
+  "attachment_blobs",
+  {
+    attachmentId: uuid()
+      .primaryKey()
+      .references(() => attachments.id, { onDelete: "cascade" }),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    data: bytea().notNull(),
+  },
+  () => [tenantPolicy("company_id")],
 ).enableRLS();

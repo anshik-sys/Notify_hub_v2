@@ -5,7 +5,8 @@ import { List, ListRow } from "@/components/list";
 import { Badge, Muted, Table } from "@/components/table";
 import { can } from "@/lib/permissions";
 import { describe } from "@/lib/recurrence";
-import { deliveryLog, getReminder, isDelayed, reminderAccess, statusLabel } from "@/lib/reminders";
+import { deliveryLog, getReminder, isDelayed, listAttachments, reminderAccess, statusLabel } from "@/lib/reminders";
+import { formatSize } from "@/lib/format";
 import { requireMember } from "@/lib/session";
 import { myTaskStatus, taskProgress } from "@/lib/tasks";
 import { formatInZone } from "@/lib/time";
@@ -30,6 +31,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   // Owners see everyone's progress on the latest occurrence; anyone assigned sees their own.
   const progress = r.isTask && log?.latest ? await taskProgress(companyId, log.latest.id) : null;
   const mine = r.isTask ? await myTaskStatus(companyId, user.id, r.id) : null;
+  const files = await listAttachments(companyId, r.id);
   const error = firstParam((await props.searchParams).error);
 
   const editable = ["pending_approval", "rejected", "scheduled", "paused"].includes(r.status);
@@ -92,6 +94,17 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
         </Hint>
         {r.description && <p className={styles.description}>{r.description}</p>}
       </Section>
+
+      {files.length > 0 && (
+        <Section title="Attachments">
+          <List>
+            {files.map((f) => (
+              // A plain link: an API route that always downloads (never next/link).
+              <ListRow key={f.id} title={<a href={`/api/attachments/${f.id}`}>{f.fileName}</a>} meta={formatSize(f.size)} />
+            ))}
+          </List>
+        </Section>
+      )}
 
       {r.links.length > 0 && (
         <Section title="Links">

@@ -26,6 +26,7 @@ export async function sendMail(m: {
   links?: Link[];
   fromName?: string;
   replyTo?: string;
+  attachments?: { filename: string; content: Buffer; contentType: string }[];
 }) {
   const links = m.links ?? [];
   const body = [m.text, ...links.map((l) => `${l.label}: ${l.url}`)].join("\n\n");
@@ -33,5 +34,13 @@ export async function sendMail(m: {
     `<p>${escape(m.text).replace(/\n/g, "<br>")}</p>` +
     links.map((l) => `<p><a href="${escape(l.url)}">${escape(l.label)}</a></p>`).join("");
   const sender = m.fromName ? { name: m.fromName, address: fromAddress } : from;
-  return transport.sendMail({ from: sender, to: m.to, replyTo: m.replyTo, subject: m.subject, text: body, html });
+  return transport.sendMail({
+    from: sender,
+    to: m.to,
+    replyTo: m.replyTo,
+    subject: m.subject,
+    text: body,
+    html,
+    attachments: m.attachments,
+  });
 }

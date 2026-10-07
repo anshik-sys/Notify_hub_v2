@@ -1,8 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { aliasedTable, and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { deliveries, departmentMembers, departments, reminderOccurrences, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
+import { attachments, deliveries, departmentMembers, departments, reminderOccurrences, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
+import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
+import { putBlob } from "./storage";
 import { resolveRecipients, type Target, type Tx } from "./recipients";
 import { type Access, can, COMPANY_ADMIN_ROLE_ID, loadAccess } from "./permissions";
 import { firstAtOrAfter, nextAfter, type RepeatFields, type Rule, ruleFromForm } from "./recurrence";
@@ -234,6 +236,45 @@ async function checked(tx: Tx, companyId: string, actor: Actor, input: ReminderI
   return outOfScope(tx, companyId, actor, input.targets, resolved);
 }
 
+async function saveAttachments(tx: Tx, companyId: string, reminderId: string, by: string, files: CheckedFile[], remove: string[]) {
+  if (remove.length)
+    await tx.delete(attachments).where(and(eq(attachments.reminderId, reminderId), inArray(attachments.id, remove)));
+  if (!files.length) return;
+  const [{ n }] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(attachments)
+    .where(eq(attachments.reminderId, reminderId));
+  if (n + files.length > MAX_FILES_PER_REMINDER) throw new Refused(`A reminder can have at most ${MAX_FILES_PER_REMINDER} attachments.`);
+  for (const f of files) {
+    const [row] = await tx
+      .insert(attachments)
+      .values({
+        companyId,
+        reminderId,
+        fileName: f.fileName,
+        contentType: f.contentType,
+        size: f.size,
+        sha256: f.sha256,
+        uploadedBy: by,
+        // clock_timestamp, not now(): files saved together keep their upload
+        // order (now() is the same for the whole transaction).
+        createdAt: sql`clock_timestamp()`,
+      })
+      .returning({ id: attachments.id });
+    await putBlob(tx, row.id, companyId, f.data);
+  }
+}
+
+export function listAttachments(companyId: string, reminderId: string) {
+  return withTenant(companyId, (tx) =>
+    tx
+      .select({ id: attachments.id, fileName: attachments.fileName, size: attachments.size, contentType: attachments.contentType })
+      .from(attachments)
+      .where(eq(attachments.reminderId, reminderId))
+      .orderBy(attachments.createdAt),
+  );
+}
+
 // Wakes the worker (LISTEN reminders_due) so "now" means now. Postgres only
 // delivers it if this transaction commits. The worker's minute tick catches
 // anything a missed notification would have left behind.
@@ -250,7 +291,9 @@ async function refusals<T>(fn: () => Promise<T>): Promise<T | { error: string }>
   }
 }
 
-export async function createReminder(actor: Actor, companyId: string, input: ReminderInput) {
+// files: already checked (checkFile in src/lib/attachments.ts); stored in the
+// same transaction as the reminder, so a reminder never exists half-saved.
+export async function createReminder(actor: Actor, companyId: string, input: ReminderInput, files: CheckedFile[] = []) {
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
       const out = await checked(tx, companyId, actor, input);
@@ -267,6 +310,7 @@ export async function createReminder(actor: Actor, companyId: string, input: Rem
         else if (attempt > 3) throw new Error("could not allocate a short id");
       }
       await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
+      await saveAttachments(tx, companyId, id, actor.id, files, []);
       await notifyIfDue(tx, status, input.sendAt);
       return { id, approvers: status === "pending_approval" ? await approverEmails(tx) : [] };
     }),
@@ -283,7 +327,14 @@ function mayChange(actor: Actor, createdBy: string) {
   return actor.id === createdBy || can(actor.access, "reminders.edit");
 }
 
-export async function updateReminder(actor: Actor, companyId: string, id: string, input: ReminderInput) {
+export async function updateReminder(
+  actor: Actor,
+  companyId: string,
+  id: string,
+  input: ReminderInput,
+  files: CheckedFile[] = [],
+  removeAttachmentIds: string[] = [],
+) {
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
       const [current] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update");
@@ -322,6 +373,7 @@ export async function updateReminder(actor: Actor, companyId: string, id: string
         .where(eq(reminders.id, id));
       await tx.delete(reminderTargets).where(eq(reminderTargets.reminderId, id));
       await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
+      await saveAttachments(tx, companyId, id, actor.id, files, removeAttachmentIds);
       await notifyIfDue(tx, status, input.sendAt);
       return { approvers: status === "pending_approval" ? await approverEmails(tx) : [] };
     }),

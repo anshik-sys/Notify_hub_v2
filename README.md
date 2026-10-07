@@ -29,6 +29,8 @@ One package, two processes, one Postgres:
 | `src/app/api/slack/{install,oauth}` | "Add to Slack" OAuth (state cookie checked on return). |
 | `src/app/api/slack/interactions` + `src/lib/slack-{signature,actions}.ts` | Mark done / Snooze buttons: signature check, then the click handler. |
 | `scripts/fake-slack.ts` | **Dev/test only** fake Slack (`pnpm fake-slack`). Never deployed. |
+| `src/lib/attachments.ts`, `src/lib/storage.ts` | File rules (content sniffing, CSV formula check, names, limits); the only code touching file bytes. |
+| `src/app/api/attachments/[id]` | Download (always as an attachment). |
 | `src/lib/tasks.ts` | Task completion (`setDone`), progress, my open tasks. |
 | `src/lib/time.ts` | Company-time-zone wall clock ↔ UTC (Intl only, DST-tested). |
 | `src/app/(app)/reminders/`, `src/app/(app)/approvals/` | Reminder pages and the approvals queue. |
@@ -121,6 +123,25 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     audience isn't known), so it needs approval;
   - permanent Slack errors (channel gone, token revoked) fail at once; 429s
     retry.
+- **Attachments (PRD 5.7):**
+  - **file bytes live in Postgres** (`attachment_blobs`, bytea; decided with
+    the user), separate from `attachments` metadata, and touched only by
+    `src/lib/storage.ts`. Moving to S3 is a new version of that file;
+  - a file is accepted only if its **bytes** match its extension (magic
+    bytes; OOXML must contain `[Content_Types].xml`). The browser's
+    Content-Type is ignored, and we serve the sniffed type;
+  - **CSV:** any cell starting `= + - @` (or tab/CR) is refused unless it's a
+    plain number or a `+…` phone number;
+  - **downloads** need same-company (RLS) **and** reminder visibility
+    (`reminderAccess`), and are always `Content-Disposition: attachment` with
+    `nosniff`, so an uploaded HTML-ish `.txt` can never run on our origin;
+  - **email** attaches in upload order up to 20 MB and names the rest. Files
+    saved together keep their order because `created_at` is
+    `clock_timestamp()`, not `now()`;
+  - **Slack** uploads into the message's thread *after* posting. A failed
+    upload is noted on the delivery, never retried (that would re-post the
+    message). It needs the `files:write` scope; older connections show
+    "Reconnect Slack".
 - **Slack buttons:**
   - **the signature is checked first, on the raw body** (`verifySlackSignature`: HMAC plus a 5-minute timestamp window). Without it anyone could POST a fake "Mark done";
   - a button's `value` is the **occurrence**, never a person. The clicker is

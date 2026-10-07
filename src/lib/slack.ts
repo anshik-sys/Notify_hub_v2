@@ -2,7 +2,7 @@
 // SLACK_AUTHORIZE_URL default to Slack; in dev and tests they point at the
 // fake (scripts/fake-slack.ts). Never log tokens.
 
-export const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "users:read", "users:read.email", "im:write"];
+export const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "users:read", "users:read.email", "im:write", "files:write"];
 const apiBase = () => process.env.SLACK_API_URL ?? "https://slack.com/api";
 export const authorizeUrl = () => process.env.SLACK_AUTHORIZE_URL ?? "https://slack.com/oauth/v2/authorize";
 
@@ -47,13 +47,19 @@ export async function slackApi<T = Record<string, unknown>>(
 type Fetch = typeof fetch;
 
 export async function oauthAccess(code: string, redirectUri: string, f?: Fetch) {
-  const r = await slackApi<{ access_token: string; bot_user_id: string; team: { id: string; name: string } }>(
+  const r = await slackApi<{ access_token: string; bot_user_id: string; scope?: string; team: { id: string; name: string } }>(
     "oauth.v2.access",
     null,
     { client_id: process.env.SLACK_CLIENT_ID, client_secret: process.env.SLACK_CLIENT_SECRET, code, redirect_uri: redirectUri },
     f,
   );
-  return { token: r.access_token, botUserId: r.bot_user_id, teamId: r.team.id, teamName: r.team.name };
+  return {
+    token: r.access_token,
+    botUserId: r.bot_user_id,
+    teamId: r.team.id,
+    teamName: r.team.name,
+    scopes: (r.scope ?? "").split(",").filter(Boolean),
+  };
 }
 
 export const revoke = (token: string, f?: Fetch) => slackApi("auth.revoke", token, {}, f);
@@ -92,6 +98,29 @@ export async function openDm(token: string, slackUserId: string, f?: Fetch) {
 export async function postMessage(token: string, channel: string, text: string, blocks: unknown[], f?: Fetch) {
   const r = await slackApi<{ ts: string; channel: string }>("chat.postMessage", token, { channel, text, blocks }, f);
   return { ts: r.ts, channel: r.channel };
+}
+
+// Slack's file upload flow: get an upload URL, POST the bytes there, then
+// complete it into a channel (thread_ts: inside that message's thread).
+export async function uploadFile(
+  token: string,
+  file: { channel: string; threadTs?: string; filename: string; data: Buffer },
+  f: Fetch = fetch,
+) {
+  const { upload_url, file_id } = await slackApi<{ upload_url: string; file_id: string }>(
+    "files.getUploadURLExternal",
+    token,
+    { filename: file.filename, length: String(file.data.length) },
+    f,
+  );
+  const res = await f(upload_url, { method: "POST", body: new Uint8Array(file.data) });
+  if (!res.ok) throw new SlackError(`upload_failed_${res.status}`);
+  await slackApi(
+    "files.completeUploadExternal",
+    token,
+    { files: [{ id: file_id, title: file.filename }], channel_id: file.channel, thread_ts: file.threadTs },
+    f,
+  );
 }
 
 // The email on a Slack user's profile (needs users:read.email); null if hidden/unknown.

@@ -348,3 +348,64 @@ test("slack tasks: buttons on the first DM; follow-ups and snoozes as DMs", asyn
   assert.equal(await followUpOne(a.id, mail, sl.f), "skipped"); // done
   await q("update reminders set status = 'cancelled' where id = $1", [id]);
 });
+
+test("attachments: email within the 20 MB budget; Slack uploads into the thread", async () => {
+  const [{ id }] = await q(
+    `insert into reminders (company_id, short_id, created_by, title, description, sender_name, send_at, status, time_zone, anchor_local, channels)
+     values ($1, 'R-FILES1', $2, 'Files', 'See attached', 'HR', now() + interval '1 hour', 'scheduled', 'UTC', '2026-01-01T00:00', '{email,slack}') returning id`,
+    [s.companyId, creator],
+  );
+  await q("insert into reminder_targets values ($1, $2, 'user', $3, null)", [id, s.companyId, alice]);
+  // Three 9 MB files: two fit in 20 MB, the third is named instead.
+  for (const name of ["one.pdf", "two.pdf", "three.pdf"]) {
+    const [{ id: a }] = await q(
+      "insert into attachments (company_id, reminder_id, file_name, content_type, size, sha256) values ($1, $2, $3, 'application/pdf', $4, 'x') returning id",
+      [s.companyId, id, name, 9 * 1024 * 1024],
+    );
+    await q("insert into attachment_blobs values ($1, $2, $3)", [a, s.companyId, Buffer.alloc(9 * 1024 * 1024, 0x25)]);
+    await new Promise((r) => setTimeout(r, 5)); // distinct created_at for the order
+  }
+  await q("update slack_installations set fallback_channel_id = 'C0FALL' where company_id = $1", [s.companyId]);
+  const ids: string[] = [];
+  await dispatchDue(async (x) => void ids.push(...x), s.companyId, new Date(Date.now() + 2 * 3_600_000));
+  const rows = await q("select id, channel from deliveries where id = any($1)", [ids]);
+  const emailId = rows.find((r) => r.channel === "email")!.id;
+  const slackId = rows.find((r) => r.channel === "slack")!.id;
+
+  let mail: { text: string; attachments?: { filename: string }[] } | undefined;
+  await deliverOne(emailId, (async (m: typeof mail) => void (mail = m)) as never);
+  assert.deepEqual(mail!.attachments!.map((a) => a.filename), ["one.pdf", "two.pdf"]);
+  assert.match(mail!.text, /Not attached \(too large for email\): three\.pdf/);
+
+  // Slack: message, then 3 uploads into its thread. Second run: missing scope -> noted, still sent.
+  const calls: string[] = [];
+  const slack = (missingScope: boolean) =>
+    (async (url: string, init: RequestInit) => {
+      const json = (b: object) => new Response(JSON.stringify(b));
+      const method = url.split("/").pop()!;
+      const p = init.body as URLSearchParams;
+      calls.push(method.startsWith("up-") ? "bytes" : method);
+      if (method === "users.lookupByEmail") return json({ ok: true, user: { id: "U1" } });
+      if (method === "conversations.open") return json({ ok: true, channel: { id: "D1" } });
+      if (method === "chat.postMessage") return json({ ok: true, channel: "D1", ts: "9.9" });
+      if (method === "files.getUploadURLExternal")
+        return missingScope ? json({ ok: false, error: "missing_scope" }) : json({ ok: true, upload_url: `https://up.test/up-${p.get("filename")}`, file_id: "F1" });
+      if (method.startsWith("up-")) return new Response("OK");
+      if (method === "files.completeUploadExternal") {
+        assert.equal(p.get("thread_ts"), "9.9");
+        return json({ ok: true });
+      }
+      return json({ ok: false, error: "unknown_method" });
+    }) as typeof fetch;
+  assert.equal(await deliverOne(slackId, undefined, slack(false)), "sent");
+  assert.deepEqual(calls.filter((c) => c === "chat.postMessage").length, 1);
+  assert.deepEqual(calls.filter((c) => c === "files.completeUploadExternal").length, 3);
+
+  await q("update deliveries set status = 'queued' where id = $1", [slackId]);
+  calls.length = 0;
+  assert.equal(await deliverOne(slackId, undefined, slack(true)), "sent");
+  const [row] = await q("select last_error from deliveries where id = $1", [slackId]);
+  assert.match(row.last_error, /reconnect Slack/);
+  assert.equal(calls.filter((c) => c === "chat.postMessage").length, 1); // not re-posted per file
+  await q("update reminders set status = 'cancelled' where id = $1", [id]);
+});

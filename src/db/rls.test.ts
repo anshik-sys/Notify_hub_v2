@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import { db, withTenant } from "./index";
-import { departments, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
+import { attachmentBlobs, attachments, departments, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
 import { ALL_PERMISSIONS, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "@/lib/permissions";
 
 // Seeds as the owner (bypasses RLS), then reads through the app role.
@@ -78,6 +78,8 @@ test("slack installations and task assignments are tenant-isolated", async () =>
   );
   assert.equal((await withTenant(a, (tx) => tx.select().from(slackInstallations))).length, 0);
   assert.equal((await withTenant(a, (tx) => tx.select().from(taskAssignments))).length, 0);
+  assert.equal((await withTenant(a, (tx) => tx.select().from(attachments))).length, 0);
+  assert.equal((await withTenant(a, (tx) => tx.select().from(attachmentBlobs))).length, 0);
   await assert.rejects(
     withTenant(a, (tx) =>
       tx.insert(slackInstallations).values({ companyId: b, teamId: "T-other", teamName: "x", botTokenEnc: "x", botUserId: "U" }),

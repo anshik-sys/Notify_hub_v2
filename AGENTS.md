@@ -41,6 +41,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Every Slack call goes through `slackApi` (`src/lib/slack.ts`). Never log tokens or decrypted values. Tests inject a fake fetch; local runs use `pnpm fake-slack`.
 - A new integration secret: store it with `encrypt()` (`src/lib/crypto.ts`), never in plain text.
 - Migrations that rename a column: drizzle-kit asks interactively. Keep renames in their own migration (see 0012) and answer the prompt (`expect`), or it may drop and recreate the column.
+- File bytes: only through `src/lib/storage.ts`. Validate every upload with `checkFile` (`src/lib/attachments.ts`) before saving; never trust the extension or the browser's Content-Type.
 - Mail goes through `sendMail()` in `src/lib/mail.ts`, one recipient per call. Dev mail lands in Mailpit (http://localhost:8025).
 - Do not "simplify" the three DB roles, the transaction-local `set_config`, or the `nullif` in the policy. See README.
 - `pnpm typecheck` runs `next typegen` first; plain `tsc` fails on `LayoutProps`.
