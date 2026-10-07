@@ -159,7 +159,7 @@ Do not treat a follow-up question as evidence you were wrong.
 
 ## Design and CSS work
 
-- **Mobile only** unless I explicitly say desktop. If a constant is shared across
+- If a constant is shared across
 breakpoints, branch it rather than changing the shared value.
 - I judge the result in a browser myself. Your job is the change and a clear
 description of what should now look different.

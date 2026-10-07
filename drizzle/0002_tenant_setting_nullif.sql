@@ -1,0 +1,2 @@
+ALTER POLICY "tenant_isolation" ON "companies" TO public USING ("id" = nullif(current_setting('app.company_id', true), '')::uuid) WITH CHECK ("id" = nullif(current_setting('app.company_id', true), '')::uuid);--> statement-breakpoint
+ALTER POLICY "tenant_isolation" ON "departments" TO public USING ("company_id" = nullif(current_setting('app.company_id', true), '')::uuid) WITH CHECK ("company_id" = nullif(current_setting('app.company_id', true), '')::uuid);
