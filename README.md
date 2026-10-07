@@ -14,6 +14,7 @@ One package, two processes, one Postgres:
 | `src/db/schema.ts` | Drizzle schema, including RLS policies. |
 | `src/db/index.ts` | `db` client (role `notifyhub_app`) and `withTenant()`. |
 | `src/lib/auth.ts` | Better Auth config and `authDb` (role `notifyhub_auth`). |
+| `src/lib/mail.ts` | `sendMail()`: one recipient per message, over SMTP (Mailpit in dev, SES in prod). |
 | `src/lib/onboarding.ts` | Creates a company and attaches the signed-in user, in one transaction. |
 | `src/app/sign-in`, `sign-up`, `onboarding` | Server-rendered forms posting to server actions. No client-side auth code. |
 | `src/app/api/auth/[...all]` | Better Auth's HTTP endpoints (sessions, OAuth callbacks). |
@@ -28,7 +29,8 @@ cp .env.example .env
 pnpm db:migrate
 psql notifyhub -c "ALTER ROLE notifyhub_app PASSWORD 'dev'"
 psql notifyhub -c "ALTER ROLE notifyhub_auth PASSWORD 'dev'"
-pnpm test        # tenant isolation test
+# Mailpit on localhost:1025 (SMTP) / :8025 (UI) catches all mail
+pnpm test        # tenant isolation and onboarding tests
 pnpm dev         # web
 pnpm worker      # scheduler
 ```
@@ -51,9 +53,16 @@ pnpm worker      # scheduler
 - **`user.company_id` is set only server-side.** It's a Better Auth
   `additionalField` with `input: false`. Better Auth rejects it from
   `/update-user` with `FIELD_NOT_ALLOWED`. Do not flip `input` to true.
-- **A company's domain is claimed by whoever onboards first with that email
-  domain.** There's no email verification yet, so this is not proof of
-  ownership. See DEPLOYMENT known gaps.
+- **A company's domain is claimed by whoever onboards first with a verified
+  email at that domain.** Email verification is what makes that claim mean
+  anything. It's enforced twice: Better Auth refuses unverified sign-ins, and
+  `createCompany` checks `emailVerified` again. Keep both.
+- **`sendVerificationEmail` doesn't await the send, on purpose.** Sign-up gives
+  the same response for new and existing emails. Awaiting SMTP only for new ones
+  would reveal by timing which emails are registered.
+- **Verification links carry a signed token (JWT, 1 hour), not a stored one.** It
+  can't be revoked before expiry, but once the email is verified, reusing the
+  link only redirects and doesn't sign anyone in.
 - **Tenant queries must go through `withTenant(companyId, fn)`.** It sets
   `app.company_id` with `set_config(..., true)`, so the setting is
   transaction-local. Changing it to session-level (`false`) leaks one tenant's id

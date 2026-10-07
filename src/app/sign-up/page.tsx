@@ -13,6 +13,7 @@ async function signUp(formData: FormData) {
         name: String(formData.get("name")),
         email: String(formData.get("email")),
         password: String(formData.get("password")),
+        callbackURL: "/onboarding",
       },
       headers: await headers(),
     });
@@ -20,7 +21,7 @@ async function signUp(formData: FormData) {
     if (e instanceof APIError) redirect(errorUrl("/sign-up", e.message));
     throw e;
   }
-  redirect("/onboarding");
+  redirect(`/sign-in?notice=${encodeURIComponent("Check your inbox for a link to verify your email.")}`);
 }
 
 export default async function SignUp(props: PageProps<"/sign-up">) {

@@ -2,6 +2,33 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — email sending and email verification
+
+- **Closes the domain-claim hole** from the auth entry below. Before this,
+  anyone could sign up as `x@acme.com` and own the acme.com company. Now sign-in
+  requires a verified email, and `createCompany` checks `emailVerified` again.
+- **SMTP only, via nodemailer.** Mailpit in dev, SES's SMTP endpoint in prod.
+  Same code path, and only the URL differs. We rejected the SES SDK for now
+  because nothing needs the API yet. It will be needed for per-company domain
+  verification (PRD 7.1 tier 2) and bounce handling. **SES itself is
+  unverified:** there's no AWS account set up, so only Mailpit has been tested.
+- **The verification send isn't awaited**, so sign-up timing doesn't reveal
+  registered emails. Measured: 72 ms for an existing email vs 68 ms for a new one,
+  identical response shape. Trade-off: a failed send is only logged. Signing in
+  again resends (`sendOnSignIn`).
+- **Deviation from PRD 11.1 ("tokens never in URLs"):** an email link has to
+  carry a token. Better Auth's is a stateless JWT (1 hour), so it isn't
+  single-use. Checked: reusing a link after verification redirects but creates
+  no session. Revisit if we need early revocation.
+- **Verified end-to-end against `next start` + Mailpit with curl:**
+  - sign-up returns no session;
+  - an unverified sign-in gets `EMAIL_NOT_VERIFIED` and a fresh email;
+  - the user's name is HTML-escaped in the email;
+  - the link verifies, signs the user in and lands on `/onboarding`;
+  - a bad token ends on `/sign-in` with a readable error.
+
+  **Not checked:** how the email looks in a real mail client, and the browser flow.
+
 ## 2026-10-07 — sign-up, sign-in and company onboarding
 
 - **Better Auth 1.7, email/password and Google.** Google is wired, but

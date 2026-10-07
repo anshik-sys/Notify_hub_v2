@@ -21,17 +21,19 @@ test("onboarding", async () => {
     await owner.query(`insert into "user" (id, name, email, updated_at) values ($1, $1, $2, now())`, [id, `${id}@${domain}`]);
   }
 
-  assert.match((await createCompany(u1, "x@gmail.com", "Acme", "UTC"))!, /work email/);
-  assert.match((await createCompany(u1, `a@${domain}`, "Acme", "Mars/Base"))!, /time zone/);
-  assert.equal(await createCompany(u1, `a@${domain}`, "Acme", "Asia/Kolkata"), null);
+  const me = (id: string, email: string, emailVerified = true) => ({ id, email, emailVerified });
+  assert.match((await createCompany(me(u1, `a@${domain}`, false), "Acme", "UTC"))!, /Verify your email/);
+  assert.match((await createCompany(me(u1, "x@gmail.com"), "Acme", "UTC"))!, /work email/);
+  assert.match((await createCompany(me(u1, `a@${domain}`), "Acme", "Mars/Base"))!, /time zone/);
+  assert.equal(await createCompany(me(u1, `a@${domain}`), "Acme", "Asia/Kolkata"), null);
 
   const { rows } = await owner.query(`select c.domain from "user" u join companies c on c.id = u.company_id where u.id = $1`, [u1]);
   assert.equal(rows[0].domain, domain);
 
   // Same domain again: rejected, and the transaction left no stray company.
-  assert.match((await createCompany(u2, `b@${domain}`, "Acme 2", "UTC"))!, /already exists/);
+  assert.match((await createCompany(me(u2, `b@${domain}`), "Acme 2", "UTC"))!, /already exists/);
   // Already onboarded user: rejected.
-  assert.match((await createCompany(u1, `a@other-${domain}`, "Other", "UTC"))!, /already belong/);
+  assert.match((await createCompany(me(u1, `a@other-${domain}`), "Other", "UTC"))!, /already belong/);
   const count = await owner.query("select count(*)::int as n from companies where domain like $1", [`%${domain}`]);
   assert.equal(count.rows[0].n, 1);
 });

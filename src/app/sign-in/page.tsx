@@ -9,10 +9,12 @@ async function signIn(formData: FormData) {
   "use server";
   try {
     await auth.api.signInEmail({
-      body: { email: String(formData.get("email")), password: String(formData.get("password")) },
+      body: { email: String(formData.get("email")), password: String(formData.get("password")), callbackURL: "/" },
       headers: await headers(),
     });
   } catch (e) {
+    if (e instanceof APIError && e.body?.code === "EMAIL_NOT_VERIFIED")
+      redirect(errorUrl("/sign-in", "Verify your email first. We sent you a new link."));
     if (e instanceof APIError) redirect(errorUrl("/sign-in", e.message));
     throw e;
   }
@@ -27,9 +29,9 @@ async function signInWithGoogle() {
 }
 
 export default async function SignIn(props: PageProps<"/sign-in">) {
-  const error = firstParam((await props.searchParams).error);
+  const { error, notice } = await props.searchParams;
   return (
-    <FormPage title="Sign in" error={error}>
+    <FormPage title="Sign in" error={firstParam(error)} notice={firstParam(notice)}>
       <form action={signIn} className="flex flex-col gap-4">
         <Field label="Email" name="email" type="email" autoComplete="email" required />
         <Field label="Password" name="password" type="password" autoComplete="current-password" required />

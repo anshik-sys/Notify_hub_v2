@@ -10,21 +10,17 @@ async function onboard(formData: FormData) {
   "use server";
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
-  const error = await createCompany(
-    session.user.id,
-    session.user.email,
-    String(formData.get("name")),
-    String(formData.get("timeZone")),
-  );
+  const error = await createCompany(session.user, String(formData.get("name")), String(formData.get("timeZone")));
   if (error) redirect(errorUrl("/onboarding", error));
   redirect("/");
 }
 
 export default async function Onboarding(props: PageProps<"/onboarding">) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/sign-in");
-  if (session.user.companyId) redirect("/");
   const error = firstParam((await props.searchParams).error);
+  const session = await auth.api.getSession({ headers: await headers() });
+  // A failed verification link lands here with ?error=TOKEN_EXPIRED etc. and no session.
+  if (!session) redirect(error ? errorUrl("/sign-in", "That link is invalid or expired. Sign in to get a new one.") : "/sign-in");
+  if (session.user.companyId) redirect("/");
   return (
     <FormPage title="Set up your company" error={error}>
       <form action={onboard} className="flex flex-col gap-4">

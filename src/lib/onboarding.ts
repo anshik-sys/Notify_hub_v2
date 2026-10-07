@@ -16,11 +16,18 @@ export function isTimeZone(tz: string) {
 
 // Creates the company and attaches the signed-in user to it, atomically.
 // Returns an error message, or null on success.
-export async function createCompany(userId: string, email: string, name: string, timeZone: string) {
+export async function createCompany(
+  me: { id: string; email: string; emailVerified: boolean },
+  name: string,
+  timeZone: string,
+) {
+  // Sign-in already requires a verified email. Checked again here because the
+  // domain claim below rests on it.
+  if (!me.emailVerified) return "Verify your email first.";
   name = name.trim();
   if (!name || name.length > 100) return "Company name must be 1–100 characters.";
   if (!isTimeZone(timeZone)) return "Choose a valid time zone.";
-  const domain = email.split("@")[1]?.toLowerCase();
+  const domain = me.email.split("@")[1]?.toLowerCase();
   if (!domain) return "Your email has no domain.";
   if (FREE_MAIL.has(domain)) return `Sign up with your work email, not ${domain}.`;
 
@@ -30,7 +37,7 @@ export async function createCompany(userId: string, email: string, name: string,
       const updated = await tx
         .update(user)
         .set({ companyId: company.id })
-        .where(and(eq(user.id, userId), isNull(user.companyId)))
+        .where(and(eq(user.id, me.id), isNull(user.companyId)))
         .returning({ id: user.id });
       if (updated.length === 0) throw new Error("already onboarded");
     });
