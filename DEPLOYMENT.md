@@ -33,6 +33,17 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0009 adds repeats:
+- `reminders.recurrence`, `time_zone`, `anchor_local`, and status `paused`;
+- the `reminder_occurrences` table;
+- `deliveries.occurrence_id`, and the delivery unique key changes from
+  `(reminder_id, email)` to `(occurrence_id, email)`.
+
+It's hand-edited to backfill existing rows before setting NOT NULL:
+- time zone from the company;
+- the anchor from `send_at`;
+- one occurrence per already-sent reminder.
+
 Migration 0008 adds `deliveries`. **The worker must be running or nothing is
 sent.** It needs `OWNER_DATABASE_URL`, `SMTP_URL`, `MAIL_FROM` and
 `BETTER_AUTH_URL` (for the "Open in NotifyHub" link), and still `DATABASE_URL`
@@ -88,6 +99,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] As a member, a reminder to your own department is "Scheduled", and one to another department is "Needs approval"; admins get an email.
 - [ ] "Now" to two people: both emails arrive within seconds, each addressed only to that person, Reply-To the creator; the reminder shows "2 sent".
 - [ ] Stop the worker, create a "Now" reminder: after a minute it shows "Delayed" with the warning; start the worker: it's sent once and the warning is gone.
+- [ ] A daily "Now" reminder sends once, then shows "Next: tomorrow …"; Pause shows "Paused" (never "Delayed"); Skip moves Next by one; Resume never lands on a skipped one.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

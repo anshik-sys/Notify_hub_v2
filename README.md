@@ -23,6 +23,7 @@ One package, two processes, one Postgres:
 | `src/lib/departments.ts` | Departments, members, managers. |
 | `src/app/(app)/departments/` | Department list and detail pages. |
 | `src/lib/reminders.ts` | Reminder input validation, recipient resolution, the send-scope check, create/edit/cancel/approve. |
+| `src/lib/recurrence.ts` | Repeat rules: occurrences, next/between, plain-language summary, form ↔ rule. Pure, heavily tested. |
 | `src/lib/time.ts` | Company-time-zone wall clock ↔ UTC (Intl only, DST-tested). |
 | `src/app/(app)/reminders/`, `src/app/(app)/approvals/` | Reminder pages and the approvals queue. |
 | `src/lib/test-helpers.ts` | `seeder()` for DB tests: one throwaway company per test file. |
@@ -85,10 +86,26 @@ pnpm worker      # sends reminders; without it they sit "Scheduled" and show "De
   load would do the session and permission queries twice.
 - **The tab bar hides tabs by permission for tidiness only.** Pages enforce access
   themselves.
+- **Recurring reminders:**
+  - **`reminders.send_at` means "the next occurrence".** The worker,
+    `isDelayed` and the list all read it. A series stays `scheduled` and
+    `send_at` moves forward after each run;
+  - **no drift:** occurrences are always computed from `anchor_local` (the
+    series start, wall clock) in `reminders.time_zone`, never from the
+    previous occurrence. That's why "monthly on the 31st" goes 30 Apr → 31 May.
+    An edit that leaves the start unchanged keeps the old anchor, because the
+    edit form shows the *next* occurrence as the start;
+  - **catch-up = latest only.** If several occurrences came due while the
+    worker was down, only the latest is sent; the others are recorded as
+    `missed` (decided with the user: no flood of stale emails);
+  - **skip** records a `skipped` occurrence ahead of time. The worker's
+    `ON CONFLICT DO NOTHING` on `(reminder_id, occurs_at)` is what stops it
+    sending, and resume steps over it.
 - **Exactly-once delivery (`src/worker/delivery.ts`):**
   - dispatch turns a due reminder into one `deliveries` row per person.
     `FOR UPDATE SKIP LOCKED` keeps overlapping runs off the same reminder, and
-    `unique(reminder_id, email)` makes a second row impossible;
+    `unique(occurrence_id, email)` makes a second row for the same occurrence
+    impossible (`reminder_occurrences` is unique per reminder and time);
   - each send *claims* its row with `UPDATE … WHERE status='queued'`, so only
     one caller can win;
   - **deliberately at-most-once at the edge:** if the worker dies after SMTP

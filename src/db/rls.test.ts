@@ -48,15 +48,25 @@ test("tenant isolation", async () => {
 
 test("reminders are tenant-isolated", async () => {
   await owner.query(
-    `insert into reminders (company_id, short_id, created_by, title, sender_name, send_at, status)
-     values ($1, $2, $3, 'B only', 'S', now(), 'scheduled')`,
+    `insert into reminders (company_id, short_id, created_by, title, sender_name, send_at, status, time_zone, anchor_local)
+     values ($1, $2, $3, 'B only', 'S', now() + interval '1 hour', 'scheduled', 'UTC', '2026-01-01T00:00')`,
     [b, `R-${b.slice(0, 6)}`, `u-${b}`],
   );
   const seen = await withTenant(a, (tx) => tx.select().from(reminders));
   assert.equal(seen.length, 0);
   await assert.rejects(
     withTenant(a, (tx) =>
-      tx.insert(reminders).values({ companyId: b, shortId: "R-XXXXXX", createdBy: `u-${a}`, title: "x", senderName: "s", sendAt: new Date(), status: "scheduled" }),
+      tx.insert(reminders).values({
+        companyId: b,
+        shortId: "R-XXXXXX",
+        createdBy: `u-${a}`,
+        title: "x",
+        senderName: "s",
+        sendAt: new Date(),
+        status: "scheduled",
+        timeZone: "UTC",
+        anchorLocal: "2026-01-01T00:00",
+      }),
     ),
   );
 });

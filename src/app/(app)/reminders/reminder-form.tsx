@@ -1,4 +1,5 @@
-import { Button, Checkbox, CheckboxGroup, Field, Form, Hint, RadioGroup, Section, TextArea } from "@/components/form";
+import { Button, Checkbox, CheckboxGroup, Field, Form, Hint, RadioGroup, Section, SelectField, TextArea } from "@/components/form";
+import type { RepeatFields } from "@/lib/recurrence";
 import { saveReminder } from "./actions";
 import type { DepartmentChoice, Person } from "./form-data";
 import { PeoplePicker } from "./people-picker";
@@ -16,7 +17,88 @@ export type ReminderDefaults = {
   emails: string;
   when: "now" | "later";
   sendAtLocal: string;
+  repeat: RepeatFields;
 };
+
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+// No client JS: all custom fields are always submitted; the server only reads
+// them when "Custom…" is chosen (ruleFromForm).
+function RepeatSection({ r }: { r: RepeatFields }) {
+  return (
+    <Section title="Repeat">
+      <SelectField
+        label="Repeat"
+        name="repeat"
+        defaultValue={r.repeat}
+        options={[
+          { value: "none", label: "Does not repeat" },
+          { value: "daily", label: "Every day" },
+          { value: "weekdays", label: "Every weekday (Mon–Fri)" },
+          { value: "weekly", label: "Every week, on the start day" },
+          { value: "monthly", label: "Every month, on the start date" },
+          { value: "yearly", label: "Every year, on the start date" },
+          { value: "custom", label: "Custom…" },
+        ]}
+      />
+      <details className={styles.more} open={r.repeat === "custom"}>
+        <summary className={styles.summary}>Custom repeat</summary>
+        <div className={styles.moreRows}>
+          <Hint>Used when Repeat is “Custom…”. Dates are counted from the start above.</Hint>
+          <div className={styles.everyRow}>
+            <Field label="Every" name="every" type="number" inputMode="numeric" min={1} max={99} defaultValue={r.every} />
+            <SelectField
+              label="Unit"
+              name="unit"
+              defaultValue={r.unit}
+              options={[
+                { value: "day", label: "days" },
+                { value: "week", label: "weeks" },
+                { value: "month", label: "months" },
+                { value: "year", label: "years" },
+              ]}
+            />
+          </div>
+          <CheckboxGroup
+            legend="On these days (weeks)"
+            name="weekdays"
+            options={WEEKDAYS.map((label, i) => ({ value: String(i), label, checked: r.weekdays.includes(String(i)) }))}
+          />
+          <RadioGroup
+            legend="On (months)"
+            name="monthlyBy"
+            value={r.monthlyBy}
+            options={[
+              { value: "day", label: "The same date, e.g. the 15th (31st → last day in short months)" },
+              { value: "weekday", label: "The same weekday, e.g. the 3rd Tuesday" },
+              { value: "last", label: "The last of that weekday, e.g. the last Friday" },
+            ]}
+          />
+          <RadioGroup
+            legend="Ends"
+            name="ends"
+            value={r.ends}
+            options={[
+              { value: "never", label: "Never" },
+              { value: "until", label: "On a date" },
+              { value: "count", label: "After a number of times" },
+            ]}
+          />
+          <Field label="End date (if ending on a date)" name="until" type="date" defaultValue={r.until} />
+          <Field
+            label="Times (if ending after a number)"
+            name="count"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={500}
+            defaultValue={r.count}
+          />
+        </div>
+      </details>
+    </Section>
+  );
+}
 
 const LINK_ROWS = 10;
 
@@ -154,7 +236,10 @@ export function ReminderForm({
           ]}
         />
         <Field label={`Date and time (${timeZone})`} name="sendAt" type="datetime-local" defaultValue={defaults.sendAtLocal} />
+        <Hint>For a repeating reminder, this is the first time; later ones follow from it.</Hint>
       </Section>
+
+      <RepeatSection r={defaults.repeat} />
 
       <Field label="Sender name" name="senderName" maxLength={100} placeholder={defaultSender} defaultValue={defaults.senderName} />
 

@@ -3,7 +3,16 @@
 import { notFound, redirect } from "next/navigation";
 import { errorUrl } from "@/components/form";
 import { can } from "@/lib/permissions";
-import { cancelReminder, createReminder, decideReminder, updateReminder, validateInput } from "@/lib/reminders";
+import {
+  cancelReminder,
+  createReminder,
+  decideReminder,
+  pauseReminder,
+  resumeReminder,
+  skipNextOccurrence,
+  updateReminder,
+  validateInput,
+} from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { isUuid } from "@/lib/validate";
 
@@ -33,6 +42,16 @@ export async function saveReminder(fd: FormData) {
       emails: str(fd, "emails"),
       when: str(fd, "when"),
       sendAtLocal: str(fd, "sendAt"),
+      repeat: {
+        repeat: str(fd, "repeat"),
+        every: str(fd, "every"),
+        unit: str(fd, "unit"),
+        weekdays: all(fd, "weekdays"),
+        monthlyBy: str(fd, "monthlyBy"),
+        ends: str(fd, "ends"),
+        until: str(fd, "until"),
+        count: str(fd, "count"),
+      },
     },
     company.timeZone,
     `Alerts | ${company.name}`,
@@ -65,5 +84,18 @@ export async function decideReminderAction(fd: FormData) {
   if (!isUuid(id)) notFound();
   const approve = fd.get("decision") === "approve";
   const error = await decideReminder({ id: user.id, access }, companyId, id, approve, str(fd, "reason"));
+  redirect(error ? errorUrl(`/reminders/${id}`, error) : `/reminders/${id}`);
+}
+
+const SERIES = { pause: pauseReminder, resume: resumeReminder, skip: skipNextOccurrence } as const;
+
+// Pause / resume / skip next, chosen by the button's name="op".
+export async function seriesAction(fd: FormData) {
+  const { user, companyId, access } = await requireMember();
+  const id = str(fd, "id");
+  if (!isUuid(id)) notFound();
+  const op = SERIES[str(fd, "op") as keyof typeof SERIES];
+  if (!op) notFound();
+  const error = await op({ id: user.id, access }, companyId, id);
   redirect(error ? errorUrl(`/reminders/${id}`, error) : `/reminders/${id}`);
 }

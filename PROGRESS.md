@@ -2,6 +2,54 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — recurring reminders
+
+- **What's in place:**
+  - presets: daily / weekdays / weekly / monthly / annually;
+  - custom: every N days, weeks, months or years; weekdays; monthly by date,
+    by Nth weekday, or by last weekday; ends never / on a date / after N;
+  - pause / resume / skip next;
+  - a plain-language summary and "Next: …";
+  - occurrence history (sent / missed / skipped).
+- **Decided with the user:**
+  - catch-up sends only the latest missed occurrence; the rest are recorded
+    "missed";
+  - edits apply to the whole series. "Change just one occurrence" is deferred.
+- **No drift:** every occurrence is computed from the anchor, never from the
+  previous one. `src/lib/recurrence.ts` tests:
+  - 31st → 28/29 Feb → 31 Mar → 30 Apr → 31 May;
+  - 3rd Tuesday; last Friday in 4- and 5-Friday months;
+  - 29 Feb → 28 Feb → 29 Feb;
+  - 09:00 New York held across both 2026 DST changes; a 02:30 daily on the
+    gap day moves to 03:30 for that day only.
+- **Data:** `send_at` became "next occurrence", so the worker loop,
+  `isDelayed` and the list needed no new concept. A new
+  `reminder_occurrences` table (unique per reminder and time) and
+  `deliveries.occurrence_id` change exactly-once to (occurrence, person).
+  Migration 0009 was hand-edited to backfill; checked against the 3 real dev
+  reminders and 5 deliveries.
+- **Two bugs found while building:**
+  - the edit form shows the next occurrence as the start, so saving any edit
+    would have re-anchored "monthly on the 31st" to the 30th. An unchanged
+    start now keeps the original anchor (tested);
+  - resume after skip showed the skipped occurrence as "Next". The worker
+    wouldn't have sent it, but the page was wrong. Resume now steps over
+    recorded occurrences (tested + E2E).
+- **Verified against `next start` + `pnpm worker` + Mailpit:**
+  - a daily "Now" sent once, with next tomorrow;
+  - a simulated 3-day outage → 3 missed + 1 sent, bob got exactly 1 email,
+    and next is back in the future;
+  - another user can't pause the series;
+  - skip / pause / resume;
+  - a paused, overdue reminder is not "Delayed";
+  - the custom rule summary in the list; edit pre-fills the custom fields.
+
+  39 tests pass.
+- **Not checked:** the Repeat section's look on a phone (the select, the
+  "Custom repeat" disclosure, the side-by-side "Every [n] [unit]" row). The
+  custom fields are always visible inside the disclosure: no JS, so they don't
+  hide when another preset is chosen.
+
 ## 2026-10-07 — "delivery is delayed" safeguard
 
 - **What happened:** the user created a "Now" reminder and it stayed

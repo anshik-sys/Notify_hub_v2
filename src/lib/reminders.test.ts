@@ -8,6 +8,9 @@ import {
   decideReminder,
   getReminder,
   isDelayed,
+  pauseReminder,
+  resumeReminder,
+  skipNextOccurrence,
   outOfScope,
   reminderAccess,
   type RawReminder,
@@ -17,6 +20,7 @@ import {
 } from "./reminders";
 import { resolveRecipients } from "./recipients";
 import { seeder } from "./test-helpers";
+import { toLocalInput } from "./time";
 
 const s = seeder();
 const other = seeder();
@@ -35,8 +39,10 @@ const raw = (over: Partial<RawReminder> = {}): RawReminder => ({
   emails: "",
   when: "now",
   sendAtLocal: "",
+  repeat: { repeat: "none", every: "1", unit: "day", weekdays: [], monthlyBy: "day", ends: "never", until: "", count: "" },
   ...over,
 });
+const oneTime = { recurrence: null, anchorLocal: "2026-01-01T00:00", timeZone: "UTC" };
 // An hour ahead: a worker running on this machine must not send test reminders
 // mid-test (it would, within a second, for anything due now).
 const later = () => new Date(Date.now() + 3_600_000);
@@ -124,7 +130,7 @@ test("outOfScope (PRD 5.2)", async () => {
 });
 
 test("lifecycle: create, approve, reject, edit, widen, cancel", async () => {
-  const input = (targets: Target[]) => ({ title: "T", description: "", links: [], senderName: "S", sendAt: later(), targets });
+  const input = (targets: Target[]) => ({ title: "T", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets });
 
   const own = await createReminder(await actor(alice), s.companyId, input([{ kind: "department", ref: ops }]));
   assert.ok("id" in own);
@@ -174,6 +180,7 @@ test("reminderAccess: owners full, recipients via delivery row, others none", as
     links: [],
     senderName: "S",
     sendAt: later(),
+    ...oneTime,
     targets: [{ kind: "department", ref: ops }],
   });
   assert.ok("id" in r);
@@ -182,9 +189,14 @@ test("reminderAccess: owners full, recipients via delivery row, others none", as
   assert.equal(await reminderAccess(s.companyId, await viewer(alice), ref), "full");
   assert.equal(await reminderAccess(s.companyId, await viewer(bob), ref), "full"); // alice's manager
   assert.equal(await reminderAccess(s.companyId, await viewer(carol), ref), null);
-  await s.owner.query("insert into deliveries (company_id, reminder_id, email, user_id) values ($1, $2, $3, $4)", [
+  const occ = await s.owner.query(
+    "insert into reminder_occurrences (company_id, reminder_id, occurs_at, status) values ($1, $2, now(), 'sent') returning id",
+    [s.companyId, r.id],
+  );
+  await s.owner.query("insert into deliveries (company_id, reminder_id, occurrence_id, email, user_id) values ($1, $2, $3, $4, $5)", [
     s.companyId,
     r.id,
+    occ.rows[0].id,
     `${carol}@${s.domain}`,
     carol,
   ]);
@@ -206,4 +218,102 @@ test("isDelayed", () => {
   assert.equal(isDelayed(r("sending", 600, 180), now), true);
   assert.equal(isDelayed(r("sent", 3600, 3600), now), false);
   assert.equal(isDelayed(r("pending_approval", 3600), now), false); // waiting on a person, not the worker
+});
+
+test("recurring: first occurrence, pause/resume/skip, edit restarts the anchor", async () => {
+  const tz = "Asia/Kolkata";
+  // Tomorrow 09:00 local, every weekday.
+  const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString("en-CA", { timeZone: tz });
+  const weekdays = { repeat: "weekdays", every: "1", unit: "day", weekdays: [], monthlyBy: "day", ends: "never", until: "", count: "" };
+  const parsed = validateInput(
+    raw({ departmentIds: [ops], when: "later", sendAtLocal: `${tomorrow}T09:00`, repeat: weekdays }),
+    tz,
+    "A",
+  );
+  const input = parsed.input!;
+  assert.deepEqual(input.recurrence?.weekdays, [0, 1, 2, 3, 4]);
+  // First occurrence: tomorrow 09:00 if that's a weekday, else the next Monday.
+  const firstLocal = toLocalInput(input.sendAt, tz);
+  assert.ok(firstLocal >= `${tomorrow}T09:00` && firstLocal.endsWith("T09:00"));
+  assert.ok(new Date(`${firstLocal.slice(0, 10)}T00:00Z`).getUTCDay() % 6 !== 0); // not Sat/Sun
+
+  const created = await createReminder(await actor(alice), s.companyId, input);
+  assert.ok("id" in created);
+  const me = await actor(alice);
+  const get = async () => (await getReminder(s.companyId, created.id))!;
+
+  assert.equal(await pauseReminder(me, s.companyId, created.id), null);
+  const paused = await get();
+  assert.equal(paused.status, "paused");
+  assert.equal(isDelayed({ ...paused, sendAt: new Date(0) }), false); // paused is never "delayed"
+  assert.match((await pauseReminder(me, s.companyId, created.id))!, /Only a scheduled/);
+
+  assert.equal(await resumeReminder(me, s.companyId, created.id), null);
+  const resumed = await get();
+  assert.equal(resumed.status, "scheduled");
+  assert.equal(resumed.sendAt.toISOString(), input.sendAt.toISOString()); // next from now = the same first one
+
+  assert.equal(await skipNextOccurrence(me, s.companyId, created.id), null);
+  const skipped = await get();
+  assert.ok(skipped.sendAt > input.sendAt);
+  const occ = await s.owner.query("select occurs_at, status from reminder_occurrences where reminder_id = $1", [created.id]);
+  assert.deepEqual(
+    occ.rows.map((o) => [o.occurs_at.toISOString(), o.status]),
+    [[input.sendAt.toISOString(), "skipped"]],
+  );
+
+  // Skip the next one while paused, then resume: "next" steps over the skipped one.
+  const beforeSkip = (await get()).sendAt;
+  assert.equal(await pauseReminder(me, s.companyId, created.id), null);
+  await s.owner.query("update reminders set send_at = $2 where id = $1", [created.id, input.sendAt]); // back to the first
+  assert.equal(await skipNextOccurrence(me, s.companyId, created.id), null); // already skipped: no-op record, advances
+  assert.equal(await resumeReminder(me, s.companyId, created.id), null);
+  assert.ok((await get()).sendAt.getTime() >= beforeSkip.getTime());
+  assert.notEqual((await get()).sendAt.toISOString(), input.sendAt.toISOString());
+
+  // Someone else can't control the series.
+  assert.match((await pauseReminder(await actor(carol), s.companyId, created.id))!, /not found/);
+
+  // A series edit restarts from the new start (the day after tomorrow, 10:00, daily).
+  const later2 = new Date(Date.now() + 2 * 86_400_000).toLocaleDateString("en-CA", { timeZone: tz });
+  const edited = validateInput(
+    raw({ departmentIds: [ops], when: "later", sendAtLocal: `${later2}T10:00`, repeat: { ...weekdays, repeat: "daily" } }),
+    tz,
+    "A",
+  ).input!;
+  assert.equal(await updateReminder(me, s.companyId, created.id, edited), null);
+  const after = await get();
+  assert.deepEqual([after.anchorLocal, toLocalInput(after.sendAt, tz), after.recurrence?.freq], [`${later2}T10:00`, `${later2}T10:00`, "daily"]);
+
+  // One-time reminders can't be paused.
+  const once = await createReminder(me, s.companyId, {
+    title: "Once",
+    description: "",
+    links: [],
+    senderName: "S",
+    sendAt: later(),
+    ...oneTime,
+    targets: [{ kind: "department", ref: ops }],
+  });
+  assert.ok("id" in once);
+  assert.match((await pauseReminder(me, s.companyId, once.id))!, /Only repeating/);
+});
+
+test("editing a series without touching its start keeps the anchor (no drift)", async () => {
+  const me = await actor(alice);
+  const monthly = { repeat: "monthly", every: "1", unit: "day", weekdays: [], monthlyBy: "day", ends: "never", until: "", count: "" };
+  const input = validateInput(raw({ departmentIds: [ops], when: "later", sendAtLocal: "2031-01-31T09:00", repeat: monthly }), "UTC", "A").input!;
+  const created = await createReminder(me, s.companyId, input);
+  assert.ok("id" in created);
+  // Pretend Jan and Feb went out: the next occurrence is 31 Mar... use April's 30th to show the fallback.
+  await s.owner.query("update reminders set send_at = '2031-04-30T09:00Z' where id = $1", [created.id]);
+  // The edit form shows 2031-04-30T09:00 as the start; the user only changes the title.
+  const edit = validateInput(
+    raw({ title: "Renamed", departmentIds: [ops], when: "later", sendAtLocal: "2031-04-30T09:00", repeat: monthly }),
+    "UTC",
+    "A",
+  ).input!;
+  assert.equal(await updateReminder(me, s.companyId, created.id, edit), null);
+  const r = (await getReminder(s.companyId, created.id))!;
+  assert.deepEqual([r.title, r.anchorLocal, r.sendAt.toISOString()], ["Renamed", "2031-01-31T09:00", "2031-04-30T09:00:00.000Z"]);
 });

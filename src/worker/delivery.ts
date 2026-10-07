@@ -1,13 +1,14 @@
 import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
-import { deliveries, reminders, reminderTargets, user } from "@/db/schema";
+import { deliveries, reminderOccurrences, reminders, reminderTargets, user } from "@/db/schema";
+import { between, nextAfter } from "@/lib/recurrence";
 import { sendMail } from "@/lib/mail";
 import { resolveRecipients } from "@/lib/recipients";
 import { ownerDb } from "./db";
 
-// Exactly once, in three steps:
-// 1. dispatchDue: a due reminder becomes one `deliveries` row per recipient.
-//    SKIP LOCKED keeps overlapping runs off the same reminder, and
-//    unique(reminder_id, email) makes a second row for a person impossible.
+// Exactly once per (occurrence, person), in three steps:
+// 1. dispatchDue: a due reminder gets an occurrence row (unique per reminder
+//    and time) and one `deliveries` row per recipient (unique per occurrence
+//    and email). SKIP LOCKED keeps overlapping runs off the same reminder.
 // 2. deliverOne: claims a row queued -> sending in one UPDATE (only one caller
 //    can win), sends, marks it sent.
 // 3. sweep: a row stuck in `sending` (worker died mid-send) is marked failed,
@@ -28,7 +29,7 @@ export async function dispatchDue(
   for (;;) {
     const ids = await ownerDb.transaction(async (tx) => {
       const [r] = await tx
-        .select({ id: reminders.id, companyId: reminders.companyId })
+        .select()
         .from(reminders)
         .where(
           and(
@@ -41,24 +42,62 @@ export async function dispatchDue(
         .limit(1)
         .for("update", { skipLocked: true });
       if (!r) return null;
-      const targets = await tx
-        .select({ kind: reminderTargets.kind, ref: reminderTargets.ref })
-        .from(reminderTargets)
-        .where(eq(reminderTargets.reminderId, r.id));
-      const { users, external } = await resolveRecipients(tx, r.companyId, targets);
-      const rows = [
-        ...users.map((u) => ({ email: u.email, userId: u.id })),
-        ...external.map((email) => ({ email, userId: null })),
-      ].map((x) => ({ ...x, companyId: r.companyId, reminderId: r.id }));
-      const inserted = rows.length
-        ? await tx.insert(deliveries).values(rows).onConflictDoNothing().returning({ id: deliveries.id })
-        : [];
-      // Nobody left to send to (everyone deactivated since): done, with an empty log.
+
+      // Which occurrence goes out now, and when the next one is. If the worker
+      // was down and several came due, only the latest is sent; the earlier
+      // ones are recorded as missed (decided with the user: no stale floods).
+      let toSend = r.sendAt;
+      let missed: Date[] = [];
+      let next: Date | null = null;
+      if (r.recurrence) {
+        const due = between(r.recurrence, r.anchorLocal, r.timeZone, r.sendAt, now);
+        if (due.length) [toSend, missed] = [due.at(-1)!, due.slice(0, -1)];
+        next = nextAfter(r.recurrence, r.anchorLocal, r.timeZone, now);
+      }
+      const occurrence = (occursAt: Date, status: "sending" | "missed") => ({
+        companyId: r.companyId,
+        reminderId: r.id,
+        occursAt,
+        status,
+      });
+      if (missed.length)
+        await tx
+          .insert(reminderOccurrences)
+          .values(missed.map((at) => occurrence(at, "missed")))
+          .onConflictDoNothing();
+      // Nothing returned = this occurrence already exists (the user skipped it): don't send.
+      const [occ] = await tx
+        .insert(reminderOccurrences)
+        .values(occurrence(toSend, "sending"))
+        .onConflictDoNothing()
+        .returning({ id: reminderOccurrences.id });
+
+      let deliveryIds: string[] = [];
+      if (occ) {
+        const targets = await tx
+          .select({ kind: reminderTargets.kind, ref: reminderTargets.ref })
+          .from(reminderTargets)
+          .where(eq(reminderTargets.reminderId, r.id));
+        const { users, external } = await resolveRecipients(tx, r.companyId, targets);
+        const rows = [
+          ...users.map((u) => ({ email: u.email, userId: u.id })),
+          ...external.map((email) => ({ email, userId: null })),
+        ].map((x) => ({ ...x, companyId: r.companyId, reminderId: r.id, occurrenceId: occ.id }));
+        if (rows.length)
+          deliveryIds = (await tx.insert(deliveries).values(rows).onConflictDoNothing().returning({ id: deliveries.id })).map(
+            (d) => d.id,
+          );
+        // Nobody left to send to (everyone deactivated since): done, with an empty log.
+        else await tx.update(reminderOccurrences).set({ status: "sent" }).where(eq(reminderOccurrences.id, occ.id));
+      }
+
+      // A series with more to come stays scheduled at its next occurrence;
+      // otherwise the reminder finishes once this occurrence's sends are done.
       await tx
         .update(reminders)
-        .set({ status: rows.length ? "sending" : "sent" })
+        .set(next ? { sendAt: next } : { status: deliveryIds.length ? "sending" : "sent" })
         .where(eq(reminders.id, r.id));
-      return inserted.map((d) => d.id);
+      return deliveryIds;
     });
     if (ids === null) return count;
     count++;
@@ -66,7 +105,24 @@ export async function dispatchDue(
   }
 }
 
-// A reminder is sent once none of its deliveries is still in flight.
+const inFlight = sql`('queued','sending')`;
+
+// An occurrence is sent once none of its deliveries is still in flight.
+async function finishOccurrence(occurrenceId: string) {
+  await ownerDb
+    .update(reminderOccurrences)
+    .set({ status: "sent" })
+    .where(
+      and(
+        eq(reminderOccurrences.id, occurrenceId),
+        eq(reminderOccurrences.status, "sending"),
+        sql`not exists (select 1 from ${deliveries} where ${deliveries.occurrenceId} = ${occurrenceId} and ${deliveries.status} in ${inFlight})`,
+      ),
+    );
+}
+
+// A one-time reminder (or a series past its last occurrence) is sent once
+// nothing of it is in flight. A series with a next occurrence stays scheduled.
 async function finishReminder(reminderId: string) {
   await ownerDb
     .update(reminders)
@@ -75,9 +131,14 @@ async function finishReminder(reminderId: string) {
       and(
         eq(reminders.id, reminderId),
         eq(reminders.status, "sending"),
-        sql`not exists (select 1 from ${deliveries} where ${deliveries.reminderId} = ${reminderId} and ${deliveries.status} in ('queued','sending'))`,
+        sql`not exists (select 1 from ${deliveries} where ${deliveries.reminderId} = ${reminderId} and ${deliveries.status} in ${inFlight})`,
       ),
     );
+}
+
+async function finish(d: { occurrenceId: string; reminderId: string }) {
+  await finishOccurrence(d.occurrenceId);
+  await finishReminder(d.reminderId);
 }
 
 export async function deliverOne(deliveryId: string, send: typeof sendMail = sendMail) {
@@ -112,13 +173,13 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
       .set({ status: final ? "failed" : "queued", lastError: String((e as Error).message ?? e).slice(0, 500) })
       .where(eq(deliveries.id, d.id));
     if (final) {
-      await finishReminder(d.reminderId);
+      await finish(d);
       return "failed";
     }
     throw e; // pg-boss retries with backoff
   }
   await ownerDb.update(deliveries).set({ status: "sent", sentAt: new Date(), lastError: null }).where(eq(deliveries.id, d.id));
-  await finishReminder(d.reminderId);
+  await finish(d);
   return "sent";
 }
 
@@ -129,8 +190,8 @@ export async function sweep() {
     .update(deliveries)
     .set({ status: "failed", lastError: "Outcome unknown: the worker stopped mid-send. Not resent, to avoid a duplicate." })
     .where(and(eq(deliveries.status, "sending"), lt(deliveries.updatedAt, new Date(Date.now() - STUCK_AFTER_MS))))
-    .returning({ reminderId: deliveries.reminderId });
-  for (const id of new Set(stuck.map((s) => s.reminderId))) await finishReminder(id);
+    .returning({ reminderId: deliveries.reminderId, occurrenceId: deliveries.occurrenceId });
+  for (const d of stuck) await finish(d);
 
   const orphans = await ownerDb
     .select({ id: deliveries.id })

@@ -2,12 +2,13 @@ import { notFound } from "next/navigation";
 import { Hint, LinkButton, Page } from "@/components/form";
 import { List, ListRow } from "@/components/list";
 import { can } from "@/lib/permissions";
-import { isDelayed, listReminders, STATUS_LABELS } from "@/lib/reminders";
+import { describe } from "@/lib/recurrence";
+import { isDelayed, listReminders, statusLabel } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { formatInZone } from "@/lib/time";
 
 export default async function Reminders() {
-  const { user, companyId, company, access } = await requireMember();
+  const { user, companyId, access } = await requireMember();
   if (!can(access, "reminders.create") && !can(access, "reminders.view_all")) notFound();
   const reminders = await listReminders(companyId, { id: user.id, access });
 
@@ -21,8 +22,12 @@ export default async function Reminders() {
               key={r.id}
               href={`/reminders/${r.id}`}
               title={r.title}
-              badge={isDelayed(r) ? "Delayed" : STATUS_LABELS[r.status]}
-              meta={`${formatInZone(r.sendAt, company.timeZone)} · ${r.shortId}`}
+              badge={isDelayed(r) ? "Delayed" : statusLabel(r)}
+              meta={
+                r.recurrence
+                  ? `${describe(r.recurrence, r.anchorLocal)} · ${r.status === "scheduled" ? `next ${formatInZone(r.sendAt, r.timeZone)}` : r.shortId}`
+                  : `${formatInZone(r.sendAt, r.timeZone)} · ${r.shortId}`
+              }
             />
           ))}
         </List>

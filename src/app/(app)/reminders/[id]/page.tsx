@@ -3,19 +3,21 @@ import { notFound } from "next/navigation";
 import { Button, Field, firstParam, Form, Hint, LinkButton, Page, Section } from "@/components/form";
 import { List, ListRow } from "@/components/list";
 import { can } from "@/lib/permissions";
-import { deliveryLog, getReminder, isDelayed, reminderAccess, STATUS_LABELS } from "@/lib/reminders";
+import { describe } from "@/lib/recurrence";
+import { deliveryLog, getReminder, isDelayed, reminderAccess, statusLabel } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { formatInZone } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
-import { cancelReminderAction, decideReminderAction } from "../actions";
+import { cancelReminderAction, decideReminderAction, seriesAction } from "../actions";
 import styles from "./page.module.css";
 
 const DELIVERY_LABELS = { queued: "Queued", sending: "Sending", sent: "Sent", failed: "Failed" } as const;
+const OCCURRENCE_NOTE = { missed: "Missed: the sending service was down", skipped: "Skipped" } as const;
 
 export default async function ReminderDetail(props: PageProps<"/reminders/[id]">) {
   const { id } = await props.params;
   if (!isUuid(id)) notFound();
-  const { user, companyId, company, access } = await requireMember();
+  const { user, companyId, access } = await requireMember();
   const r = await getReminder(companyId, id);
   const seeAs = r && (await reminderAccess(companyId, { id: user.id, email: user.email, access }, r));
   if (!r || !seeAs) notFound();
@@ -23,7 +25,8 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   const log = seeAs === "full" ? await deliveryLog(companyId, r.id) : null;
   const error = firstParam((await props.searchParams).error);
 
-  const editable = ["pending_approval", "rejected", "scheduled"].includes(r.status);
+  const editable = ["pending_approval", "rejected", "scheduled", "paused"].includes(r.status);
+  const tz = r.timeZone;
   const mayChange = editable && (user.id === r.createdBy || can(access, "reminders.edit"));
   const mayDecide = r.status === "pending_approval" && can(access, "reminders.approve");
 
@@ -34,7 +37,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
       error={error}
     >
       <p className={styles.status}>
-        <span className={styles.badge}>{STATUS_LABELS[r.status]}</span>
+        <span className={styles.badge}>{statusLabel(r)}</span>
         <span>{r.shortId}</span>
       </p>
 
@@ -56,9 +59,22 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
       )}
 
       <Section title="Details">
-        <Hint>
-          {r.status === "sent" ? "Sent" : "Sends"} {formatInZone(r.sendAt, company.timeZone)} ({company.timeZone})
-        </Hint>
+        {r.recurrence ? (
+          <>
+            <Hint>Repeats: {describe(r.recurrence, r.anchorLocal)}</Hint>
+            <Hint>
+              {r.status === "paused"
+                ? "Paused: nothing is sent until it’s resumed."
+                : r.status === "sent"
+                  ? "Ended: no more occurrences."
+                  : `Next: ${formatInZone(r.sendAt, tz)} (${tz})`}
+            </Hint>
+          </>
+        ) : (
+          <Hint>
+            {r.status === "sent" ? "Sent" : "Sends"} {formatInZone(r.sendAt, tz)} ({tz})
+          </Hint>
+        )}
         <Hint>
           From “{r.senderName}”, created by {r.creatorName}
         </Hint>
@@ -85,10 +101,10 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
         </Section>
       )}
 
-      {log && log.rows.length > 0 && (
-        <Section title="Delivery">
+      {log?.latest && log.rows.length > 0 && (
+        <Section title={r.recurrence ? `Latest: ${formatInZone(log.latest.occursAt, tz)}` : "Delivery"}>
           <Hint>
-            {log.counts.sent} sent · {log.counts.failed} failed · {log.counts.pending} pending
+            {log.latest.sent} sent · {log.latest.failed} failed · {log.latest.pending} pending
           </Hint>
           <List>
             {log.rows.map((d) => (
@@ -98,10 +114,28 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                 badge={DELIVERY_LABELS[d.status]}
                 meta={
                   d.status === "sent" && d.sentAt
-                    ? formatInZone(d.sentAt, company.timeZone)
+                    ? formatInZone(d.sentAt, tz)
                     : d.lastError
                       ? `${d.lastError} (attempt ${d.attempts})`
                       : undefined
+                }
+              />
+            ))}
+          </List>
+        </Section>
+      )}
+
+      {log && r.recurrence && log.history.length > 0 && (
+        <Section title="Earlier occurrences">
+          <List>
+            {log.history.map((o) => (
+              <ListRow
+                key={o.id}
+                title={formatInZone(o.occursAt, tz)}
+                meta={
+                  o.status === "missed" || o.status === "skipped"
+                    ? OCCURRENCE_NOTE[o.status]
+                    : `${o.sent} sent · ${o.failed} failed${o.pending ? ` · ${o.pending} pending` : ""}`
                 }
               />
             ))}
@@ -129,10 +163,21 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
 
       {mayChange && (
         <Section title="Change">
-          <LinkButton href={`/reminders/${r.id}/edit`}>Edit reminder</LinkButton>
+          <LinkButton href={`/reminders/${r.id}/edit`}>{r.recurrence ? "Edit series" : "Edit reminder"}</LinkButton>
+          {r.recurrence && (r.status === "scheduled" || r.status === "paused") && (
+            <form action={seriesAction} className={styles.seriesButtons}>
+              <input type="hidden" name="id" value={r.id} />
+              <Button variant="secondary" name="op" value={r.status === "paused" ? "resume" : "pause"}>
+                {r.status === "paused" ? "Resume" : "Pause"}
+              </Button>
+              <Button variant="secondary" name="op" value="skip">
+                Skip the next one ({formatInZone(r.sendAt, tz)})
+              </Button>
+            </form>
+          )}
           <form action={cancelReminderAction}>
             <input type="hidden" name="id" value={r.id} />
-            <Button variant="secondary">Cancel reminder</Button>
+            <Button variant="secondary">{r.recurrence ? "Cancel the whole series" : "Cancel reminder"}</Button>
           </form>
         </Section>
       )}

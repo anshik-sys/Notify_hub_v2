@@ -217,7 +217,7 @@ export const invitations = pgTable(
 // --- Reminders (PRD 5). Targets are what the creator picked; they're resolved
 // to actual recipients at send time (src/lib/reminders.ts resolveRecipients).
 
-export const REMINDER_STATUSES = ["pending_approval", "rejected", "scheduled", "sending", "sent", "cancelled"] as const;
+export const REMINDER_STATUSES = ["pending_approval", "rejected", "scheduled", "paused", "sending", "sent", "cancelled"] as const;
 export type ReminderStatus = (typeof REMINDER_STATUSES)[number];
 
 export const reminders = pgTable(
@@ -235,7 +235,13 @@ export const reminders = pgTable(
     description: text().notNull().default(""),
     links: jsonb().$type<{ label: string; url: string }[]>().notNull().default([]),
     senderName: text().notNull(),
+    // The next occurrence (for a one-time reminder, its only one).
     sendAt: ts().notNull(),
+    // Null = one-time. Occurrences are computed from anchorLocal in timeZone
+    // (src/lib/recurrence.ts); the zone is copied from the company at create.
+    recurrence: jsonb().$type<import("@/lib/recurrence").Rule>(),
+    timeZone: text().notNull(),
+    anchorLocal: text().notNull(),
     status: text().$type<ReminderStatus>().notNull(),
     decidedBy: text().references(() => user.id),
     decidedAt: ts(),
@@ -248,7 +254,7 @@ export const reminders = pgTable(
   },
   (t) => [
     index().on(t.status, t.sendAt),
-    check("reminders_status_valid", sql`${t.status} in ('pending_approval','rejected','scheduled','sending','sent','cancelled')`),
+    check("reminders_status_valid", sql`${t.status} in ('pending_approval','rejected','scheduled','paused','sending','sent','cancelled')`),
     tenantPolicy("company_id"),
   ],
 ).enableRLS();
@@ -273,8 +279,32 @@ export const reminderTargets = pgTable(
   ],
 ).enableRLS();
 
-// One row per (reminder, recipient email): the unique key is what makes a
-// second send of the same reminder to the same person impossible. Written by
+// One row per time a reminder goes out. unique(reminder_id, occurs_at): an
+// occurrence is created once. skipped = the user skipped it; missed = the
+// worker was down and a later occurrence was sent instead (catch-up = latest only).
+export const reminderOccurrences = pgTable(
+  "reminder_occurrences",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    reminderId: uuid()
+      .notNull()
+      .references(() => reminders.id, { onDelete: "cascade" }),
+    occursAt: ts().notNull(),
+    status: text().$type<"sending" | "sent" | "skipped" | "missed">().notNull(),
+    createdAt: ts().notNull().defaultNow(),
+  },
+  (t) => [
+    unique().on(t.reminderId, t.occursAt),
+    check("reminder_occurrences_status_valid", sql`${t.status} in ('sending','sent','skipped','missed')`),
+    tenantPolicy("company_id"),
+  ],
+).enableRLS();
+
+// One row per (occurrence, recipient email): the unique key is what makes a
+// second send of the same occurrence to the same person impossible. Written by
 // the worker (owner connection); read by the web for the delivery log.
 export const deliveries = pgTable(
   "deliveries",
@@ -286,6 +316,9 @@ export const deliveries = pgTable(
     reminderId: uuid()
       .notNull()
       .references(() => reminders.id, { onDelete: "cascade" }),
+    occurrenceId: uuid()
+      .notNull()
+      .references(() => reminderOccurrences.id, { onDelete: "cascade" }),
     email: text().notNull(),
     userId: text().references(() => user.id, { onDelete: "set null" }),
     status: text().$type<"queued" | "sending" | "sent" | "failed">().notNull().default("queued"),
@@ -299,7 +332,8 @@ export const deliveries = pgTable(
     createdAt: ts().notNull().defaultNow(),
   },
   (t) => [
-    unique().on(t.reminderId, t.email),
+    unique().on(t.occurrenceId, t.email),
+    index().on(t.reminderId),
     index().on(t.status, t.updatedAt),
     check("deliveries_status_valid", sql`${t.status} in ('queued','sending','sent','failed')`),
     tenantPolicy("company_id"),

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { firstParam, Page } from "@/components/form";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
+import { fieldsFromRule } from "@/lib/recurrence";
 import { recipientChoices } from "../form-data";
 import { ReminderForm } from "../reminder-form";
 
@@ -28,6 +29,7 @@ export default async function NewReminder(props: PageProps<"/reminders/new">) {
           emails: "",
           when: "now",
           sendAtLocal: "",
+          repeat: fieldsFromRule(null, ""),
         }}
       />
     </Page>

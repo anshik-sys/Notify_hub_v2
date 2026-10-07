@@ -1,11 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { aliasedTable, and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { aliasedTable, and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { deliveries, departmentMembers, departments, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
+import { deliveries, departmentMembers, departments, reminderOccurrences, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
 import { sendMail } from "./mail";
 import { resolveRecipients, type Target, type Tx } from "./recipients";
 import { type Access, can, COMPANY_ADMIN_ROLE_ID, loadAccess } from "./permissions";
-import { zonedToUtc } from "./time";
+import { firstAtOrAfter, nextAfter, type RepeatFields, type Rule, ruleFromForm } from "./recurrence";
+import { toLocalInput, zonedToUtc } from "./time";
 
 export type { Target };
 export type ReminderInput = {
@@ -13,14 +14,18 @@ export type ReminderInput = {
   description: string;
   links: { label: string; url: string }[];
   senderName: string;
+  // First occurrence; for a series, the anchor's first match (see recurrence.ts).
   sendAt: Date;
+  recurrence: Rule | null;
+  anchorLocal: string;
+  timeZone: string;
   targets: Target[];
 };
 type Actor = { id: string; access: Access };
 
 class Refused extends Error {}
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const EDITABLE: ReminderStatus[] = ["pending_approval", "rejected", "scheduled"];
+const EDITABLE: ReminderStatus[] = ["pending_approval", "rejected", "scheduled", "paused"];
 
 // --- Input -----------------------------------------------------------------
 
@@ -36,6 +41,7 @@ export type RawReminder = {
   emails: string;
   when: string; // "now" | "later"
   sendAtLocal: string;
+  repeat: RepeatFields;
 };
 
 export function validateInput(raw: RawReminder, timeZone: string, defaultSender: string, now = new Date()) {
@@ -81,7 +87,21 @@ export function validateInput(raw: RawReminder, timeZone: string, defaultSender:
     if (at.getTime() < now.getTime() - 60_000) return { error: "Pick a time in the future." };
     sendAt = at;
   }
-  return { input: { title, description, links, senderName, sendAt, targets } satisfies ReminderInput };
+  // The start, as wall clock in the company zone ("now" is truncated to the minute).
+  const anchorLocal = raw.when === "later" ? raw.sendAtLocal : toLocalInput(now, timeZone);
+  const parsed = ruleFromForm(raw.repeat, anchorLocal);
+  if ("error" in parsed) return { error: parsed.error };
+  const recurrence = parsed.rule;
+  if (recurrence) {
+    // First match at or after the start: the start itself, unless e.g. "every
+    // Monday" was picked with a Wednesday start.
+    const first = firstAtOrAfter(recurrence, anchorLocal, timeZone, zonedToUtc(anchorLocal, timeZone)!);
+    if (!first) return { error: "That repeat never happens. Check the end date." };
+    sendAt = first;
+  }
+  return {
+    input: { title, description, links, senderName, sendAt, recurrence, anchorLocal, timeZone, targets } satisfies ReminderInput,
+  };
 }
 
 // --- Recipients and scope ---------------------------------------------------
@@ -221,8 +241,17 @@ export async function updateReminder(actor: Actor, companyId: string, id: string
       const approved = current.status === "scheduled" && current.decidedBy !== null;
       const oldKeys = new Set(oldTargets.map(targetKey));
       const narrowed = input.targets.every((t) => oldKeys.has(targetKey(t)));
-      const status: ReminderStatus = out.length && !(approved && narrowed) ? "pending_approval" : "scheduled";
+      // A paused series stays paused through an edit (unless it now needs approval).
+      const status: ReminderStatus =
+        out.length && !(approved && narrowed) ? "pending_approval" : current.status === "paused" ? "paused" : "scheduled";
 
+      // The edit form pre-fills the start with the *next* occurrence. If it came
+      // back unchanged, keep the original anchor: re-anchoring "monthly on the
+      // 31st" at its 30 Apr occurrence would move the series to the 30th.
+      if (input.recurrence && current.recurrence && input.anchorLocal === toLocalInput(current.sendAt, current.timeZone)) {
+        const next = firstAtOrAfter(input.recurrence, current.anchorLocal, current.timeZone, current.sendAt);
+        if (next) input = { ...input, anchorLocal: current.anchorLocal, timeZone: current.timeZone, sendAt: next };
+      }
       const { targets, ...fields } = input;
       await tx
         .update(reminders)
@@ -377,6 +406,9 @@ export function listReminders(companyId: string, viewer: Actor) {
         status: reminders.status,
         sendAt: reminders.sendAt,
         updatedAt: reminders.updatedAt,
+        recurrence: reminders.recurrence,
+        anchorLocal: reminders.anchorLocal,
+        timeZone: reminders.timeZone,
       })
       .from(reminders)
       .where(can(viewer.access, "reminders.view_all") ? undefined : eq(reminders.createdBy, viewer.id))
@@ -404,8 +436,13 @@ export function isDelayed(r: { status: ReminderStatus; sendAt: Date; updatedAt: 
   return (r.status === "scheduled" && ago(r.sendAt) > 60_000) || (r.status === "sending" && ago(r.updatedAt) > 120_000);
 }
 
+// A series that has run out says "Ended" rather than "Sent".
+export const statusLabel = (r: { status: ReminderStatus; recurrence: Rule | null }) =>
+  r.recurrence && r.status === "sent" ? "Ended" : STATUS_LABELS[r.status];
+
 export const STATUS_LABELS: Record<ReminderStatus, string> = {
   pending_approval: "Needs approval",
+  paused: "Paused",
   rejected: "Not approved",
   scheduled: "Scheduled",
   sending: "Sending",
@@ -413,21 +450,99 @@ export const STATUS_LABELS: Record<ReminderStatus, string> = {
   cancelled: "Cancelled",
 };
 
+// The latest occurrence's per-person log, plus the last 10 occurrences.
 export async function deliveryLog(companyId: string, reminderId: string) {
-  const rows = await withTenant(companyId, (tx) =>
-    tx
+  return withTenant(companyId, async (tx) => {
+    const history = await tx
       .select({
-        id: deliveries.id,
-        email: deliveries.email,
-        status: deliveries.status,
-        sentAt: deliveries.sentAt,
-        lastError: deliveries.lastError,
-        attempts: deliveries.attempts,
+        id: reminderOccurrences.id,
+        occursAt: reminderOccurrences.occursAt,
+        status: reminderOccurrences.status,
+        sent: sql<number>`count(*) filter (where ${deliveries.status} = 'sent')::int`,
+        failed: sql<number>`count(*) filter (where ${deliveries.status} = 'failed')::int`,
+        pending: sql<number>`count(*) filter (where ${deliveries.status} in ('queued','sending'))::int`,
       })
-      .from(deliveries)
-      .where(eq(deliveries.reminderId, reminderId))
-      .orderBy(deliveries.email),
-  );
-  const count = (s: string) => rows.filter((r) => r.status === s).length;
-  return { rows, counts: { sent: count("sent"), failed: count("failed"), pending: count("queued") + count("sending") } };
+      .from(reminderOccurrences)
+      .leftJoin(deliveries, eq(deliveries.occurrenceId, reminderOccurrences.id))
+      .where(eq(reminderOccurrences.reminderId, reminderId))
+      .groupBy(reminderOccurrences.id)
+      .orderBy(desc(reminderOccurrences.occursAt))
+      .limit(10);
+    const latest = history.find((o) => o.status === "sending" || o.status === "sent");
+    const rows = latest
+      ? await tx
+          .select({
+            id: deliveries.id,
+            email: deliveries.email,
+            status: deliveries.status,
+            sentAt: deliveries.sentAt,
+            lastError: deliveries.lastError,
+            attempts: deliveries.attempts,
+          })
+          .from(deliveries)
+          .where(eq(deliveries.occurrenceId, latest.id))
+          .orderBy(deliveries.email)
+      : [];
+    return { latest: latest ?? null, rows, history };
+  });
 }
+
+// --- Series controls (recurring only; creator or reminders.edit) --------------
+
+async function seriesChange(
+  actor: Actor,
+  companyId: string,
+  id: string,
+  change: (tx: Tx, r: typeof reminders.$inferSelect & { recurrence: Rule }) => Promise<Partial<typeof reminders.$inferInsert>>,
+) {
+  const result = await refusals(() =>
+    withTenant(companyId, async (tx) => {
+      const [r] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update");
+      if (!r || !mayChange(actor, r.createdBy)) throw new Refused("Reminder not found.");
+      if (!r.recurrence) throw new Refused("Only repeating reminders can do that.");
+      const set = await change(tx, { ...r, recurrence: r.recurrence });
+      await tx.update(reminders).set(set).where(eq(reminders.id, id));
+      await notifyIfDue(tx, set.status ?? r.status, set.sendAt ?? r.sendAt);
+      return null;
+    }),
+  );
+  return result && "error" in result ? result.error : null;
+}
+
+export const pauseReminder = (actor: Actor, companyId: string, id: string) =>
+  seriesChange(actor, companyId, id, async (_tx, r) => {
+    if (r.status !== "scheduled") throw new Refused("Only a scheduled reminder can be paused.");
+    return { status: "paused" };
+  });
+
+// Picks up at the next occurrence from now; nothing missed while paused is sent.
+// Steps over occurrences already recorded (e.g. skipped before pausing), so
+// "Next" never shows one that won't go out.
+export const resumeReminder = (actor: Actor, companyId: string, id: string) =>
+  seriesChange(actor, companyId, id, async (tx, r) => {
+    if (r.status !== "paused") throw new Refused("This reminder isn't paused.");
+    const now = new Date();
+    const taken = new Set(
+      (
+        await tx
+          .select({ at: reminderOccurrences.occursAt })
+          .from(reminderOccurrences)
+          .where(and(eq(reminderOccurrences.reminderId, r.id), gte(reminderOccurrences.occursAt, now)))
+      ).map((o) => o.at.getTime()),
+    );
+    let next = firstAtOrAfter(r.recurrence, r.anchorLocal, r.timeZone, now);
+    while (next && taken.has(next.getTime())) next = nextAfter(r.recurrence, r.anchorLocal, r.timeZone, next);
+    return next ? { status: "scheduled", sendAt: next } : { status: "sent" };
+  });
+
+// Records the next occurrence as skipped (so the worker won't send it) and moves on.
+export const skipNextOccurrence = (actor: Actor, companyId: string, id: string) =>
+  seriesChange(actor, companyId, id, async (tx, r) => {
+    if (r.status !== "scheduled" && r.status !== "paused") throw new Refused("Nothing to skip.");
+    await tx
+      .insert(reminderOccurrences)
+      .values({ companyId, reminderId: r.id, occursAt: r.sendAt, status: "skipped" })
+      .onConflictDoNothing();
+    const next = nextAfter(r.recurrence, r.anchorLocal, r.timeZone, r.sendAt);
+    return next ? { sendAt: next } : { status: "sent" };
+  });

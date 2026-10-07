@@ -56,3 +56,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* "Every [2] [weeks]" side by side; each half still full-height touch targets. */
+.everyRow {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 12px;
+}
