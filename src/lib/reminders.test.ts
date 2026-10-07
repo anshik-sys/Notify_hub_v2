@@ -40,9 +40,11 @@ const raw = (over: Partial<RawReminder> = {}): RawReminder => ({
   when: "now",
   sendAtLocal: "",
   repeat: { repeat: "none", every: "1", unit: "day", weekdays: [], monthlyBy: "day", ends: "never", until: "", count: "" },
+  isTask: false,
+  dueLocal: "",
   ...over,
 });
-const oneTime = { recurrence: null, anchorLocal: "2026-01-01T00:00", timeZone: "UTC" };
+const oneTime = { recurrence: null, anchorLocal: "2026-01-01T00:00", timeZone: "UTC", isTask: false, dueAfterMinutes: null };
 // An hour ahead: a worker running on this machine must not send test reminders
 // mid-test (it would, within a second, for anything due now).
 const later = () => new Date(Date.now() + 3_600_000);
@@ -316,4 +318,18 @@ test("editing a series without touching its start keeps the anchor (no drift)", 
   assert.equal(await updateReminder(me, s.companyId, created.id, edit), null);
   const r = (await getReminder(s.companyId, created.id))!;
   assert.deepEqual([r.title, r.anchorLocal, r.sendAt.toISOString()], ["Renamed", "2031-01-31T09:00", "2031-04-30T09:00:00.000Z"]);
+});
+
+test("task due: required, after the send, stored as an offset", () => {
+  const now = new Date("2026-10-07T10:00:00Z");
+  const task = (dueLocal: string, over: Partial<RawReminder> = {}) =>
+    validateInput(raw({ userIds: ["u"], isTask: true, dueLocal, ...over }), "UTC", "A", now);
+  assert.match(task("").error!, /due date/);
+  assert.match(task("2026-10-07T09:00").error!, /after it's sent/);
+  assert.match(task("2027-12-01T00:00").error!, /within a year/);
+  assert.equal(task("2026-10-07T12:00").input!.dueAfterMinutes, 120); // sent now (10:00), due 12:00
+  // Later send: the offset is from the first send, not from now.
+  assert.equal(task("2026-10-09T09:00", { when: "later", sendAtLocal: "2026-10-08T09:00" }).input!.dueAfterMinutes, 24 * 60);
+  // Not a task: due is ignored.
+  assert.equal(validateInput(raw({ userIds: ["u"], dueLocal: "nonsense" }), "UTC", "A", now).input!.dueAfterMinutes, null);
 });

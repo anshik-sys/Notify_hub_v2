@@ -71,6 +71,13 @@
       "when": 1791362402072,
       "tag": "0009_recurrence",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791363637124,
+      "tag": "0010_tasks",
+      "breakpoints": true
     }
   ]
 }

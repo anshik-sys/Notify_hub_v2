@@ -18,6 +18,8 @@ export type ReminderDefaults = {
   when: "now" | "later";
   sendAtLocal: string;
   repeat: RepeatFields;
+  isTask: boolean;
+  dueLocal: string;
 };
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -240,6 +242,15 @@ export function ReminderForm({
       </Section>
 
       <RepeatSection r={defaults.repeat} />
+
+      <Section title="Task">
+        <Checkbox label="This is a task: everyone must mark it done" name="isTask" defaultChecked={defaults.isTask} />
+        <Field label={`Due (${timeZone})`} name="due" type="datetime-local" defaultValue={defaults.dueLocal} />
+        <Hint>
+          Anyone not done by then gets a reminder every day until they are. For repeating tasks, each one is due the
+          same time after it’s sent.
+        </Hint>
+      </Section>
 
       <Field label="Sender name" name="senderName" maxLength={100} placeholder={defaultSender} defaultValue={defaults.senderName} />
 

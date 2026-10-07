@@ -6,12 +6,15 @@ import { can } from "@/lib/permissions";
 import { describe } from "@/lib/recurrence";
 import { deliveryLog, getReminder, isDelayed, reminderAccess, statusLabel } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
+import { myTaskStatus, taskProgress } from "@/lib/tasks";
 import { formatInZone } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
-import { cancelReminderAction, decideReminderAction, seriesAction } from "../actions";
+import { cancelReminderAction, decideReminderAction, markTaskAction, seriesAction } from "../actions";
 import styles from "./page.module.css";
 
 const DELIVERY_LABELS = { queued: "Queued", sending: "Sending", sent: "Sent", failed: "Failed" } as const;
+// Server-rendered per request, so "now" is the request time.
+const overdue = (dueAt: Date | null) => Boolean(dueAt && dueAt.getTime() < Date.now());
 const OCCURRENCE_NOTE = { missed: "Missed: the sending service was down", skipped: "Skipped" } as const;
 
 export default async function ReminderDetail(props: PageProps<"/reminders/[id]">) {
@@ -23,6 +26,9 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   if (!r || !seeAs) notFound();
   // Recipients see the reminder itself; the log and recipient list are for its owners.
   const log = seeAs === "full" ? await deliveryLog(companyId, r.id) : null;
+  // Owners see everyone's progress on the latest occurrence; anyone assigned sees their own.
+  const progress = r.isTask && log?.latest ? await taskProgress(companyId, log.latest.id) : null;
+  const mine = r.isTask ? await myTaskStatus(companyId, user.id, r.id) : null;
   const error = firstParam((await props.searchParams).error);
 
   const editable = ["pending_approval", "rejected", "scheduled", "paused"].includes(r.status);
@@ -86,6 +92,48 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
           <List>
             {r.links.map((l, i) => (
               <ListRow key={i} title={<a href={l.url} rel="noopener noreferrer" target="_blank">{l.label}</a>} meta={l.url} />
+            ))}
+          </List>
+        </Section>
+      )}
+
+      {mine && (
+        <Section title="Your task">
+          <Hint>
+            {mine.doneAt
+              ? `Done ${formatInZone(mine.doneAt, tz)}`
+              : `${overdue(mine.dueAt) ? "Overdue: was due" : "Due"} ${mine.dueAt ? formatInZone(mine.dueAt, tz) : ""}`}
+          </Hint>
+          <form action={markTaskAction}>
+            <input type="hidden" name="id" value={r.id} />
+            <input type="hidden" name="deliveryId" value={mine.deliveryId} />
+            <input type="hidden" name="done" value={mine.doneAt ? "false" : "true"} />
+            <Button variant={mine.doneAt ? "secondary" : "primary"}>{mine.doneAt ? "Undo: not done yet" : "Mark done"}</Button>
+          </form>
+        </Section>
+      )}
+
+      {progress && log?.latest && (
+        <Section title={`Task: ${progress.done} of ${progress.total} done`}>
+          {log.latest.dueAt && (
+            <Hint>
+              Due {formatInZone(log.latest.dueAt, tz)}
+              {r.recurrence ? " (this occurrence)" : ""}
+            </Hint>
+          )}
+          <List>
+            {progress.rows.map((p) => (
+              <ListRow
+                key={p.deliveryId}
+                title={p.name}
+                badge={p.doneAt ? "Done" : overdue(log.latest!.dueAt) ? "Overdue" : "Not done"}
+                meta={[
+                  p.doneAt ? `Done ${formatInZone(p.doneAt, tz)}` : p.email,
+                  p.followups ? `${p.followups} follow-up${p.followups === 1 ? "" : "s"}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              />
             ))}
           </List>
         </Section>

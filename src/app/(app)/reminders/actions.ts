@@ -14,6 +14,7 @@ import {
   validateInput,
 } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
+import { setDone } from "@/lib/tasks";
 import { isUuid } from "@/lib/validate";
 
 const all = (fd: FormData, name: string) => fd.getAll(name).map(String);
@@ -42,6 +43,8 @@ export async function saveReminder(fd: FormData) {
       emails: str(fd, "emails"),
       when: str(fd, "when"),
       sendAtLocal: str(fd, "sendAt"),
+      isTask: fd.get("isTask") === "on",
+      dueLocal: str(fd, "due"),
       repeat: {
         repeat: str(fd, "repeat"),
         every: str(fd, "every"),
@@ -97,5 +100,14 @@ export async function seriesAction(fd: FormData) {
   const op = SERIES[str(fd, "op") as keyof typeof SERIES];
   if (!op) notFound();
   const error = await op({ id: user.id, access }, companyId, id);
+  redirect(error ? errorUrl(`/reminders/${id}`, error) : `/reminders/${id}`);
+}
+
+// An assignee marks their own task done / not done (setDone checks ownership).
+export async function markTaskAction(fd: FormData) {
+  const { user, companyId } = await requireMember();
+  const [id, deliveryId] = [str(fd, "id"), str(fd, "deliveryId")];
+  if (!isUuid(id) || !isUuid(deliveryId)) notFound();
+  const error = await setDone(user.id, companyId, deliveryId, fd.get("done") === "true");
   redirect(error ? errorUrl(`/reminders/${id}`, error) : `/reminders/${id}`);
 }

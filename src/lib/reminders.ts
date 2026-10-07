@@ -19,6 +19,8 @@ export type ReminderInput = {
   recurrence: Rule | null;
   anchorLocal: string;
   timeZone: string;
+  isTask: boolean;
+  dueAfterMinutes: number | null;
   targets: Target[];
 };
 type Actor = { id: string; access: Access };
@@ -42,6 +44,8 @@ export type RawReminder = {
   when: string; // "now" | "later"
   sendAtLocal: string;
   repeat: RepeatFields;
+  isTask: boolean;
+  dueLocal: string;
 };
 
 export function validateInput(raw: RawReminder, timeZone: string, defaultSender: string, now = new Date()) {
@@ -99,8 +103,30 @@ export function validateInput(raw: RawReminder, timeZone: string, defaultSender:
     if (!first) return { error: "That repeat never happens. Check the end date." };
     sendAt = first;
   }
+  // Tasks: due is a wall-clock time after the first send, stored as an offset
+  // so each occurrence of a repeating task is due the same time after it's sent.
+  let dueAfterMinutes: number | null = null;
+  if (raw.isTask) {
+    const due = zonedToUtc(raw.dueLocal, timeZone);
+    if (!due) return { error: "A task needs a due date and time." };
+    dueAfterMinutes = Math.round((due.getTime() - sendAt.getTime()) / 60_000);
+    if (dueAfterMinutes < 1) return { error: "The due time must be after it's sent." };
+    if (dueAfterMinutes > 365 * 24 * 60) return { error: "The due time must be within a year of sending." };
+  }
   return {
-    input: { title, description, links, senderName, sendAt, recurrence, anchorLocal, timeZone, targets } satisfies ReminderInput,
+    input: {
+      title,
+      description,
+      links,
+      senderName,
+      sendAt,
+      recurrence,
+      anchorLocal,
+      timeZone,
+      isTask: raw.isTask,
+      dueAfterMinutes,
+      targets,
+    } satisfies ReminderInput,
   };
 }
 
@@ -409,6 +435,7 @@ export function listReminders(companyId: string, viewer: Actor) {
         recurrence: reminders.recurrence,
         anchorLocal: reminders.anchorLocal,
         timeZone: reminders.timeZone,
+        isTask: reminders.isTask,
       })
       .from(reminders)
       .where(can(viewer.access, "reminders.view_all") ? undefined : eq(reminders.createdBy, viewer.id))
@@ -458,6 +485,7 @@ export async function deliveryLog(companyId: string, reminderId: string) {
         id: reminderOccurrences.id,
         occursAt: reminderOccurrences.occursAt,
         status: reminderOccurrences.status,
+        dueAt: reminderOccurrences.dueAt,
         sent: sql<number>`count(*) filter (where ${deliveries.status} = 'sent')::int`,
         failed: sql<number>`count(*) filter (where ${deliveries.status} = 'failed')::int`,
         pending: sql<number>`count(*) filter (where ${deliveries.status} in ('queued','sending'))::int`,

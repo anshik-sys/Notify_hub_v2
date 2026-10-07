@@ -11,6 +11,7 @@ import { ReminderForm } from "../../reminder-form";
 
 // Server-rendered per request, so "now" is the request time.
 const isPast = (d: Date) => d.getTime() <= Date.now();
+const dueFrom = (sendAt: Date, minutes: number) => new Date(Math.max(sendAt.getTime(), Date.now()) + minutes * 60_000);
 
 export default async function EditReminder(props: PageProps<"/reminders/[id]/edit">) {
   const { id } = await props.params;
@@ -45,6 +46,9 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           when: isPast(r.sendAt) ? "now" : "later",
           sendAtLocal: isPast(r.sendAt) ? "" : toLocalInput(r.sendAt, r.timeZone),
           repeat: fieldsFromRule(r.recurrence, r.anchorLocal),
+          isTask: r.isTask,
+          // Same gap after the (next) send as before; "now" if that time has passed.
+          dueLocal: r.isTask && r.dueAfterMinutes ? toLocalInput(dueFrom(r.sendAt, r.dueAfterMinutes), r.timeZone) : "",
         }}
       />
     </Page>

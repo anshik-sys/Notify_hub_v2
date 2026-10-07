@@ -24,6 +24,7 @@ One package, two processes, one Postgres:
 | `src/app/(app)/departments/` | Department list and detail pages. |
 | `src/lib/reminders.ts` | Reminder input validation, recipient resolution, the send-scope check, create/edit/cancel/approve. |
 | `src/lib/recurrence.ts` | Repeat rules: occurrences, next/between, plain-language summary, form ↔ rule. Pure, heavily tested. |
+| `src/lib/tasks.ts` | Task completion (`setDone`), progress, my open tasks. |
 | `src/lib/time.ts` | Company-time-zone wall clock ↔ UTC (Intl only, DST-tested). |
 | `src/app/(app)/reminders/`, `src/app/(app)/approvals/` | Reminder pages and the approvals queue. |
 | `src/lib/test-helpers.ts` | `seeder()` for DB tests: one throwaway company per test file. |
@@ -101,6 +102,21 @@ pnpm worker      # sends reminders; without it they sit "Scheduled" and show "De
   - **skip** records a `skipped` occurrence ahead of time. The worker's
     `ON CONFLICT DO NOTHING` on `(reminder_id, occurs_at)` is what stops it
     sending, and resume steps over it.
+- **Tasks (PRD 5.8):**
+  - completion is `deliveries.done_at` on the assignee's own row, so it's per
+    person per occurrence, and each occurrence of a repeating task starts
+    fresh with no reset job;
+  - assignees are internal recipients (`user_id` not null); outside emails
+    get the task email but aren't tracked;
+  - the due time is stored as an offset (`due_after_minutes`), and each
+    occurrence gets `due_at = occurs_at + offset`.
+- **Task follow-ups:**
+  - once per local day at `companies.follow_up_time`, for anyone overdue at
+    that moment and not done;
+  - `claimFollowUps` stamps `last_followup_on` with the company-local date in
+    the same UPDATE that selects. That stamp is the once-a-day guarantee, so
+    don't split it into a SELECT and then an UPDATE;
+  - email only (there's no in-app notification centre yet).
 - **Exactly-once delivery (`src/worker/delivery.ts`):**
   - dispatch turns a due reminder into one `deliveries` row per person.
     `FOR UPDATE SKIP LOCKED` keeps overlapping runs off the same reminder, and

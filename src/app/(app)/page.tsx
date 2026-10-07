@@ -7,6 +7,8 @@ import { auth } from "@/lib/auth";
 import { can, visibleRoles } from "@/lib/permissions";
 import { listPendingApprovals } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
+import { myOpenTasks } from "@/lib/tasks";
+import { formatInZone } from "@/lib/time";
 import { getUser } from "@/lib/users";
 
 async function signOut() {
@@ -15,12 +17,16 @@ async function signOut() {
   redirect("/sign-in");
 }
 
+// Server-rendered per request, so "now" is the request time.
+const isOverdue = (d: Date | null) => Boolean(d && d.getTime() < Date.now());
+
 export default async function Home() {
   const { user, companyId, access } = await requireMember();
-  const [me, roles, pending] = await Promise.all([
+  const [me, roles, pending, tasks] = await Promise.all([
     getUser(companyId, user.id),
     visibleRoles(companyId),
     can(access, "reminders.approve") ? listPendingApprovals(companyId) : [],
+    myOpenTasks(companyId, user.id),
   ]);
   const roleNames = roles.filter((r) => me?.roleIds.includes(r.id)).map((r) => r.name);
 
@@ -30,6 +36,22 @@ export default async function Home() {
         <List>
           <ListRow href="/approvals" title={`Approvals waiting (${pending.length})`} meta="Reminders that need your OK to send" />
         </List>
+      )}
+
+      {tasks.length > 0 && (
+        <Section title={`Your open tasks (${tasks.length})`}>
+          <List>
+            {tasks.map((t) => (
+              <ListRow
+                key={`${t.reminderId}-${t.dueAt?.getTime()}`}
+                href={`/reminders/${t.reminderId}`}
+                title={t.title}
+                badge={isOverdue(t.dueAt) ? "Overdue" : undefined}
+                meta={t.dueAt ? `Due ${formatInZone(t.dueAt, t.timeZone)}` : undefined}
+              />
+            ))}
+          </List>
+        </Section>
       )}
 
       <Section title="Your departments">
@@ -60,6 +82,11 @@ export default async function Home() {
 
       <Section title="Account">
         <Hint>Signed in as {user.email}</Hint>
+        {can(access, "company.edit") && (
+          <List>
+            <ListRow href="/settings/company" title="Company settings" meta="Daily task follow-up time" />
+          </List>
+        )}
         <form action={signOut}>
           <Button variant="secondary">Sign out</Button>
         </form>

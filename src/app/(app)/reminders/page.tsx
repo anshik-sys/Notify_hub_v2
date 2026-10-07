@@ -24,9 +24,10 @@ export default async function Reminders() {
               title={r.title}
               badge={isDelayed(r) ? "Delayed" : statusLabel(r)}
               meta={
-                r.recurrence
+                (r.isTask ? "Task · " : "") +
+                (r.recurrence
                   ? `${describe(r.recurrence, r.anchorLocal)} · ${r.status === "scheduled" ? `next ${formatInZone(r.sendAt, r.timeZone)}` : r.shortId}`
-                  : `${formatInZone(r.sendAt, r.timeZone)} · ${r.shortId}`
+                  : `${formatInZone(r.sendAt, r.timeZone)} · ${r.shortId}`)
               }
             />
           ))}

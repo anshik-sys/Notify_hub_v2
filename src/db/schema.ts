@@ -1,5 +1,5 @@
 import { isNull, sql } from "drizzle-orm";
-import { boolean, check, index, integer, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, date, index, integer, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // Tenant isolation: every tenant table carries company_id and a policy that
 // only matches rows of the company set by withTenant(). Unset => no rows.
@@ -27,9 +27,15 @@ export const companies = pgTable(
     name: text().notNull(),
     domain: text().notNull().unique(),
     timeZone: text().notNull(),
+    // Local time of day for daily task follow-ups (PRD 5.8), in timeZone.
+    followUpTime: text().notNull().default("09:00"),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
-  () => [tenantPolicy("id"), authPolicy],
+  (t) => [
+    tenantPolicy("id"),
+    authPolicy,
+    check("companies_follow_up_time_valid", sql`${t.followUpTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  ],
 ).enableRLS();
 
 export const departments = pgTable(
@@ -242,6 +248,10 @@ export const reminders = pgTable(
     recurrence: jsonb().$type<import("@/lib/recurrence").Rule>(),
     timeZone: text().notNull(),
     anchorLocal: text().notNull(),
+    // A task: every internal recipient marks it done (deliveries.done_at).
+    // Each occurrence is due this long after it's sent.
+    isTask: boolean().notNull().default(false),
+    dueAfterMinutes: integer(),
     status: text().$type<ReminderStatus>().notNull(),
     decidedBy: text().references(() => user.id),
     decidedAt: ts(),
@@ -254,6 +264,7 @@ export const reminders = pgTable(
   },
   (t) => [
     index().on(t.status, t.sendAt),
+    check("reminders_task_due", sql`not ${t.isTask} or ${t.dueAfterMinutes} > 0`),
     check("reminders_status_valid", sql`${t.status} in ('pending_approval','rejected','scheduled','paused','sending','sent','cancelled')`),
     tenantPolicy("company_id"),
   ],
@@ -294,6 +305,7 @@ export const reminderOccurrences = pgTable(
       .references(() => reminders.id, { onDelete: "cascade" }),
     occursAt: ts().notNull(),
     status: text().$type<"sending" | "sent" | "skipped" | "missed">().notNull(),
+    dueAt: ts(), // tasks only
     createdAt: ts().notNull().defaultNow(),
   },
   (t) => [
@@ -325,6 +337,11 @@ export const deliveries = pgTable(
     attempts: integer().notNull().default(0),
     lastError: text(),
     sentAt: ts(),
+    // Tasks: the assignee's completion for this occurrence, and follow-ups.
+    // last_followup_on (company-local date) is the once-a-day claim.
+    doneAt: ts(),
+    followups: integer().notNull().default(0),
+    lastFollowupOn: date({ mode: "string" }),
     updatedAt: ts()
       .notNull()
       .defaultNow()

@@ -1,6 +1,7 @@
 import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
 import { deliveries, reminderOccurrences, reminders, reminderTargets, user } from "@/db/schema";
 import { between, nextAfter } from "@/lib/recurrence";
+import { formatInZone } from "@/lib/time";
 import { sendMail } from "@/lib/mail";
 import { resolveRecipients } from "@/lib/recipients";
 import { ownerDb } from "./db";
@@ -59,6 +60,8 @@ export async function dispatchDue(
         reminderId: r.id,
         occursAt,
         status,
+        // Tasks: each occurrence is due the same time after it's sent.
+        dueAt: r.isTask && r.dueAfterMinutes ? new Date(occursAt.getTime() + r.dueAfterMinutes * 60_000) : null,
       });
       if (missed.length)
         await tx
@@ -150,18 +153,24 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
   if (!d) return "skipped"; // sent, failed, or another worker has it
 
   const [r] = await ownerDb
-    .select({ reminder: reminders, creatorEmail: user.email })
+    .select({ reminder: reminders, creatorEmail: user.email, dueAt: reminderOccurrences.dueAt })
     .from(reminders)
     .innerJoin(user, eq(user.id, reminders.createdBy))
+    .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, d.occurrenceId))
     .where(eq(reminders.id, d.reminderId));
+  const task = r.reminder.isTask && r.dueAt;
+  const body = r.reminder.description || r.reminder.title;
   try {
     await send({
       to: d.email,
-      subject: r.reminder.title,
-      text: r.reminder.description || r.reminder.title,
+      subject: task ? `Task: ${r.reminder.title}` : r.reminder.title,
+      text: task ? `${body}\n\nDue ${formatInZone(r.dueAt!, r.reminder.timeZone)} (${r.reminder.timeZone}).` : body,
       links: [
         ...r.reminder.links,
-        { label: "Open in NotifyHub", url: `${process.env.BETTER_AUTH_URL}/reminders/${r.reminder.id}` },
+        {
+          label: task ? "Mark it done in NotifyHub" : "Open in NotifyHub",
+          url: `${process.env.BETTER_AUTH_URL}/reminders/${r.reminder.id}`,
+        },
       ],
       fromName: `${r.reminder.senderName} via NotifyHub`,
       replyTo: r.creatorEmail,
@@ -200,3 +209,53 @@ export async function sweep() {
   return orphans.map((o) => o.id);
 }
 
+
+// --- Task follow-ups (PRD 5.8) ------------------------------------------------
+// Once a day, at the company's follow-up time (its own zone), every assignee
+// of an overdue task who hasn't marked it done gets one reminder. The claim is
+// an UPDATE that stamps last_followup_on with the company-local date, so a
+// second tick (or worker) the same day matches nothing. Email only for now.
+
+// now and onlyCompany are for tests: move the clock, and never touch (stamp)
+// another company's deliveries, which would block their real follow-ups.
+export async function claimFollowUps(now = new Date(), onlyCompany?: string) {
+  const { rows } = await ownerDb.execute<{ id: string }>(sql`
+    with slots as (
+      select c.id as company_id,
+             (${now}::timestamptz at time zone c.time_zone)::date as local_today,
+             (((${now}::timestamptz at time zone c.time_zone)::date + c.follow_up_time::time) at time zone c.time_zone) as slot
+      from companies c
+      where ${onlyCompany ?? null}::uuid is null or c.id = ${onlyCompany ?? null}::uuid
+    )
+    update deliveries d
+       set last_followup_on = s.local_today, followups = d.followups + 1
+      from reminder_occurrences o, reminders r, slots s, "user" u
+     where o.id = d.occurrence_id and r.id = d.reminder_id and s.company_id = d.company_id and u.id = d.user_id
+       and r.is_task and r.status <> 'cancelled'
+       and d.status = 'sent' and d.done_at is null and u.deactivated_at is null
+       and ${now}::timestamptz >= s.slot and o.due_at <= s.slot
+       and (d.last_followup_on is null or d.last_followup_on < s.local_today)
+    returning d.id`);
+  return rows.map((r) => r.id);
+}
+
+export async function followUpOne(deliveryId: string, send: typeof sendMail = sendMail) {
+  const [x] = await ownerDb
+    .select({ d: deliveries, r: reminders, dueAt: reminderOccurrences.dueAt, creatorEmail: user.email })
+    .from(deliveries)
+    .innerJoin(reminders, eq(reminders.id, deliveries.reminderId))
+    .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, deliveries.occurrenceId))
+    .innerJoin(user, eq(user.id, reminders.createdBy))
+    .where(eq(deliveries.id, deliveryId));
+  // Marked done (or cancelled) between the claim and now: nothing to nag about.
+  if (!x || x.d.doneAt || x.r.status === "cancelled" || !x.dueAt) return "skipped";
+  await send({
+    to: x.d.email,
+    subject: `Overdue: ${x.r.title}`,
+    text: `This task was due ${formatInZone(x.dueAt, x.r.timeZone)} (${x.r.timeZone}) and isn't marked done yet. You'll get this reminder daily until it is.`,
+    links: [{ label: "Mark it done in NotifyHub", url: `${process.env.BETTER_AUTH_URL}/reminders/${x.r.id}` }],
+    fromName: `${x.r.senderName} via NotifyHub`,
+    replyTo: x.creatorEmail,
+  });
+  return "sent";
+}

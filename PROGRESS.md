@@ -2,6 +2,53 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — tasks with due dates and daily follow-ups
+
+- **What's in place:**
+  - "This is a task" plus a due date and time on the reminder form;
+  - emails titled "Task: …" with the due time;
+  - each assignee marks done or undoes on the reminder page;
+  - owners see "N of M done" with per-person status (Done / Not done /
+    Overdue) and follow-up counts;
+  - "Your open tasks" on Home;
+  - daily "Overdue: …" emails at the company's follow-up time
+    (`/settings/company`, admins).
+- **Completion on the delivery row,** not a separate table. One row per
+  person per occurrence already exists, so a repeating task starts fresh by
+  construction, and "only your own" is just `user_id = me` (plus RLS).
+- **The due time is stored as an offset** from the send, so a repeating task
+  stays due "the same time after it's sent" every time. One form field: the
+  due time, entered as a date and time.
+- **Follow-ups:**
+  - one SQL UPDATE per tick claims each overdue, undone assignee once per
+    company-local day (`last_followup_on`), with the slot computed in the
+    company zone in SQL. A second tick or worker that day matches nothing;
+  - the job re-checks "done" before sending, so marking done just after the
+    claim still stops the email;
+  - a follow-up is only sent if the task was overdue at the slot time: due at
+    10:00 with a 09:00 slot means the first follow-up is the next morning.
+- **Test isolation:** `claimFollowUps` takes the same test-only scope as
+  `dispatchDue`. Without it, a test run at 2042 dates would stamp real dev
+  deliveries' `last_followup_on` and silence their real follow-ups until 2042.
+- **Deferred:**
+  - manager escalation after N days (PRD: optional);
+  - in-app and Slack follow-ups;
+  - the shared done toggle for external-only tasks;
+  - "mark complete" on non-task reminders;
+  - a `/tasks` page.
+- **Verified against `next start` + `pnpm worker` + Mailpit:**
+  - "Task:" emails; the owner sees 0 of 2; the assignee sees only their own
+    status;
+  - carol marking bob's task → refused, nothing written;
+  - bob done → 1 of 2, and it leaves his open tasks;
+  - forced follow-up time: carol got exactly one "Overdue:" and bob (done) none;
+  - the next tick that day sent nothing;
+  - company settings: admin only, and an invalid time is refused.
+
+  43 tests pass, including the follow-up slot in Asia/Kolkata, once a day,
+  stopping on done, and skipping deactivated users.
+- **Not checked:** the task section and buttons on a phone.
+
 ## 2026-10-07 — theme switch (system / light / dark)
 
 - **Why:** the user asked for a light theme. The light colours already

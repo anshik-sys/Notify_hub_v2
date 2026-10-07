@@ -33,6 +33,14 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0010 adds tasks:
+- `reminders.is_task`, `due_after_minutes`;
+- `reminder_occurrences.due_at`;
+- `deliveries.done_at`, `followups`, `last_followup_on`;
+- `companies.follow_up_time` (default 09:00).
+
+Follow-ups run on the worker's minute tick.
+
 Migration 0009 adds repeats:
 - `reminders.recurrence`, `time_zone`, `anchor_local`, and status `paused`;
 - the `reminder_occurrences` table;
@@ -100,6 +108,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] "Now" to two people: both emails arrive within seconds, each addressed only to that person, Reply-To the creator; the reminder shows "2 sent".
 - [ ] Stop the worker, create a "Now" reminder: after a minute it shows "Delayed" with the warning; start the worker: it's sent once and the warning is gone.
 - [ ] A daily "Now" reminder sends once, then shows "Next: tomorrow …"; Pause shows "Paused" (never "Delayed"); Skip moves Next by one; Resume never lands on a skipped one.
+- [ ] A task for two people: both get "Task: …"; one marks done → "1 of 2 done"; at the company follow-up time the other gets one "Overdue: …" (only one that day).
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { seeder } from "@/lib/test-helpers";
 import { ownerDb } from "./db";
-import { deliverOne, dispatchDue, MAX_ATTEMPTS, sweep } from "./delivery";
+import { claimFollowUps, deliverOne, dispatchDue, followUpOne, MAX_ATTEMPTS, sweep } from "./delivery";
 
 const s = seeder();
 let reminderId: string;
@@ -171,4 +171,43 @@ test("recurring: a skipped occurrence isn't sent; a counted series ends", async 
   assert.deepEqual((await q("select status from reminders where id = $1", [id]))[0], { status: "sending" });
   assert.equal(await deliverOne(enqueued[0], async () => ({}) as never), "sent");
   assert.deepEqual((await q("select status from reminders where id = $1", [id]))[0], { status: "sent" });
+});
+
+test("tasks: due_at per occurrence; daily follow-ups at the company's local time", async () => {
+  await q("update companies set time_zone = 'Asia/Kolkata', follow_up_time = '09:00' where id = $1", [s.companyId]);
+  const bob = await s.user();
+  const carol = await s.user();
+  await q(`update "user" set deactivated_at = now() where id = $1`, [carol]);
+  // A task sent 2042-05-01 08:00 IST, due 2 hours later (10:00 IST).
+  const [{ id }] = await q(
+    `insert into reminders (company_id, short_id, created_by, title, sender_name, send_at, status, time_zone, anchor_local, is_task, due_after_minutes)
+     values ($1, 'R-TASK42', $2, 'Expense report', 'HR', '2042-05-01T08:00+05:30', 'scheduled', 'Asia/Kolkata', '2042-05-01T08:00', true, 120) returning id`,
+    [s.companyId, creator],
+  );
+  for (const u of [alice, bob, carol]) await q("insert into reminder_targets values ($1, $2, 'user', $3)", [id, s.companyId, u]);
+  const ids: string[] = [];
+  await dispatchDue(async (x) => void ids.push(...x), s.companyId, new Date("2042-05-01T02:31:00Z"));
+  const [occ] = await q("select due_at from reminder_occurrences where reminder_id = $1", [id]);
+  assert.equal(occ.due_at.toISOString(), "2042-05-01T04:30:00.000Z"); // 10:00 IST
+  for (const d of ids) await deliverOne(d, async () => ({}) as never);
+  const byUser = async (u: string) => (await q("select id, followups from deliveries where reminder_id = $1 and user_id = $2", [id, u]))[0];
+
+  const claim = (ist: string) => claimFollowUps(new Date(`${ist}+05:30`), s.companyId);
+  assert.deepEqual(await claim("2042-05-01T12:00"), []); // overdue, but today's 09:00 slot was before the due time
+  assert.deepEqual(await claim("2042-05-02T08:59"), []); // before tomorrow's slot
+  const day2 = await claim("2042-05-02T09:00");
+  assert.deepEqual(day2.sort(), [(await byUser(alice)).id, (await byUser(bob)).id].sort()); // carol is deactivated
+  assert.deepEqual(await claim("2042-05-02T15:00"), []); // once a day
+
+  await q("update deliveries set done_at = now() where id = $1", [(await byUser(bob)).id]);
+  assert.deepEqual(await claim("2042-05-03T09:01"), [(await byUser(alice)).id]);
+  assert.equal((await byUser(alice)).followups, 2);
+  assert.equal((await byUser(bob)).followups, 1);
+
+  const sent: string[] = [];
+  const capture = async (m: { subject: string }) => void sent.push(m.subject);
+  assert.equal(await followUpOne((await byUser(alice)).id, capture as never), "sent");
+  assert.equal(await followUpOne((await byUser(bob)).id, capture as never), "skipped"); // done since
+  assert.deepEqual(sent, ["Overdue: Expense report"]);
+  await q("update reminders set status = 'cancelled' where id = $1", [id]);
 });
