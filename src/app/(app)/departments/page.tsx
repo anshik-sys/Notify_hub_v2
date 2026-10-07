@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { Button, Field, firstParam, Form, Hint, Page, Section } from "@/components/form";
-import { List, ListRow } from "@/components/list";
+import { Button, Field, firstParam, Form, Page, Section } from "@/components/form";
+import { Table } from "@/components/table";
 import { listDepartments } from "@/lib/departments";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
@@ -14,20 +14,11 @@ export default async function Departments(props: PageProps<"/departments">) {
 
   return (
     <Page title="Departments" error={error}>
-      {departments.length > 0 ? (
-        <List>
-          {departments.map((d) => (
-            <ListRow
-              key={d.id}
-              href={`/departments/${d.id}`}
-              title={d.name}
-              meta={`${d.members} ${d.members === 1 ? "member" : "members"}`}
-            />
-          ))}
-        </List>
-      ) : (
-        <Hint>No departments yet.</Hint>
-      )}
+      <Table
+        columns={["Department", "Members"]}
+        empty="No departments yet."
+        rows={departments.map((d) => ({ key: d.id, href: `/departments/${d.id}`, cells: [d.name, d.members] }))}
+      />
       {can(access, "departments.create") && (
         <Section title="New department">
           <Form action={createDepartmentAction}>

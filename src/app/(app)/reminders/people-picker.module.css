@@ -6,15 +6,15 @@
 }
 
 .label {
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
-/* Same look as the kit's .input: 48px, 16px text (no iOS zoom). */
+/* Same look as the kit's .input. */
 .input {
   width: 100%;
-  min-height: 48px;
-  padding: 12px;
+  min-height: 40px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--input-bg);
@@ -43,7 +43,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 52px;
+  min-height: 44px;
   padding: 8px 12px;
   cursor: pointer;
 }
@@ -101,10 +101,9 @@
   font-size: 0.9375rem;
 }
 
-/* 44px tap target for removing a chip. */
 .remove {
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 32px;
+  min-height: 32px;
   border: 0;
   background: none;
   color: var(--muted);

@@ -31,8 +31,8 @@ One package, two processes, one Postgres:
 | `src/app/(app)/users/`, `src/app/invite/[token]` | People pages and the public invite accept page. |
 | `src/lib/mail.ts` | `sendMail()`: one recipient per message, over SMTP (Mailpit in dev, SES in prod). |
 | `src/lib/onboarding.ts` | Creates a company and attaches the signed-in user, in one transaction. |
-| `src/components/form.tsx`, `list.tsx` | The UI kit (`Page`, `Section`, `Form`, `Field`, `Button`, `LinkButton`, `List`, `ListRow`, …), each with its own `.module.css`. |
-| `src/app/(app)/` | Signed-in pages, wrapped by `layout.tsx`: the app shell (top bar, bottom tab bar). The route group doesn't change URLs. |
+| `src/components/form.tsx`, `table.tsx`, `list.tsx` | The UI kit (`Page`, `Section`, `Form`, `Field`, `Button`, `LinkButton`, `Table`, `Badge`, `List`, …), each with its own `.module.css`. |
+| `src/app/(app)/` | Signed-in pages, wrapped by `layout.tsx`: the app shell (left sidebar; a top bar below 768px). The route group doesn't change URLs. |
 | `src/app/globals.css` | Design tokens (CSS variables, light and dark) and element defaults. |
 | `src/app/sign-in`, `sign-up`, `onboarding` | Server-rendered forms posting to server actions. No client-side auth code. |
 | `src/app/api/auth/[...all]` | Better Auth's HTTP endpoints (sessions, OAuth callbacks). |
@@ -85,7 +85,7 @@ pnpm worker      # sends reminders; without it they sit "Scheduled" and show "De
 - **`requireMember()` is wrapped in React `cache()`.** The app layout and the page
   both call it, and it only runs once per request. Without `cache()` every page
   load would do the session and permission queries twice.
-- **The tab bar hides tabs by permission for tidiness only.** Pages enforce access
+- **The sidebar hides links by permission for tidiness only.** Pages enforce access
   themselves.
 - **Recurring reminders:**
   - **`reminders.send_at` means "the next occurrence".** The worker,

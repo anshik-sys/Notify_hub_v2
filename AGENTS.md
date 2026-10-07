@@ -14,12 +14,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - End every completed step with a **Next step**: one recommendation for what to build next and why it comes first. It goes after the commit message.
 - Next.js 16, React 19, Drizzle 0.45, pg-boss 12. Check `node_modules` docs, not memory.
 - Import alias: `@/*` -> `src/*`.
-- **Design for mobile web first.** Screens are judged on a phone; desktop just centres the same layout (max 640px).
-  - Touch targets: buttons and inputs 48px, list rows 56px, small row buttons 44px. Never a bare text link as a button.
-  - Signed-in pages live in `src/app/(app)/` and get the app shell (top bar, bottom tab bar). Auth pages stay outside and use `<Page center>`.
-  - Sub-pages pass `back={{ href, label }}` to `Page`; no "Back" links at the bottom.
-  - Build screens from `src/components/form.tsx` (`Page`, `Section`, `Form`, `Field`, `Button`, `LinkButton`, …) and `src/components/list.tsx` (`List`, `ListRow`). Add to the kit rather than restyling per page.
-  - Respect safe areas (`env(safe-area-inset-*)`); inputs stay at 16px so iOS doesn't zoom.
+- **Design desktop-first** (the user works on a laptop). Narrow windows must still work, but the laptop is the target.
+  - Signed-in pages live in `src/app/(app)/` and get the shell: a left sidebar (top bar below 768px). Auth pages stay outside and use `<Page center>`.
+  - A page's main action goes in `Page`'s `actions` (top right). Sub-pages pass `back={{ href, label }}`.
+  - Lists with more than one fact per row are `Table`s (`src/components/table.tsx`, with `Badge`, `Muted`). `List`/`ListRow` is for short lists (Home sections, links).
+  - Forms stay at 640px max; buttons size to their label (full width only in `<Page center>`).
+  - Build screens from `src/components/` and add to the kit rather than restyling per page.
+  - When asking the user to check something, say "in the browser", never "on a phone".
 - **Styling: plain CSS Modules, no Tailwind.** Each component gets its own
   `<name>.module.css` beside it, with semantic class names (`.field`, `.signOut`).
   Those names show up in devtools as `form-module__<hash>__field`, which is why

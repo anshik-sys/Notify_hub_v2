@@ -1,7 +1,14 @@
+/* URL and label side by side on a laptop, stacked in a narrow window. */
 .linkRow {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .linkRow {
+    grid-template-columns: 1fr;
+  }
 }
 
 .more {
@@ -9,11 +16,11 @@
   border-radius: var(--radius);
 }
 
-/* The summary is the tap target for opening the extra rows. */
+/* Clicking the summary opens the extra rows. */
 .summary {
   display: flex;
   align-items: center;
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 12px;
   font-weight: 500;
   cursor: pointer;
@@ -57,7 +64,7 @@
   white-space: nowrap;
 }
 
-/* "Every [2] [weeks]" side by side; each half still full-height touch targets. */
+/* "Every [2] [weeks]" side by side. */
 .everyRow {
   display: grid;
   grid-template-columns: 1fr 1.4fr;

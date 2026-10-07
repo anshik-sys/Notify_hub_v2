@@ -82,11 +82,6 @@ export default async function Home() {
 
       <Section title="Account">
         <Hint>Signed in as {user.email}</Hint>
-        {can(access, "company.edit") && (
-          <List>
-            <ListRow href="/settings/company" title="Company settings" meta="Daily task follow-up time" />
-          </List>
-        )}
         <form action={signOut}>
           <Button variant="secondary">Sign out</Button>
         </form>

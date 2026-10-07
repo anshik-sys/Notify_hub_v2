@@ -1,6 +1,6 @@
 "use client";
 
-// Client component only to know the current path for the active tab.
+// Client component only to know the current path for the active link.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import styles from "./layout.module.css";
@@ -12,18 +12,20 @@ const ICONS = {
   departments: "M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3",
   roles: "M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z",
   reminders: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0",
+  approvals: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
+  settings: "M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6",
 };
 
 export function NavLink({ href, icon, children }: { href: string; icon: keyof typeof ICONS; children: React.ReactNode }) {
   const path = usePathname();
   const active = href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
   return (
-    <Link href={href} className={styles.tab} aria-current={active ? "page" : undefined}>
+    <Link href={href} className={styles.navItem} aria-current={active ? "page" : undefined}>
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"
-        width="24"
-        height="24"
+        width="18"
+        height="18"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.75"

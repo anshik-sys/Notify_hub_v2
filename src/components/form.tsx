@@ -1,5 +1,5 @@
-// The UI kit: page frame, form controls, buttons. Mobile-first: every control
-// is full width and at least 44px tall. See form.module.css.
+// The UI kit: page frame, form controls, buttons. Desktop-first: wide pages,
+// forms at a readable width, the page's main action top right.
 import Link from "next/link";
 import styles from "./form.module.css";
 
@@ -9,6 +9,7 @@ export function Page({
   error,
   notice,
   center,
+  actions,
   children,
 }: {
   title: string;
@@ -18,16 +19,23 @@ export function Page({
   notice?: string;
   /** Vertically centred, narrow: for sign-in style screens outside the app shell. */
   center?: boolean;
+  /** The page's main buttons/links, shown top right next to the title. */
+  actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <main className={center ? `${styles.page} ${styles.center}` : styles.page}>
-      {back && (
-        <Link href={back.href} className={styles.back}>
-          <span aria-hidden="true">‹</span> {back.label}
-        </Link>
-      )}
-      <h1 className={styles.title}>{title}</h1>
+      <div className={styles.header}>
+        <div className={styles.headerText}>
+          {back && (
+            <Link href={back.href} className={styles.back}>
+              <span aria-hidden="true">←</span> {back.label}
+            </Link>
+          )}
+          <h1 className={styles.title}>{title}</h1>
+        </div>
+        {actions && <div className={styles.headerActions}>{actions}</div>}
+      </div>
       {error && (
         <p role="alert" className={styles.error}>
           {error}
@@ -161,10 +169,18 @@ export function Button({
   return <button className={classes.join(" ")} {...props} />;
 }
 
-// Navigation that looks like the primary button (a link, not a form submit).
-export function LinkButton({ href, children }: { href: string; children: React.ReactNode }) {
+// Navigation that looks like a button (a link, not a form submit).
+export function LinkButton({
+  href,
+  variant = "primary",
+  children,
+}: {
+  href: string;
+  variant?: "primary" | "secondary";
+  children: React.ReactNode;
+}) {
   return (
-    <Link href={href} className={`${styles.button} ${styles.primary} ${styles.linkButton}`}>
+    <Link href={href} className={`${styles.button} ${styles[variant]} ${styles.linkButton}`}>
       {children}
     </Link>
   );

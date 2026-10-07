@@ -2,6 +2,36 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — desktop-first layout (sidebar, tables)
+
+- **What went wrong:** earlier the user wrote "your design is for website
+  not for mweb". I read it as "make it for mobile web" and built a
+  mobile-first shell with a bottom tab bar and phone-sized controls. The user
+  checks everything on a laptop. They asked why I kept saying "check on a
+  phone", and when asked, chose desktop-first.
+- **Now:**
+  - a left sidebar shell (232px; a top bar with a scrolling nav row below
+    768px), with Approvals and Settings added for those allowed;
+  - pages up to 1040px, with the main action top right (`Page actions`);
+  - `Table` for data lists: reminders, people, pending invites, departments,
+    department members (with row actions), roles, approvals, the delivery
+    log, task progress, occurrence history;
+  - 40px controls; buttons size to their label; forms at most 640px;
+  - link rows on the reminder form sit side by side;
+  - `List` stays for short lists.
+- **New `--success-*` tokens** (Done / Sent badges) in all three theme blocks.
+- **Rules:** `AGENTS.md`'s mobile-first rule is replaced with desktop-first,
+  and the "say in the browser, never on a phone" note is in memory as well.
+- **Verified against `next start`:**
+  - all 14 signed-in pages return 200 for an admin; member permissions are
+    unchanged;
+  - sidebar link sets per role; table headers on 5 pages; the header action
+    is rendered;
+  - the compiled CSS has the 232px grid, the 767px breakpoint, 1040/640px
+    widths, and full-width buttons only inside centred auth pages.
+
+  **Not checked visually.** That's for the user in the browser.
+
 ## 2026-10-07 — tasks with due dates and daily follow-ups
 
 - **What's in place:**

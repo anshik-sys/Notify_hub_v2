@@ -1,0 +1,84 @@
+/* Scrolls sideways inside its box on a narrow window instead of widening the page. */
+.wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.th {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.td {
+  padding: 10px 14px;
+  vertical-align: middle;
+}
+
+.tr + .tr .td {
+  border-top: 1px solid var(--border);
+}
+
+.linked:hover .td {
+  background: var(--surface);
+}
+
+.first {
+  font-weight: 500;
+}
+
+.link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.neutral {
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.danger {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+.success {
+  background: var(--success-bg);
+  color: var(--success-fg);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.empty {
+  margin: 0;
+  color: var(--muted);
+}

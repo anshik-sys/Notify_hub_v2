@@ -1,5 +1,6 @@
-// Full-width rows. A row with href is one big tap target with a chevron;
-// a row with children shows them (row actions) under the text.
+// Short lists (Home sections, links, recipients). A row with href is one
+// clickable row with a chevron; a row with children shows them under the text.
+// Data lists with columns use Table (table.tsx) instead.
 import Link from "next/link";
 import styles from "./list.module.css";
 

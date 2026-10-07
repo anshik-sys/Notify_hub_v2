@@ -1,5 +1,6 @@
 .switcher {
-  display: grid;
+  display: inline-grid;
+  max-width: 360px;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 4px;
@@ -7,9 +8,10 @@
   border-radius: var(--radius);
 }
 
-/* 44px tap targets; the chosen one looks pressed. */
+/* The chosen one looks pressed. */
 .option {
-  min-height: 44px;
+  min-height: 34px;
+  padding: 0 14px;
   border: 0;
   border-radius: calc(var(--radius) - 2px);
   background: transparent;
@@ -17,7 +19,6 @@
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
-  touch-action: manipulation;
 }
 
 .option[aria-pressed="true"] {

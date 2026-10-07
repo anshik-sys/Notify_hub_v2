@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Button, Checkbox, Field, firstParam, Form, Hint, Page, Section, SelectField } from "@/components/form";
-import { List, ListRow } from "@/components/list";
+import { Badge, Muted, Table } from "@/components/table";
+import styles from "./page.module.css";
 import { getDepartment } from "@/lib/departments";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
@@ -29,35 +30,43 @@ export default async function DepartmentDetail(props: PageProps<"/departments/[i
   return (
     <Page title={dept.name} back={{ href: "/departments", label: "Departments" }} error={error}>
       <Section title={`Members (${dept.members.length})`}>
-        {dept.members.length > 0 ? (
-          <List>
-            {dept.members.map((m) => (
-              <ListRow key={m.id} title={m.name} meta={m.email} badge={m.isManager ? "Manager" : undefined}>
-                {edit && (
-                  <form action={setManagerAction}>
-                    <input type="hidden" name="departmentId" value={dept.id} />
-                    <input type="hidden" name="userId" value={m.id} />
-                    <input type="hidden" name="isManager" value={m.isManager ? "false" : "true"} />
-                    <Button variant="secondary" size="small">
-                      {m.isManager ? "Remove as manager" : "Make manager"}
-                    </Button>
-                  </form>
-                )}
-                {manageMembers && (
-                  <form action={removeMemberAction}>
-                    <input type="hidden" name="departmentId" value={dept.id} />
-                    <input type="hidden" name="userId" value={m.id} />
-                    <Button variant="danger" size="small">
-                      Remove from department
-                    </Button>
-                  </form>
-                )}
-              </ListRow>
-            ))}
-          </List>
-        ) : (
-          <Hint>No members yet.</Hint>
-        )}
+        <Table
+          columns={edit || manageMembers ? ["Name", "Email", "Role", ""] : ["Name", "Email", "Role"]}
+          empty="No members yet."
+          rows={dept.members.map((m) => ({
+            key: m.id,
+            cells: [
+              m.name,
+              m.email,
+              m.isManager ? <Badge key="b">Manager</Badge> : <Muted key="b">Member</Muted>,
+              ...(edit || manageMembers
+                ? [
+                    <div key="a" className={styles.rowActions}>
+                      {edit && (
+                        <form action={setManagerAction}>
+                          <input type="hidden" name="departmentId" value={dept.id} />
+                          <input type="hidden" name="userId" value={m.id} />
+                          <input type="hidden" name="isManager" value={m.isManager ? "false" : "true"} />
+                          <Button variant="secondary" size="small">
+                            {m.isManager ? "Remove as manager" : "Make manager"}
+                          </Button>
+                        </form>
+                      )}
+                      {manageMembers && (
+                        <form action={removeMemberAction}>
+                          <input type="hidden" name="departmentId" value={dept.id} />
+                          <input type="hidden" name="userId" value={m.id} />
+                          <Button variant="secondary" size="small">
+                            Remove
+                          </Button>
+                        </form>
+                      )}
+                    </div>,
+                  ]
+                : []),
+            ],
+          }))}
+        />
       </Section>
 
       {manageMembers && (

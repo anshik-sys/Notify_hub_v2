@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { Hint, LinkButton, Page } from "@/components/form";
-import { List, ListRow } from "@/components/list";
+import { LinkButton, Page } from "@/components/form";
+import { Badge, Muted, Table } from "@/components/table";
 import { can } from "@/lib/permissions";
 import { describe } from "@/lib/recurrence";
 import { isDelayed, listReminders, statusLabel } from "@/lib/reminders";
@@ -13,28 +13,37 @@ export default async function Reminders() {
   const reminders = await listReminders(companyId, { id: user.id, access });
 
   return (
-    <Page title="Reminders">
-      {can(access, "reminders.create") && <LinkButton href="/reminders/new">New reminder</LinkButton>}
-      {reminders.length > 0 ? (
-        <List>
-          {reminders.map((r) => (
-            <ListRow
-              key={r.id}
-              href={`/reminders/${r.id}`}
-              title={r.title}
-              badge={isDelayed(r) ? "Delayed" : statusLabel(r)}
-              meta={
-                (r.isTask ? "Task · " : "") +
-                (r.recurrence
-                  ? `${describe(r.recurrence, r.anchorLocal)} · ${r.status === "scheduled" ? `next ${formatInZone(r.sendAt, r.timeZone)}` : r.shortId}`
-                  : `${formatInZone(r.sendAt, r.timeZone)} · ${r.shortId}`)
-              }
-            />
-          ))}
-        </List>
-      ) : (
-        <Hint>No reminders yet.</Hint>
-      )}
+    <Page
+      title="Reminders"
+      actions={can(access, "reminders.create") && <LinkButton href="/reminders/new">New reminder</LinkButton>}
+    >
+      <Table
+        columns={["Title", "Status", "When", "Type", "ID"]}
+        empty="No reminders yet."
+        rows={reminders.map((r) => {
+          const delayed = isDelayed(r);
+          return {
+            key: r.id,
+            href: `/reminders/${r.id}`,
+            cells: [
+              r.title,
+              <Badge key="s" tone={delayed || r.status === "rejected" ? "danger" : "neutral"}>
+                {delayed ? "Delayed" : statusLabel(r)}
+              </Badge>,
+              r.recurrence ? (
+                <span key="w">
+                  {describe(r.recurrence, r.anchorLocal)}
+                  {r.status === "scheduled" && <Muted> · next {formatInZone(r.sendAt, r.timeZone)}</Muted>}
+                </span>
+              ) : (
+                formatInZone(r.sendAt, r.timeZone)
+              ),
+              r.isTask ? "Task" : "Reminder",
+              <Muted key="id">{r.shortId}</Muted>,
+            ],
+          };
+        })}
+      />
     </Page>
   );
 }

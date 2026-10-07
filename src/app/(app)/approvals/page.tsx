@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { Hint, Page } from "@/components/form";
-import { List, ListRow } from "@/components/list";
+import { Page } from "@/components/form";
+import { Table } from "@/components/table";
 import { can } from "@/lib/permissions";
 import { listPendingApprovals } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
@@ -12,21 +12,16 @@ export default async function Approvals() {
   const pending = await listPendingApprovals(companyId);
 
   return (
-    <Page title="Approvals" back={{ href: "/", label: "Home" }}>
-      {pending.length > 0 ? (
-        <List>
-          {pending.map((r) => (
-            <ListRow
-              key={r.id}
-              href={`/reminders/${r.id}`}
-              title={r.title}
-              meta={`${r.creatorName} · ${formatInZone(r.sendAt, company.timeZone)}`}
-            />
-          ))}
-        </List>
-      ) : (
-        <Hint>Nothing waiting for approval.</Hint>
-      )}
+    <Page title="Approvals">
+      <Table
+        columns={["Reminder", "From", "Sends"]}
+        empty="Nothing waiting for approval."
+        rows={pending.map((r) => ({
+          key: r.id,
+          href: `/reminders/${r.id}`,
+          cells: [r.title, r.creatorName, formatInZone(r.sendAt, company.timeZone)],
+        }))}
+      />
     </Page>
   );
 }

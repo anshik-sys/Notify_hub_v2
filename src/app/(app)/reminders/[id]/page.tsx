@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button, Field, firstParam, Form, Hint, LinkButton, Page, Section } from "@/components/form";
 import { List, ListRow } from "@/components/list";
+import { Badge, Muted, Table } from "@/components/table";
 import { can } from "@/lib/permissions";
 import { describe } from "@/lib/recurrence";
 import { deliveryLog, getReminder, isDelayed, reminderAccess, statusLabel } from "@/lib/reminders";
@@ -41,6 +42,11 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
       title={r.title}
       back={seeAs === "full" ? { href: "/reminders", label: "Reminders" } : { href: "/", label: "Home" }}
       error={error}
+      actions={
+        mayChange && (
+          <LinkButton href={`/reminders/${r.id}/edit`}>{r.recurrence ? "Edit series" : "Edit reminder"}</LinkButton>
+        )
+      }
     >
       <p className={styles.status}>
         <span className={styles.badge}>{statusLabel(r)}</span>
@@ -121,21 +127,29 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
               {r.recurrence ? " (this occurrence)" : ""}
             </Hint>
           )}
-          <List>
-            {progress.rows.map((p) => (
-              <ListRow
-                key={p.deliveryId}
-                title={p.name}
-                badge={p.doneAt ? "Done" : overdue(log.latest!.dueAt) ? "Overdue" : "Not done"}
-                meta={[
-                  p.doneAt ? `Done ${formatInZone(p.doneAt, tz)}` : p.email,
-                  p.followups ? `${p.followups} follow-up${p.followups === 1 ? "" : "s"}` : "",
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              />
-            ))}
-          </List>
+          <Table
+            columns={["Person", "Email", "Status", "Done at", "Follow-ups"]}
+            rows={progress.rows.map((p) => ({
+              key: p.deliveryId,
+              cells: [
+                p.name,
+                <Muted key="e">{p.email}</Muted>,
+                p.doneAt ? (
+                  <Badge key="s" tone="success">
+                    Done
+                  </Badge>
+                ) : overdue(log.latest!.dueAt) ? (
+                  <Badge key="s" tone="danger">
+                    Overdue
+                  </Badge>
+                ) : (
+                  <Badge key="s">Not done</Badge>
+                ),
+                p.doneAt ? formatInZone(p.doneAt, tz) : "—",
+                p.followups,
+              ],
+            }))}
+          />
         </Section>
       )}
 
@@ -154,40 +168,39 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
           <Hint>
             {log.latest.sent} sent · {log.latest.failed} failed · {log.latest.pending} pending
           </Hint>
-          <List>
-            {log.rows.map((d) => (
-              <ListRow
-                key={d.id}
-                title={d.email}
-                badge={DELIVERY_LABELS[d.status]}
-                meta={
-                  d.status === "sent" && d.sentAt
-                    ? formatInZone(d.sentAt, tz)
-                    : d.lastError
-                      ? `${d.lastError} (attempt ${d.attempts})`
-                      : undefined
-                }
-              />
-            ))}
-          </List>
+          <Table
+            columns={["Recipient", "Status", "Sent", "Note"]}
+            rows={log.rows.map((d) => ({
+              key: d.id,
+              cells: [
+                d.email,
+                <Badge key="s" tone={d.status === "failed" ? "danger" : d.status === "sent" ? "success" : "neutral"}>
+                  {DELIVERY_LABELS[d.status]}
+                </Badge>,
+                d.sentAt ? formatInZone(d.sentAt, tz) : "—",
+                d.lastError ? <Muted key="n">{`${d.lastError} (attempt ${d.attempts})`}</Muted> : "",
+              ],
+            }))}
+          />
         </Section>
       )}
 
       {log && r.recurrence && log.history.length > 0 && (
         <Section title="Earlier occurrences">
-          <List>
-            {log.history.map((o) => (
-              <ListRow
-                key={o.id}
-                title={formatInZone(o.occursAt, tz)}
-                meta={
-                  o.status === "missed" || o.status === "skipped"
-                    ? OCCURRENCE_NOTE[o.status]
-                    : `${o.sent} sent · ${o.failed} failed${o.pending ? ` · ${o.pending} pending` : ""}`
-                }
-              />
-            ))}
-          </List>
+          <Table
+            columns={["Occurrence", "Result"]}
+            rows={log.history.map((o) => ({
+              key: o.id,
+              cells: [
+                formatInZone(o.occursAt, tz),
+                o.status === "missed" || o.status === "skipped" ? (
+                  <Muted key="r">{OCCURRENCE_NOTE[o.status]}</Muted>
+                ) : (
+                  `${o.sent} sent · ${o.failed} failed${o.pending ? ` · ${o.pending} pending` : ""}`
+                ),
+              ],
+            }))}
+          />
         </Section>
       )}
 
@@ -210,8 +223,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
       )}
 
       {mayChange && (
-        <Section title="Change">
-          <LinkButton href={`/reminders/${r.id}/edit`}>{r.recurrence ? "Edit series" : "Edit reminder"}</LinkButton>
+        <Section title={r.recurrence ? "Series" : "Change"}>
           {r.recurrence && (r.status === "scheduled" || r.status === "paused") && (
             <form action={seriesAction} className={styles.seriesButtons}>
               <input type="hidden" name="id" value={r.id} />
