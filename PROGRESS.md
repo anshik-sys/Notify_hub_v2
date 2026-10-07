@@ -2,6 +2,44 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — comments with @mentions (PRD 5.11)
+
+- **What's in place:**
+  - a Discussion section on each reminder: post, reply (one level), edit
+    your own ("(edited)"), delete your own or any as an admin ("Comment
+    deleted" keeps replies);
+  - `@` opens a people list in the composer (a client component);
+  - mentioned people get an email, plus a Slack DM if connected.
+- **Mentions are explicit ids, not parsed text.** Parsing "@Name" from free
+  text is ambiguous (duplicate names, names with spaces). The composer
+  records ids. The server keeps an id only if it's a company member and its
+  `@Name` is still in the body. The body is stored as plain text, so there's
+  no markup to sanitise.
+- **No leaks through mentions:** each mentioned person is checked with
+  `reminderAccess`. Anyone who can't see the reminder gets nothing, and the
+  commenter sees "X can't see this reminder, so wasn't notified".
+  - Caught before shipping: the first draft passed an empty `createdBy` to
+    that check, which would have treated the reminder's own creator as unable
+    to see it. Fixed and covered by a test.
+- **Moderation:** a new permission, `comments.delete_any` (Company Admin has
+  it automatically).
+- The mention list is the company directory, so it's only offered to people
+  with `users.view`.
+- **Verified against `next start` + worker + Mailpit + fake Slack:**
+  - alice mentioned bob → an email and a Slack DM;
+  - a reply to a reply landed in the same thread;
+  - mentioning carol (another department) → no email, and the notice shown;
+  - bob editing or deleting alice's comment → refused;
+  - alice's edit → "(edited)", with no duplicate mention email;
+  - the admin deleted bob's reply → "Comment deleted";
+  - carol posting directly → refused, nothing written.
+
+  76 tests pass.
+- **Script lessons:** `curl -F "body=@Bob…"` uploads a file named "Bob…";
+  use `--form-string` for text that starts with `@`.
+- **Not in this step:** the in-app notification centre (mentions will also
+  land there), and notifying creators of every comment.
+
 ## 2026-10-07 — attachments (PRD 5.7)
 
 - **What's in place:**

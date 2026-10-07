@@ -13,6 +13,7 @@ export const PERMISSION_GROUPS = {
     "reminders.send_now": "Send now",
     "reminders.view_all": "View all in company",
     "reminders.approve": "Approve out-of-scope sends",
+    "comments.delete_any": "Delete anyone's comments",
   },
   Users: {
     "users.create": "Create",

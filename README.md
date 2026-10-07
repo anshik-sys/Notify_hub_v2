@@ -31,6 +31,7 @@ One package, two processes, one Postgres:
 | `scripts/fake-slack.ts` | **Dev/test only** fake Slack (`pnpm fake-slack`). Never deployed. |
 | `src/lib/attachments.ts`, `src/lib/storage.ts` | File rules (content sniffing, CSV formula check, names, limits); the only code touching file bytes. |
 | `src/app/api/attachments/[id]` | Download (always as an attachment). |
+| `src/lib/comments.ts` | Reminder discussion: comments, replies, mentions, notifications. |
 | `src/lib/tasks.ts` | Task completion (`setDone`), progress, my open tasks. |
 | `src/lib/time.ts` | Company-time-zone wall clock ↔ UTC (Intl only, DST-tested). |
 | `src/app/(app)/reminders/`, `src/app/(app)/approvals/` | Reminder pages and the approvals queue. |
@@ -123,6 +124,20 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     audience isn't known), so it needs approval;
   - permanent Slack errors (channel gone, token revoked) fail at once; 429s
     retry.
+- **Comments (PRD 5.11):**
+  - anyone who can see the reminder (`reminderAccess`) can comment; threads
+    are one level deep (a reply to a reply joins the thread);
+  - **mentions are explicit ids** from the composer
+    (`mention-textarea.tsx`). The server keeps an id only if it's a company
+    member **and** their `@Name` is still in the text. The body stays plain
+    text; highlighting is rendered as text segments, never HTML;
+  - **a mention only notifies people who can see the reminder** (checked per
+    person). Others are reported back to the commenter, so a mention never
+    leaks a reminder. Edits notify only newly added mentions;
+  - deletes are soft (body cleared; "Comment deleted" keeps replies in
+    context). The author, or `comments.delete_any` (admins), can delete;
+  - mention notifications go by email, plus a Slack DM if connected (no
+    in-app notification centre yet).
 - **Attachments (PRD 5.7):**
   - **file bytes live in Postgres** (`attachment_blobs`, bytea; decided with
     the user), separate from `attachments` metadata, and touched only by

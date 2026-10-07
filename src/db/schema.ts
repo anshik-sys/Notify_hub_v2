@@ -472,3 +472,45 @@ export const attachmentBlobs = pgTable(
   },
   () => [tenantPolicy("company_id")],
 ).enableRLS();
+
+// --- Comments (PRD 5.11) -----------------------------------------------------------
+// One level of threading: parent_id is null (top level) or a top-level comment.
+// Deleted comments keep their row (body cleared) so replies keep context.
+export const comments = pgTable(
+  "comments",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    reminderId: uuid()
+      .notNull()
+      .references(() => reminders.id, { onDelete: "cascade" }),
+    authorId: text().references(() => user.id, { onDelete: "set null" }),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    parentId: uuid().references((): any => comments.id, { onDelete: "cascade" }),
+    body: text().notNull(),
+    createdAt: ts().notNull().defaultNow(),
+    editedAt: ts(),
+    deletedAt: ts(),
+    deletedBy: text().references(() => user.id, { onDelete: "set null" }),
+  },
+  (t) => [index().on(t.reminderId, t.createdAt), tenantPolicy("company_id")],
+).enableRLS();
+
+// Who a comment mentions: explicit ids picked in the composer, not parsed text.
+export const commentMentions = pgTable(
+  "comment_mentions",
+  {
+    commentId: uuid()
+      .notNull()
+      .references(() => comments.id, { onDelete: "cascade" }),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.commentId, t.userId] }), tenantPolicy("company_id")],
+).enableRLS();

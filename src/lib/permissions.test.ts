@@ -16,3 +16,8 @@ test("can", () => {
   assert.equal(can(member, "roles.manage", "d1"), false); // not a manager permission
   assert.equal(can(access(["roles.manage"]), "roles.manage", "d9"), true); // company-wide covers any department
 });
+
+test("comments.delete_any is in the catalogue", async () => {
+  const { ALL_PERMISSIONS } = await import("./permissions");
+  assert.ok(ALL_PERMISSIONS.includes("comments.delete_any"));
+});

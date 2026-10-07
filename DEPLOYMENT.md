@@ -38,6 +38,9 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0017: `comments` + `comment_mentions`. New permission
+`comments.delete_any` (Company Admin has it automatically).
+
 Migration 0016: `attachments` + `attachment_blobs` (file bytes in Postgres),
 and `slack_installations.scopes`.
 - Server actions accept up to **55 MB** (`next.config.ts`
@@ -162,6 +165,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] A Slack task: each DM has Mark done / Snooze. Mark done → the DM shows "✅ Done" and the app shows it done; Snooze 1 hour → the DM comes back about an hour later, once.
 - [ ] Integrations → Daily digest: enable it, pick a channel and a person, set the time to a minute from now → one digest in each; nothing more that day.
 - [ ] Reminder with a PDF and a CSV: both listed on the reminder, downloadable by a recipient (not by another department); the email carries them; Slack shows them in the message's thread. A `.pdf` that's really text, or a CSV with `=…`, is refused.
+- [ ] Comment on a reminder mentioning a colleague (pick them from the @ list): they get an email (and a Slack DM); mentioning someone who can't see the reminder shows "can't see this reminder" and sends nothing.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".
