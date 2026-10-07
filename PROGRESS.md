@@ -35,6 +35,8 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
   **Not driven through the browser:** the onboarding form's server action itself
   (its logic is covered by `onboarding.test.ts`) and the visual layout.
+  Update, same day: the user checked the sign-in page in a browser and it works.
+  The onboarding form still hasn't been confirmed in a browser.
 - **Known hole, deliberately left for now:** no email verification, so the first
   person to sign up with a domain claims that company. It's blocked on email
   sending (SES). Listed in DEPLOYMENT known gaps.
