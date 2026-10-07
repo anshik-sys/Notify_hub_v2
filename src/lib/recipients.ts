@@ -9,7 +9,13 @@ import { departmentMembers, user } from "@/db/schema";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Tx = PgTransaction<any, any, any>;
 
-export type Target = { kind: "user" | "department" | "company" | "email"; ref: string | null };
+// slack_channel targets don't resolve to people (the worker posts to the
+// channel); label is the channel name, for display.
+export type Target = {
+  kind: "user" | "department" | "company" | "email" | "slack_channel";
+  ref: string | null;
+  label?: string | null;
+};
 
 // Targets -> who actually gets it, as of now. Used for the scope check and at
 // send time. Filters by companyId explicitly as well: the worker's connection

@@ -24,6 +24,10 @@ One package, two processes, one Postgres:
 | `src/app/(app)/departments/` | Department list and detail pages. |
 | `src/lib/reminders.ts` | Reminder input validation, recipient resolution, the send-scope check, create/edit/cancel/approve. |
 | `src/lib/recurrence.ts` | Repeat rules: occurrences, next/between, plain-language summary, form ↔ rule. Pure, heavily tested. |
+| `src/lib/slack.ts`, `src/lib/slack-installations.ts` | Slack Web API client and message builder; the company's connection (encrypted token). |
+| `src/lib/crypto.ts` | AES-256-GCM for integration secrets (`ENCRYPTION_KEY`). |
+| `src/app/api/slack/{install,oauth}` | "Add to Slack" OAuth (state cookie checked on return). |
+| `scripts/fake-slack.ts` | **Dev/test only** fake Slack (`pnpm fake-slack`). Never deployed. |
 | `src/lib/tasks.ts` | Task completion (`setDone`), progress, my open tasks. |
 | `src/lib/time.ts` | Company-time-zone wall clock ↔ UTC (Intl only, DST-tested). |
 | `src/app/(app)/reminders/`, `src/app/(app)/approvals/` | Reminder pages and the approvals queue. |
@@ -51,6 +55,7 @@ psql notifyhub -c "ALTER ROLE notifyhub_auth PASSWORD 'dev'"
 pnpm test        # tenant isolation and onboarding tests
 pnpm dev         # web
 pnpm worker      # sends reminders; without it they sit "Scheduled" and show "Delayed"
+pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at it)
 ```
 
 ## Constraints you cannot see from the code
@@ -102,18 +107,34 @@ pnpm worker      # sends reminders; without it they sit "Scheduled" and show "De
   - **skip** records a `skipped` occurrence ahead of time. The worker's
     `ON CONFLICT DO NOTHING` on `(reminder_id, occurs_at)` is what stops it
     sending, and resume steps over it.
+- **Slack:**
+  - one workspace per company (`slack_installations`, `team_id` unique);
+  - the bot token is AES-GCM encrypted, decrypted only right before a call,
+    and never logged or sent to the browser;
+  - a DM delivery's `address` is the internal user id, looked up in Slack by
+    email at send time. Someone with no Slack account goes to the company's
+    fallback channel (with a note), or fails if there isn't one;
+  - **the whole company on Slack goes to channels only**, never one DM each
+    (PRD 5.3);
+  - for non-approvers, a Slack channel always counts as out of scope (its
+    audience isn't known), so it needs approval;
+  - permanent Slack errors (channel gone, token revoked) fail at once; 429s
+    retry.
+- **Deliveries are per (occurrence, channel, address).** One person can get
+  an email and a Slack DM for the same occurrence. That's why task completion
+  moved off `deliveries`.
 - **Tasks (PRD 5.8):**
-  - completion is `deliveries.done_at` on the assignee's own row, so it's per
-    person per occurrence, and each occurrence of a repeating task starts
-    fresh with no reset job;
-  - assignees are internal recipients (`user_id` not null); outside emails
-    get the task email but aren't tracked;
+  - completion is `task_assignments.done_at`: one row per (occurrence,
+    internal user) whatever the channels, so each occurrence of a repeating
+    task starts fresh with no reset job;
+  - assignees are internal recipients; outside emails get the task email but
+    aren't tracked;
   - the due time is stored as an offset (`due_after_minutes`), and each
     occurrence gets `due_at = occurs_at + offset`.
 - **Task follow-ups:**
   - once per local day at `companies.follow_up_time`, for anyone overdue at
     that moment and not done;
-  - `claimFollowUps` stamps `last_followup_on` with the company-local date in
+  - `claimFollowUps` stamps `task_assignments.last_followup_on` with the company-local date in
     the same UPDATE that selects. That stamp is the once-a-day guarantee, so
     don't split it into a SELECT and then an UPDATE;
   - email only (there's no in-app notification centre yet).

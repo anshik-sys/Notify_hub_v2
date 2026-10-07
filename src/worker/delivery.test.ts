@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
+import { encrypt } from "@/lib/crypto";
 import { seeder } from "@/lib/test-helpers";
 import { ownerDb } from "./db";
 import { claimFollowUps, deliverOne, dispatchDue, followUpOne, MAX_ATTEMPTS, sweep } from "./delivery";
@@ -50,7 +51,7 @@ test("dispatch: parallel runs make one delivery per recipient", async () => {
     dispatchDue(enqueue, s.companyId, inTwoHours),
   ]);
   assert.equal(a + b, 1); // one run got it, the other skipped the locked row
-  const rows = await q("select email, status from deliveries where reminder_id = $1 order by email", [reminderId]);
+  const rows = await q("select address, status from deliveries where reminder_id = $1 order by address", [reminderId]);
   assert.equal(rows.length, 3); // alice, bob, ext (not the deactivated one)
   assert.equal(enqueued.length, 3);
   assert.deepEqual((await q("select status from reminders where id = $1", [reminderId]))[0], { status: "sending" });
@@ -60,7 +61,7 @@ test("dispatch: parallel runs make one delivery per recipient", async () => {
 });
 
 test("deliver: one email even when claimed twice; retries then fails", async () => {
-  const rows = await q("select id, email from deliveries where reminder_id = $1 order by email", [reminderId]);
+  const rows = await q("select id, address as email from deliveries where reminder_id = $1 order by address", [reminderId]);
   const [first, second, third] = rows;
 
   const results = await Promise.all([deliverOne(first.id), deliverOne(first.id)]);
@@ -86,12 +87,12 @@ test("deliver: one email even when claimed twice; retries then fails", async () 
 test("sweep: stuck sends fail (never resent), old queued rows come back for re-enqueue", async () => {
   const [{ id: occ }] = await q("select id from reminder_occurrences where reminder_id = $1", [reminderId]);
   const [{ id: stuck }] = await q(
-    `insert into deliveries (company_id, reminder_id, occurrence_id, email, status, attempts, updated_at)
+    `insert into deliveries (company_id, reminder_id, occurrence_id, address, status, attempts, updated_at)
      values ($1, $2, $3, $4, 'sending', 1, now() - interval '11 minutes') returning id`,
     [s.companyId, reminderId, occ, `stuck@${s.domain}`],
   );
   const [{ id: orphan }] = await q(
-    `insert into deliveries (company_id, reminder_id, occurrence_id, email, status, updated_at)
+    `insert into deliveries (company_id, reminder_id, occurrence_id, address, status, updated_at)
      values ($1, $2, $3, $4, 'queued', now() - interval '3 minutes') returning id`,
     [s.companyId, reminderId, occ, `orphan@${s.domain}`],
   );
@@ -190,7 +191,8 @@ test("tasks: due_at per occurrence; daily follow-ups at the company's local time
   const [occ] = await q("select due_at from reminder_occurrences where reminder_id = $1", [id]);
   assert.equal(occ.due_at.toISOString(), "2042-05-01T04:30:00.000Z"); // 10:00 IST
   for (const d of ids) await deliverOne(d, async () => ({}) as never);
-  const byUser = async (u: string) => (await q("select id, followups from deliveries where reminder_id = $1 and user_id = $2", [id, u]))[0];
+  const byUser = async (u: string) =>
+    (await q("select id, followups from task_assignments where reminder_id = $1 and user_id = $2", [id, u]))[0];
 
   const claim = (ist: string) => claimFollowUps(new Date(`${ist}+05:30`), s.companyId);
   assert.deepEqual(await claim("2042-05-01T12:00"), []); // overdue, but today's 09:00 slot was before the due time
@@ -199,7 +201,7 @@ test("tasks: due_at per occurrence; daily follow-ups at the company's local time
   assert.deepEqual(day2.sort(), [(await byUser(alice)).id, (await byUser(bob)).id].sort()); // carol is deactivated
   assert.deepEqual(await claim("2042-05-02T15:00"), []); // once a day
 
-  await q("update deliveries set done_at = now() where id = $1", [(await byUser(bob)).id]);
+  await q("update task_assignments set done_at = now() where id = $1", [(await byUser(bob)).id]);
   assert.deepEqual(await claim("2042-05-03T09:01"), [(await byUser(alice)).id]);
   assert.equal((await byUser(alice)).followups, 2);
   assert.equal((await byUser(bob)).followups, 1);
@@ -210,4 +212,96 @@ test("tasks: due_at per occurrence; daily follow-ups at the company's local time
   assert.equal(await followUpOne((await byUser(bob)).id, capture as never), "skipped"); // done since
   assert.deepEqual(sent, ["Overdue: Expense report"]);
   await q("update reminders set status = 'cancelled' where id = $1", [id]);
+});
+
+// --- Slack ---------------------------------------------------------------------
+// An in-process fake Slack: emails starting "noslack" have no account; a
+// channel listed in rateLimitOnce answers 429 the first time.
+function fakeSlack(rateLimitOnce = new Set<string>()) {
+  const posts: { channel: string; text: string }[] = [];
+  const f = (async (url: string, init: RequestInit) => {
+    const method = url.split("/").pop()!;
+    const p = init.body as URLSearchParams;
+    const json = (body: object, status = 200, headers: Record<string, string> = {}) =>
+      new Response(JSON.stringify(body), { status, headers });
+    if (method === "users.lookupByEmail")
+      return p.get("email")!.startsWith("noslack") ? json({ ok: false, error: "users_not_found" }) : json({ ok: true, user: { id: "U1" } });
+    if (method === "conversations.open") return json({ ok: true, channel: { id: "D1" } });
+    if (method === "chat.postMessage") {
+      const channel = p.get("channel")!;
+      if (rateLimitOnce.delete(channel)) return json({ ok: false }, 429, { "retry-after": "1" });
+      if (channel === "C0GONE") return json({ ok: false, error: "channel_not_found" });
+      posts.push({ channel, text: p.get("text")! });
+      return json({ ok: true, channel, ts: `${posts.length}.0` });
+    }
+    return json({ ok: false, error: "unknown_method" });
+  }) as typeof fetch;
+  return { f, posts };
+}
+
+test("slack: DMs, channel posts, fallback, company-wide, 429 and permanent errors", async () => {
+  const noSlack = await s.user({ email: `noslack-${Date.now()}@${s.domain}` });
+  await q(
+    "insert into slack_installations (company_id, team_id, team_name, bot_token_enc, bot_user_id, fallback_channel_id, fallback_channel_name) values ($1, $2, 'WS', $3, 'UBOT', 'C0FALL', 'fallback')",
+    [s.companyId, `T-${s.companyId}`, encrypt("xoxb-test")],
+  );
+  const mk = async (title: string, channels: string, targets: [string, string | null, string | null][]) => {
+    const [{ id }] = await q(
+      `insert into reminders (company_id, short_id, created_by, title, sender_name, send_at, status, time_zone, anchor_local, channels)
+       values ($1, $2, $3, $4, 'HR', now() + interval '1 hour', 'scheduled', 'UTC', '2026-01-01T00:00', $5) returning id`,
+      [s.companyId, `R-${Math.random().toString(36).slice(2, 8).toUpperCase()}`, creator, title, channels],
+    );
+    for (const [kind, ref, label] of targets) await q("insert into reminder_targets values ($1, $2, $3, $4, $5)", [id, s.companyId, kind, ref, label]);
+    const ids: string[] = [];
+    await dispatchDue(async (x) => void ids.push(...x), s.companyId, new Date(Date.now() + 2 * 3_600_000));
+    return { id, ids };
+  };
+  const rowsOf = async (id: string) =>
+    (await q("select channel, address, status, last_error from deliveries where reminder_id = $1 order by channel, address", [id])).map(
+      (r) => `${r.channel}:${r.address === alice ? "alice" : r.address === noSlack ? "noslack" : r.address.includes("@") ? "email" : r.address} ${r.status}${r.last_error ? ` (${r.last_error})` : ""}`,
+    ).sort();
+
+  // Email + Slack to two people and a channel.
+  const slack = fakeSlack(new Set(["C0OPS"]));
+  const a = await mk("Both channels", "{email,slack}", [
+    ["user", alice, null],
+    ["user", noSlack, null],
+    ["slack_channel", "C0OPS", "ops"],
+  ]);
+  assert.equal(a.ids.length, 5); // 2 emails, 2 DMs, 1 channel post
+  for (const d of a.ids) await deliverOne(d, async () => ({}) as never, slack.f).catch(() => "retry");
+  // The 429'd channel post is queued again; the retry sends it once.
+  const [retry] = await q("select id from deliveries where reminder_id = $1 and status = 'queued'", [a.id]);
+  assert.equal(await deliverOne(retry.id, async () => ({}) as never, slack.f), "sent");
+  assert.deepEqual(await rowsOf(a.id), [
+    "email:email sent",
+    "email:email sent",
+    "slack:C0OPS sent",
+    "slack:alice sent",
+    "slack:noslack sent (Sent to #fallback: not on Slack)",
+  ]);
+  assert.deepEqual(slack.posts.map((p) => p.channel).sort(), ["C0FALL", "C0OPS", "D1"]);
+  assert.equal(slack.posts.filter((p) => p.channel === "C0OPS").length, 1);
+
+  // No fallback channel: the person who isn't on Slack fails, permanently (no retry).
+  await q("update slack_installations set fallback_channel_id = null where company_id = $1", [s.companyId]);
+  const b = await mk("No fallback", "{slack}", [["user", noSlack, null]]);
+  assert.equal(await deliverOne(b.ids[0], async () => ({}) as never, fakeSlack().f), "failed");
+  assert.match((await rowsOf(b.id))[0], /No Slack account .* no fallback channel/);
+
+  // Whole company on Slack: the channel only, never a DM to everyone.
+  const c = await mk("Company", "{slack}", [
+    ["company", null, null],
+    ["slack_channel", "C0GENERAL", "general"],
+  ]);
+  assert.deepEqual(
+    (await q("select channel, address from deliveries where reminder_id = $1", [c.id])).map((r) => `${r.channel}:${r.address}`),
+    ["slack:C0GENERAL"],
+  );
+
+  // A deleted channel fails at once instead of retrying 5 times.
+  const g = await mk("Gone", "{slack}", [["slack_channel", "C0GONE", "gone"]]);
+  assert.equal(await deliverOne(g.ids[0], async () => ({}) as never, fakeSlack().f), "failed");
+  assert.match((await rowsOf(g.id))[0], /channel_not_found/);
+  for (const r of [a, b, c, g]) await q("update reminders set status = 'cancelled' where id = $1", [r.id]);
 });

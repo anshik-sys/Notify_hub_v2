@@ -78,6 +78,27 @@
       "when": 1791363637124,
       "tag": "0010_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791364876769,
+      "tag": "0011_task_assignments",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791364898144,
+      "tag": "0012_delivery_address",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791364915963,
+      "tag": "0013_slack",
+      "breakpoints": true
     }
   ]
 }

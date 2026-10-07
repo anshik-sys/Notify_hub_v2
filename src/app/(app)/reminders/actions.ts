@@ -14,6 +14,7 @@ import {
   validateInput,
 } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
+import { channelChoices } from "@/lib/slack-installations";
 import { setDone } from "@/lib/tasks";
 import { isUuid } from "@/lib/validate";
 
@@ -43,6 +44,8 @@ export async function saveReminder(fd: FormData) {
       emails: str(fd, "emails"),
       when: str(fd, "when"),
       sendAtLocal: str(fd, "sendAt"),
+      channels: all(fd, "channels"),
+      slackChannelIds: all(fd, "slackChannels"),
       isTask: fd.get("isTask") === "on",
       dueLocal: str(fd, "due"),
       repeat: {
@@ -58,6 +61,9 @@ export async function saveReminder(fd: FormData) {
     },
     company.timeZone,
     `Alerts | ${company.name}`,
+    new Date(),
+    // Only ask Slack for the channel list when the form uses Slack.
+    all(fd, "channels").includes("slack") || all(fd, "slackChannels").length ? await channelChoices(companyId) : null,
   );
   if (parsed.error !== undefined) redirect(errorUrl(back, parsed.error));
 
@@ -106,8 +112,8 @@ export async function seriesAction(fd: FormData) {
 // An assignee marks their own task done / not done (setDone checks ownership).
 export async function markTaskAction(fd: FormData) {
   const { user, companyId } = await requireMember();
-  const [id, deliveryId] = [str(fd, "id"), str(fd, "deliveryId")];
-  if (!isUuid(id) || !isUuid(deliveryId)) notFound();
-  const error = await setDone(user.id, companyId, deliveryId, fd.get("done") === "true");
+  const [id, assignmentId] = [str(fd, "id"), str(fd, "assignmentId")];
+  if (!isUuid(id) || !isUuid(assignmentId)) notFound();
+  const error = await setDone(user.id, companyId, assignmentId, fd.get("done") === "true");
   redirect(error ? errorUrl(`/reminders/${id}`, error) : `/reminders/${id}`);
 }

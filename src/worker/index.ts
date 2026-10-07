@@ -48,8 +48,8 @@ await boss.work<{ deliveryId: string }>("deliver", { localConcurrency: 10 }, asy
   console.log(`delivery ${job.data.deliveryId}: ${result}`);
 });
 
-await boss.work<{ deliveryId: string }>("followup", { localConcurrency: 10 }, async ([job]) => {
-  console.log(`follow-up ${job.data.deliveryId}: ${await followUpOne(job.data.deliveryId)}`);
+await boss.work<{ assignmentId: string }>("followup", { localConcurrency: 10 }, async ([job]) => {
+  console.log(`follow-up ${job.data.assignmentId}: ${await followUpOne(job.data.assignmentId)}`);
 });
 
 await boss.schedule("tick", "* * * * *");
@@ -57,8 +57,8 @@ await boss.work("tick", async () => {
   await enqueue(await sweep());
   await dispatch();
   // Claimed once per delivery per local day; the job only sends.
-  for (const deliveryId of await claimFollowUps())
-    await boss.send("followup", { deliveryId }, { retryLimit: 3, retryDelay: 30, retryBackoff: true });
+  for (const assignmentId of await claimFollowUps())
+    await boss.send("followup", { assignmentId }, { retryLimit: 3, retryDelay: 30, retryBackoff: true });
 });
 
 // LISTEN needs a plain session connection (not a transaction-mode pooler).

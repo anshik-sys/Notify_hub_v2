@@ -42,9 +42,18 @@ const raw = (over: Partial<RawReminder> = {}): RawReminder => ({
   repeat: { repeat: "none", every: "1", unit: "day", weekdays: [], monthlyBy: "day", ends: "never", until: "", count: "" },
   isTask: false,
   dueLocal: "",
+  channels: ["email"],
+  slackChannelIds: [],
   ...over,
 });
-const oneTime = { recurrence: null, anchorLocal: "2026-01-01T00:00", timeZone: "UTC", isTask: false, dueAfterMinutes: null };
+const oneTime = {
+  recurrence: null,
+  anchorLocal: "2026-01-01T00:00",
+  timeZone: "UTC",
+  isTask: false,
+  dueAfterMinutes: null,
+  channels: ["email" as const],
+};
 // An hour ahead: a worker running on this machine must not send test reminders
 // mid-test (it would, within a second, for anything due now).
 const later = () => new Date(Date.now() + 3_600_000);
@@ -86,7 +95,7 @@ test("validateInput", () => {
   assert.match(err({ linkUrls: ["javascript:alert(1)"] }), /http/);
   assert.match(err({ linkUrls: Array(11).fill("https://x.test") }), /At most 10/);
   assert.match(err({ emails: "a@b.test, nope" }), /"nope"/);
-  assert.match((validateInput(raw(), "UTC", "A") as { error: string }).error, /at least one/);
+  assert.match((validateInput(raw(), "UTC", "A") as { error: string }).error, /Email needs people/); // no recipients at all
   assert.match(err({ when: "later", sendAtLocal: "2000-01-01T00:00" }), /future/);
 
   const company = validateInput(raw({ company: true, departmentIds: ["d"], emails: "X@Y.test" }), "UTC", "A").input!;
@@ -195,7 +204,7 @@ test("reminderAccess: owners full, recipients via delivery row, others none", as
     "insert into reminder_occurrences (company_id, reminder_id, occurs_at, status) values ($1, $2, now(), 'sent') returning id",
     [s.companyId, r.id],
   );
-  await s.owner.query("insert into deliveries (company_id, reminder_id, occurrence_id, email, user_id) values ($1, $2, $3, $4, $5)", [
+  await s.owner.query("insert into deliveries (company_id, reminder_id, occurrence_id, address, user_id) values ($1, $2, $3, $4, $5)", [
     s.companyId,
     r.id,
     occ.rows[0].id,
@@ -332,4 +341,44 @@ test("task due: required, after the send, stored as an offset", () => {
   assert.equal(task("2026-10-09T09:00", { when: "later", sendAtLocal: "2026-10-08T09:00" }).input!.dueAfterMinutes, 24 * 60);
   // Not a task: due is ignored.
   assert.equal(validateInput(raw({ userIds: ["u"], dueLocal: "nonsense" }), "UTC", "A", now).input!.dueAfterMinutes, null);
+});
+
+test("channels (PRD 5.3)", () => {
+  const slack = [
+    { id: "C1", name: "general" },
+    { id: "C2", name: "ops" },
+  ];
+  const v = (over: Partial<RawReminder>, connected: typeof slack | null = slack) =>
+    validateInput(raw(over), "UTC", "A", new Date(), connected);
+  assert.match(v({ userIds: ["u"], channels: [] }).error!, /at least one channel/);
+  assert.match(v({ userIds: ["u"], channels: ["slack"] }, null).error!, /isn't connected/);
+  assert.match(v({ company: true, channels: ["slack"] }).error!, /whole company on Slack, pick a Slack channel/);
+  assert.match(v({ emails: "x@y.test", channels: ["slack"] }).error!, /Slack needs a channel, people or a department/);
+  assert.match(v({ channels: ["email", "slack"], slackChannelIds: ["C1"] }).error!, /Email needs people/);
+  assert.match(v({ userIds: ["u"], channels: ["email"], slackChannelIds: ["C1"] }).error!, /Tick Slack/);
+  assert.match(v({ userIds: ["u"], channels: ["slack"], slackChannelIds: ["C9"] }).error!, /no longer exists/);
+
+  const ok = v({ company: true, channels: ["email", "slack"], slackChannelIds: ["C1", "C1"] }).input!;
+  assert.deepEqual(ok.channels, ["email", "slack"]);
+  assert.deepEqual(ok.targets, [
+    { kind: "company", ref: null },
+    { kind: "slack_channel", ref: "C1", label: "general" },
+  ]);
+  // Slack-only to a channel: no email recipients needed.
+  assert.equal(v({ channels: ["slack"], slackChannelIds: ["C2"] }).input!.targets.length, 1);
+});
+
+test("a Slack channel counts as out of scope for non-approvers", async () => {
+  const targets: Target[] = [
+    { kind: "department", ref: ops },
+    { kind: "slack_channel", ref: "C1", label: "general" },
+  ];
+  const out = await withTenant(s.companyId, async (tx) =>
+    outOfScope(tx, s.companyId, await actor(alice), targets, await resolveRecipients(tx, s.companyId, targets)),
+  );
+  assert.deepEqual(out, ["the #general Slack channel"]);
+  const asAdmin = await withTenant(s.companyId, async (tx) =>
+    outOfScope(tx, s.companyId, await actor(admin), targets, await resolveRecipients(tx, s.companyId, targets)),
+  );
+  assert.deepEqual(asAdmin, []);
 });

@@ -24,15 +24,14 @@ before(async () => {
       )
     )[0].id as string;
   [occ1, occ2] = [await occ("2026-01-01T09:00Z"), await occ("2026-01-08T09:00Z")];
-  const deliver = async (o: string, email: string, userId: string | null) =>
+  const assign = async (o: string, userId: string) =>
     (
       await q(
-        "insert into deliveries (company_id, reminder_id, occurrence_id, email, user_id, status) values ($1, $2, $3, $4, $5, 'sent') returning id",
-        [s.companyId, reminderId, o, email, userId],
+        "insert into task_assignments (company_id, reminder_id, occurrence_id, user_id) values ($1, $2, $3, $4) returning id",
+        [s.companyId, reminderId, o, userId],
       )
     )[0].id as string;
-  [dA, dB] = [await deliver(occ1, `a@${s.domain}`, alice), await deliver(occ1, `b@${s.domain}`, bob)];
-  await deliver(occ1, `ext@else.test`, null); // external: not an assignee
+  [dA, dB] = [await assign(occ1, alice), await assign(occ1, bob)];
 });
 after(async () => {
   await s.cleanup();
@@ -41,7 +40,7 @@ after(async () => {
 
 test("setDone: only your own; undo clears; progress counts assignees only", async () => {
   assert.match((await setDone(bob, s.companyId, dA, true))!, /isn't yours/);
-  assert.deepEqual(await q("select done_at from deliveries where id = $1", [dA]), [{ done_at: null }]);
+  assert.deepEqual(await q("select done_at from task_assignments where id = $1", [dA]), [{ done_at: null }]);
 
   assert.deepEqual(await taskProgress(s.companyId, occ1).then((p) => [p.done, p.total]), [0, 2]);
   assert.equal(await setDone(alice, s.companyId, dA, true), null);
@@ -56,11 +55,10 @@ test("open tasks and a fresh second occurrence", async () => {
   assert.equal((await myOpenTasks(s.companyId, bob)).length, 0);
 
   // Next week's occurrence: bob starts not-done again.
-  await q("insert into deliveries (company_id, reminder_id, occurrence_id, email, user_id, status) values ($1, $2, $3, $4, $5, 'sent')", [
+  await q("insert into task_assignments (company_id, reminder_id, occurrence_id, user_id) values ($1, $2, $3, $4)", [
     s.companyId,
     reminderId,
     occ2,
-    `b@${s.domain}`,
     bob,
   ]);
   const mine = await myTaskStatus(s.companyId, bob, reminderId);

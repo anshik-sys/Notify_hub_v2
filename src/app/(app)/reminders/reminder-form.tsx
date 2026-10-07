@@ -20,6 +20,8 @@ export type ReminderDefaults = {
   repeat: RepeatFields;
   isTask: boolean;
   dueLocal: string;
+  channels: string[];
+  slackChannelIds: string[];
 };
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -119,12 +121,15 @@ export function ReminderForm({
   people,
   timeZone,
   defaultSender,
+  slackChannels,
 }: {
   defaults: ReminderDefaults;
   departments: DepartmentChoice[];
   people: Person[];
   timeZone: string;
   defaultSender: string;
+  /** The company's public Slack channels; null when Slack isn't connected. */
+  slackChannels: { id: string; name: string }[] | null;
 }) {
   const mine = departments.filter((d) => d.mine);
   const others = departments.filter((d) => !d.mine);
@@ -149,6 +154,20 @@ export function ReminderForm({
             ))}
           </div>
         </details>
+      </Section>
+
+      <Section title="Channels">
+        <CheckboxGroup
+          legend="Send by"
+          name="channels"
+          options={[
+            { value: "email", label: "Email", checked: defaults.channels.includes("email") },
+            ...(slackChannels
+              ? [{ value: "slack", label: "Slack (direct messages, and any channels picked below)", checked: defaults.channels.includes("slack") }]
+              : []),
+          ]}
+        />
+        {!slackChannels && <Hint>Slack isn’t connected. An admin can connect it under Integrations.</Hint>}
       </Section>
 
       <Section title="Recipients">
@@ -217,6 +236,13 @@ export function ReminderForm({
               </label>
             </noscript>
           </>
+        )}
+        {slackChannels && slackChannels.length > 0 && (
+          <CheckboxGroup
+            legend="Slack channels (need approval unless you’re an admin)"
+            name="slackChannels"
+            options={slackChannels.map((c) => ({ value: c.id, label: `#${c.name}`, checked: defaults.slackChannelIds.includes(c.id) }))}
+          />
         )}
         <TextArea
           label="Other emails (comma or one per line)"

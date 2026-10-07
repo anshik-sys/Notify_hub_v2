@@ -12,7 +12,8 @@
     "test": "tsx --env-file=.env --test \"src/**/*.test.ts\"",
     "worker": "tsx --env-file=.env src/worker/index.ts",
     "db:generate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs generate",
-    "db:migrate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs migrate"
+    "db:migrate": "node --env-file=.env node_modules/drizzle-kit/bin.cjs migrate",
+    "fake-slack": "tsx scripts/fake-slack.ts"
   },
   "dependencies": {
     "better-auth": "^1.7.7",

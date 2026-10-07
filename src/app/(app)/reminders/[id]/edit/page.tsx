@@ -6,6 +6,7 @@ import { requireMember } from "@/lib/session";
 import { toLocalInput } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
 import { fieldsFromRule } from "@/lib/recurrence";
+import { channelChoices } from "@/lib/slack-installations";
 import { recipientChoices } from "../../form-data";
 import { ReminderForm } from "../../reminder-form";
 
@@ -21,7 +22,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
   // Same rule as updateReminder: creator or reminders.edit, and not yet sent.
   if (!r || !(user.id === r.createdBy || can(access, "reminders.edit"))) notFound();
   if (!["pending_approval", "rejected", "scheduled", "paused"].includes(r.status)) notFound();
-  const choices = await recipientChoices(companyId, user.id, access);
+  const [choices, slackChannels] = await Promise.all([recipientChoices(companyId, user.id, access), channelChoices(companyId)]);
   const error = firstParam((await props.searchParams).error);
   const refs = (kind: string) => r.targets.filter((t) => t.kind === kind).map((t) => t.ref!);
 
@@ -29,6 +30,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
     <Page title="Edit reminder" back={{ href: `/reminders/${r.id}`, label: r.title }} error={error}>
       <ReminderForm
         {...choices}
+        slackChannels={slackChannels}
         timeZone={company.timeZone}
         defaultSender={`Alerts | ${company.name}`}
         defaults={{
@@ -47,6 +49,8 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           sendAtLocal: isPast(r.sendAt) ? "" : toLocalInput(r.sendAt, r.timeZone),
           repeat: fieldsFromRule(r.recurrence, r.anchorLocal),
           isTask: r.isTask,
+          channels: r.channels,
+          slackChannelIds: refs("slack_channel"),
           // Same gap after the (next) send as before; "now" if that time has passed.
           dueLocal: r.isTask && r.dueAfterMinutes ? toLocalInput(dueFrom(r.sendAt, r.dueAfterMinutes), r.timeZone) : "",
         }}

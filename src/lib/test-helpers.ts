@@ -28,7 +28,7 @@ export function seeder() {
       return id;
     },
     async cleanup() {
-      for (const t of ["reminders", "invitations", "department_members", "user_roles", "roles", "departments"])
+      for (const t of ["slack_installations", "reminders", "invitations", "department_members", "user_roles", "roles", "departments"])
         await owner.query(`delete from ${t} where company_id = $1`, [companyId]);
       await owner.query(`delete from session where user_id = any($1)`, [userIds]);
       await owner.query(`delete from "user" where id = any($1)`, [userIds]);

@@ -112,7 +112,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
           </Hint>
           <form action={markTaskAction}>
             <input type="hidden" name="id" value={r.id} />
-            <input type="hidden" name="deliveryId" value={mine.deliveryId} />
+            <input type="hidden" name="assignmentId" value={mine.assignmentId} />
             <input type="hidden" name="done" value={mine.doneAt ? "false" : "true"} />
             <Button variant={mine.doneAt ? "secondary" : "primary"}>{mine.doneAt ? "Undo: not done yet" : "Mark done"}</Button>
           </form>
@@ -130,7 +130,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
           <Table
             columns={["Person", "Email", "Status", "Done at", "Follow-ups"]}
             rows={progress.rows.map((p) => ({
-              key: p.deliveryId,
+              key: p.assignmentId,
               cells: [
                 p.name,
                 <Muted key="e">{p.email}</Muted>,
@@ -169,11 +169,13 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
             {log.latest.sent} sent · {log.latest.failed} failed · {log.latest.pending} pending
           </Hint>
           <Table
-            columns={["Recipient", "Status", "Sent", "Note"]}
+            columns={["Recipient", "Channel", "Status", "Sent", "Note"]}
             rows={log.rows.map((d) => ({
               key: d.id,
               cells: [
-                d.email,
+                // A Slack DM row's address is the user id: show the name instead.
+                d.channel === "slack" && d.userName ? d.userName : d.address,
+                d.channel === "slack" ? (d.address.startsWith("C") ? "Slack channel" : "Slack DM") : "Email",
                 <Badge key="s" tone={d.status === "failed" ? "danger" : d.status === "sent" ? "success" : "neutral"}>
                   {DELIVERY_LABELS[d.status]}
                 </Badge>,

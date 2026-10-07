@@ -251,6 +251,8 @@ export const reminders = pgTable(
     // A task: every internal recipient marks it done (deliveries.done_at).
     // Each occurrence is due this long after it's sent.
     isTask: boolean().notNull().default(false),
+    // Delivery channels (PRD 5.3): email and/or slack.
+    channels: text().array().$type<("email" | "slack")[]>().notNull().default(sql`'{email}'`),
     dueAfterMinutes: integer(),
     status: text().$type<ReminderStatus>().notNull(),
     decidedBy: text().references(() => user.id),
@@ -265,6 +267,7 @@ export const reminders = pgTable(
   (t) => [
     index().on(t.status, t.sendAt),
     check("reminders_task_due", sql`not ${t.isTask} or ${t.dueAfterMinutes} > 0`),
+    check("reminders_channels_valid", sql`cardinality(${t.channels}) > 0 and ${t.channels} <@ array['email','slack']`),
     check("reminders_status_valid", sql`${t.status} in ('pending_approval','rejected','scheduled','paused','sending','sent','cancelled')`),
     tenantPolicy("company_id"),
   ],
@@ -279,13 +282,15 @@ export const reminderTargets = pgTable(
     companyId: uuid()
       .notNull()
       .references(() => companies.id),
-    kind: text().$type<"user" | "department" | "company" | "email">().notNull(),
-    // user id, department id, or email; null for kind = company.
+    kind: text().$type<"user" | "department" | "company" | "email" | "slack_channel">().notNull(),
+    // user id, department id, email, or Slack channel id; null for kind = company.
     ref: text(),
+    // Display name at pick time (Slack channel name), so the page needn't call Slack.
+    label: text(),
   },
   (t) => [
     index().on(t.reminderId),
-    check("reminder_targets_kind_valid", sql`${t.kind} in ('user','department','company','email')`),
+    check("reminder_targets_kind_valid", sql`${t.kind} in ('user','department','company','email','slack_channel')`),
     tenantPolicy("company_id"),
   ],
 ).enableRLS();
@@ -331,17 +336,18 @@ export const deliveries = pgTable(
     occurrenceId: uuid()
       .notNull()
       .references(() => reminderOccurrences.id, { onDelete: "cascade" }),
-    email: text().notNull(),
+    channel: text().$type<"email" | "slack">().notNull().default("email"),
+    // email: the address. slack: a channel id (C…) or, for a DM, the internal
+    // user id (the Slack user id is looked up at send time).
+    address: text().notNull(),
     userId: text().references(() => user.id, { onDelete: "set null" }),
     status: text().$type<"queued" | "sending" | "sent" | "failed">().notNull().default("queued"),
     attempts: integer().notNull().default(0),
     lastError: text(),
     sentAt: ts(),
-    // Tasks: the assignee's completion for this occurrence, and follow-ups.
-    // last_followup_on (company-local date) is the once-a-day claim.
-    doneAt: ts(),
-    followups: integer().notNull().default(0),
-    lastFollowupOn: date({ mode: "string" }),
+    // The posted Slack message, so Phase B can update it (Mark done / Snooze).
+    slackChannel: text(),
+    slackTs: text(),
     updatedAt: ts()
       .notNull()
       .defaultNow()
@@ -349,10 +355,60 @@ export const deliveries = pgTable(
     createdAt: ts().notNull().defaultNow(),
   },
   (t) => [
-    unique().on(t.occurrenceId, t.email),
+    unique().on(t.occurrenceId, t.channel, t.address),
+    check("deliveries_channel_valid", sql`${t.channel} in ('email','slack')`),
     index().on(t.reminderId),
     index().on(t.status, t.updatedAt),
     check("deliveries_status_valid", sql`${t.status} in ('queued','sending','sent','failed')`),
     tenantPolicy("company_id"),
   ],
+).enableRLS();
+
+// A task's assignees: one row per (occurrence, internal user), whatever
+// channels it went out on (one person can have an email and a Slack delivery
+// for the same occurrence). Completion and follow-ups live here.
+// last_followup_on (company-local date) is the once-a-day follow-up claim.
+export const taskAssignments = pgTable(
+  "task_assignments",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    reminderId: uuid()
+      .notNull()
+      .references(() => reminders.id, { onDelete: "cascade" }),
+    occurrenceId: uuid()
+      .notNull()
+      .references(() => reminderOccurrences.id, { onDelete: "cascade" }),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    doneAt: ts(),
+    followups: integer().notNull().default(0),
+    lastFollowupOn: date({ mode: "string" }),
+    createdAt: ts().notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.occurrenceId, t.userId), index().on(t.userId), tenantPolicy("company_id")],
+).enableRLS();
+
+// One Slack workspace per company (PRD 7.2). The bot token is AES-GCM
+// encrypted (src/lib/crypto.ts) and never leaves the server.
+export const slackInstallations = pgTable(
+  "slack_installations",
+  {
+    companyId: uuid()
+      .primaryKey()
+      .references(() => companies.id),
+    // A workspace belongs to one company.
+    teamId: text().notNull().unique(),
+    teamName: text().notNull(),
+    botTokenEnc: text().notNull(),
+    botUserId: text().notNull(),
+    fallbackChannelId: text(),
+    fallbackChannelName: text(),
+    installedBy: text().references(() => user.id, { onDelete: "set null" }),
+    createdAt: ts().notNull().defaultNow(),
+  },
+  () => [tenantPolicy("company_id")],
 ).enableRLS();

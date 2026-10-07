@@ -1,18 +1,19 @@
 import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { deliveries, reminderOccurrences, reminders, user } from "@/db/schema";
+import { reminderOccurrences, reminders, taskAssignments, user } from "@/db/schema";
 
-// Task completion lives on the assignee's delivery row: one per person per
-// occurrence, so each occurrence of a repeating task starts fresh (PRD 5.8).
+// Task completion lives in task_assignments: one row per (occurrence, internal
+// user), whatever channels it went out on. Each occurrence of a repeating task
+// gets new rows, so it starts fresh (PRD 5.8).
 
-// Only your own delivery: user_id = you, under RLS. Returns an error or null.
-export async function setDone(viewerId: string, companyId: string, deliveryId: string, done: boolean) {
+// Only your own assignment: user_id = you, under RLS. Returns an error or null.
+export async function setDone(viewerId: string, companyId: string, assignmentId: string, done: boolean) {
   const updated = await withTenant(companyId, (tx) =>
     tx
-      .update(deliveries)
+      .update(taskAssignments)
       .set({ doneAt: done ? new Date() : null })
-      .where(and(eq(deliveries.id, deliveryId), eq(deliveries.userId, viewerId), eq(deliveries.status, "sent")))
-      .returning({ id: deliveries.id }),
+      .where(and(eq(taskAssignments.id, assignmentId), eq(taskAssignments.userId, viewerId)))
+      .returning({ id: taskAssignments.id }),
   );
   return updated.length ? null : "That task isn't yours to mark.";
 }
@@ -22,31 +23,35 @@ export async function taskProgress(companyId: string, occurrenceId: string) {
   const rows = await withTenant(companyId, (tx) =>
     tx
       .select({
-        deliveryId: deliveries.id,
+        assignmentId: taskAssignments.id,
         name: user.name,
-        email: deliveries.email,
-        doneAt: deliveries.doneAt,
-        followups: deliveries.followups,
+        email: user.email,
+        doneAt: taskAssignments.doneAt,
+        followups: taskAssignments.followups,
       })
-      .from(deliveries)
-      .innerJoin(user, eq(user.id, deliveries.userId)) // assignees = internal recipients
-      .where(eq(deliveries.occurrenceId, occurrenceId))
+      .from(taskAssignments)
+      .innerJoin(user, eq(user.id, taskAssignments.userId))
+      .where(eq(taskAssignments.occurrenceId, occurrenceId))
       .orderBy(user.name),
   );
   return { rows, done: rows.filter((r) => r.doneAt).length, total: rows.length };
 }
 
-const openTask = (userId: string) =>
-  and(eq(deliveries.userId, userId), eq(deliveries.status, "sent"), isNull(deliveries.doneAt), eq(reminders.isTask, true));
-
 export function myOpenTasks(companyId: string, userId: string) {
   return withTenant(companyId, (tx) =>
     tx
       .select({ reminderId: reminders.id, title: reminders.title, timeZone: reminders.timeZone, dueAt: reminderOccurrences.dueAt })
-      .from(deliveries)
-      .innerJoin(reminders, eq(reminders.id, deliveries.reminderId))
-      .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, deliveries.occurrenceId))
-      .where(and(openTask(userId), sql`${reminders.status} <> 'cancelled'`, isNotNull(reminderOccurrences.dueAt)))
+      .from(taskAssignments)
+      .innerJoin(reminders, eq(reminders.id, taskAssignments.reminderId))
+      .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, taskAssignments.occurrenceId))
+      .where(
+        and(
+          eq(taskAssignments.userId, userId),
+          isNull(taskAssignments.doneAt),
+          sql`${reminders.status} <> 'cancelled'`,
+          isNotNull(reminderOccurrences.dueAt),
+        ),
+      )
       .orderBy(reminderOccurrences.dueAt)
       .limit(20),
   );
@@ -56,10 +61,10 @@ export function myOpenTasks(companyId: string, userId: string) {
 export async function myTaskStatus(companyId: string, userId: string, reminderId: string) {
   const [row] = await withTenant(companyId, (tx) =>
     tx
-      .select({ deliveryId: deliveries.id, doneAt: deliveries.doneAt, dueAt: reminderOccurrences.dueAt })
-      .from(deliveries)
-      .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, deliveries.occurrenceId))
-      .where(and(eq(deliveries.reminderId, reminderId), eq(deliveries.userId, userId), eq(deliveries.status, "sent")))
+      .select({ assignmentId: taskAssignments.id, doneAt: taskAssignments.doneAt, dueAt: reminderOccurrences.dueAt })
+      .from(taskAssignments)
+      .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, taskAssignments.occurrenceId))
+      .where(and(eq(taskAssignments.reminderId, reminderId), eq(taskAssignments.userId, userId)))
       .orderBy(desc(reminderOccurrences.occursAt))
       .limit(1),
   );

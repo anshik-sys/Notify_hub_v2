@@ -1,5 +1,7 @@
 import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
-import { deliveries, reminderOccurrences, reminders, reminderTargets, user } from "@/db/schema";
+import { deliveries, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user } from "@/db/schema";
+import { decrypt } from "@/lib/crypto";
+import { lookupByEmail, openDm, postMessage, reminderMessage, SlackError } from "@/lib/slack";
 import { between, nextAfter } from "@/lib/recurrence";
 import { formatInZone } from "@/lib/time";
 import { sendMail } from "@/lib/mail";
@@ -82,14 +84,34 @@ export async function dispatchDue(
           .from(reminderTargets)
           .where(eq(reminderTargets.reminderId, r.id));
         const { users, external } = await resolveRecipients(tx, r.companyId, targets);
-        const rows = [
-          ...users.map((u) => ({ email: u.email, userId: u.id })),
-          ...external.map((email) => ({ email, userId: null })),
-        ].map((x) => ({ ...x, companyId: r.companyId, reminderId: r.id, occurrenceId: occ.id }));
-        if (rows.length)
-          deliveryIds = (await tx.insert(deliveries).values(rows).onConflictDoNothing().returning({ id: deliveries.id })).map(
-            (d) => d.id,
+        type Row = { channel: "email" | "slack"; address: string; userId: string | null };
+        const rows: Row[] = [];
+        if (r.channels.includes("email"))
+          rows.push(
+            ...users.map((u) => ({ channel: "email" as const, address: u.email, userId: u.id })),
+            ...external.map((address) => ({ channel: "email" as const, address, userId: null })),
           );
+        if (r.channels.includes("slack")) {
+          // Company-wide on Slack goes to channels only, never a DM to everyone (PRD 5.3).
+          if (!targets.some((t) => t.kind === "company"))
+            rows.push(...users.map((u) => ({ channel: "slack" as const, address: u.id, userId: u.id })));
+          rows.push(
+            ...targets
+              .filter((t) => t.kind === "slack_channel")
+              .map((t) => ({ channel: "slack" as const, address: t.ref!, userId: null })),
+          );
+        }
+        // A task's assignees: every internal recipient, once, whatever the channels.
+        if (r.isTask && users.length)
+          await tx
+            .insert(taskAssignments)
+            .values(users.map((u) => ({ companyId: r.companyId, reminderId: r.id, occurrenceId: occ.id, userId: u.id })))
+            .onConflictDoNothing();
+        const deliveryRows = rows.map((x) => ({ ...x, companyId: r.companyId, reminderId: r.id, occurrenceId: occ.id }));
+        if (deliveryRows.length)
+          deliveryIds = (
+            await tx.insert(deliveries).values(deliveryRows).onConflictDoNothing().returning({ id: deliveries.id })
+          ).map((d) => d.id);
         // Nobody left to send to (everyone deactivated since): done, with an empty log.
         else await tx.update(reminderOccurrences).set({ status: "sent" }).where(eq(reminderOccurrences.id, occ.id));
       }
@@ -144,7 +166,73 @@ async function finish(d: { occurrenceId: string; reminderId: string }) {
   await finishReminder(d.reminderId);
 }
 
-export async function deliverOne(deliveryId: string, send: typeof sendMail = sendMail) {
+// A failure that retrying can't fix: fail now instead of burning attempts.
+class Permanent extends Error {}
+const PERMANENT_SLACK = new Set(["channel_not_found", "is_archived", "invalid_auth", "token_revoked", "account_inactive", "not_in_channel"]);
+
+type Delivery = typeof deliveries.$inferSelect;
+type Loaded = { reminder: typeof reminders.$inferSelect; creatorEmail: string; dueAt: Date | null };
+
+async function sendEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
+  const task = r.reminder.isTask && r.dueAt;
+  const body = r.reminder.description || r.reminder.title;
+  await send({
+    to: d.address,
+    subject: task ? `Task: ${r.reminder.title}` : r.reminder.title,
+    text: task ? `${body}\n\nDue ${formatInZone(r.dueAt!, r.reminder.timeZone)} (${r.reminder.timeZone}).` : body,
+    links: [
+      ...r.reminder.links,
+      {
+        label: task ? "Mark it done in NotifyHub" : "Open in NotifyHub",
+        url: `${process.env.BETTER_AUTH_URL}/reminders/${r.reminder.id}`,
+      },
+    ],
+    fromName: `${r.reminder.senderName} via NotifyHub`,
+    replyTo: r.creatorEmail,
+  });
+  return {};
+}
+
+// A DM (address = internal user id) or a channel post (address = channel id).
+// Someone with no Slack account: posted to the fallback channel with a note.
+async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
+  const [inst] = await ownerDb.select().from(slackInstallations).where(eq(slackInstallations.companyId, d.companyId));
+  if (!inst) throw new Permanent("Slack isn't connected.");
+  const token = decrypt(inst.botTokenEnc);
+  let channel = d.address;
+  let note: string | undefined;
+  if (d.userId) {
+    const [u] = await ownerDb.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, d.userId));
+    const slackUser = await lookupByEmail(token, u.email, f);
+    if (slackUser) channel = await openDm(token, slackUser, f);
+    else if (inst.fallbackChannelId) {
+      channel = inst.fallbackChannelId;
+      note = `For ${u.name}: they have no Slack account under ${u.email}, so this is posted here.`;
+    } else throw new Permanent(`No Slack account for ${u.email}, and no fallback channel is set.`);
+  }
+  const msg = reminderMessage({
+    title: r.reminder.title,
+    description: r.reminder.description,
+    links: r.reminder.links,
+    appUrl: `${process.env.BETTER_AUTH_URL}/reminders/${r.reminder.id}`,
+    due: r.reminder.isTask && r.dueAt ? `${formatInZone(r.dueAt, r.reminder.timeZone)} (${r.reminder.timeZone})` : undefined,
+    note,
+  });
+  try {
+    const posted = await postMessage(token, channel, msg.text, msg.blocks, f);
+    return {
+      slackChannel: posted.channel,
+      slackTs: posted.ts,
+      lastError: note ? `Sent to #${inst.fallbackChannelName ?? "fallback"}: not on Slack` : null,
+    };
+  } catch (e) {
+    if (e instanceof SlackError && PERMANENT_SLACK.has(e.code)) throw new Permanent(`Slack: ${e.code}`);
+    throw e;
+  }
+}
+
+// slackFetch is for tests (a fake Slack); production uses the real fetch.
+export async function deliverOne(deliveryId: string, send: typeof sendMail = sendMail, slackFetch?: typeof fetch) {
   const [d] = await ownerDb
     .update(deliveries)
     .set({ status: "sending", attempts: sql`${deliveries.attempts} + 1` })
@@ -158,25 +246,11 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
     .innerJoin(user, eq(user.id, reminders.createdBy))
     .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, d.occurrenceId))
     .where(eq(reminders.id, d.reminderId));
-  const task = r.reminder.isTask && r.dueAt;
-  const body = r.reminder.description || r.reminder.title;
+  let result: { slackChannel?: string; slackTs?: string; lastError?: string | null };
   try {
-    await send({
-      to: d.email,
-      subject: task ? `Task: ${r.reminder.title}` : r.reminder.title,
-      text: task ? `${body}\n\nDue ${formatInZone(r.dueAt!, r.reminder.timeZone)} (${r.reminder.timeZone}).` : body,
-      links: [
-        ...r.reminder.links,
-        {
-          label: task ? "Mark it done in NotifyHub" : "Open in NotifyHub",
-          url: `${process.env.BETTER_AUTH_URL}/reminders/${r.reminder.id}`,
-        },
-      ],
-      fromName: `${r.reminder.senderName} via NotifyHub`,
-      replyTo: r.creatorEmail,
-    });
+    result = d.channel === "slack" ? await sendSlack(d, r, slackFetch) : await sendEmail(d, r, send);
   } catch (e) {
-    const final = d.attempts >= MAX_ATTEMPTS;
+    const final = e instanceof Permanent || d.attempts >= MAX_ATTEMPTS;
     await ownerDb
       .update(deliveries)
       .set({ status: final ? "failed" : "queued", lastError: String((e as Error).message ?? e).slice(0, 500) })
@@ -185,9 +259,12 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
       await finish(d);
       return "failed";
     }
-    throw e; // pg-boss retries with backoff
+    throw e; // pg-boss retries with backoff (Slack 429s included)
   }
-  await ownerDb.update(deliveries).set({ status: "sent", sentAt: new Date(), lastError: null }).where(eq(deliveries.id, d.id));
+  await ownerDb
+    .update(deliveries)
+    .set({ status: "sent", sentAt: new Date(), lastError: null, ...result })
+    .where(eq(deliveries.id, d.id));
   await finish(d);
   return "sent";
 }
@@ -209,15 +286,14 @@ export async function sweep() {
   return orphans.map((o) => o.id);
 }
 
-
 // --- Task follow-ups (PRD 5.8) ------------------------------------------------
 // Once a day, at the company's follow-up time (its own zone), every assignee
 // of an overdue task who hasn't marked it done gets one reminder. The claim is
 // an UPDATE that stamps last_followup_on with the company-local date, so a
-// second tick (or worker) the same day matches nothing. Email only for now.
+// second tick (or worker) the same day matches nothing.
 
 // now and onlyCompany are for tests: move the clock, and never touch (stamp)
-// another company's deliveries, which would block their real follow-ups.
+// another company's assignments, which would block their real follow-ups.
 export async function claimFollowUps(now = new Date(), onlyCompany?: string) {
   const { rows } = await ownerDb.execute<{ id: string }>(sql`
     with slots as (
@@ -227,35 +303,39 @@ export async function claimFollowUps(now = new Date(), onlyCompany?: string) {
       from companies c
       where ${onlyCompany ?? null}::uuid is null or c.id = ${onlyCompany ?? null}::uuid
     )
-    update deliveries d
-       set last_followup_on = s.local_today, followups = d.followups + 1
+    update task_assignments a
+       set last_followup_on = s.local_today, followups = a.followups + 1
       from reminder_occurrences o, reminders r, slots s, "user" u
-     where o.id = d.occurrence_id and r.id = d.reminder_id and s.company_id = d.company_id and u.id = d.user_id
+     where o.id = a.occurrence_id and r.id = a.reminder_id and s.company_id = a.company_id and u.id = a.user_id
        and r.is_task and r.status <> 'cancelled'
-       and d.status = 'sent' and d.done_at is null and u.deactivated_at is null
+       and a.done_at is null and u.deactivated_at is null
        and ${now}::timestamptz >= s.slot and o.due_at <= s.slot
-       and (d.last_followup_on is null or d.last_followup_on < s.local_today)
-    returning d.id`);
+       and (a.last_followup_on is null or a.last_followup_on < s.local_today)
+    returning a.id`);
   return rows.map((r) => r.id);
 }
 
-export async function followUpOne(deliveryId: string, send: typeof sendMail = sendMail) {
+// Sends one assignment's follow-up over the task's channels (email here;
+// Slack DMs join in phase B).
+export async function followUpOne(assignmentId: string, send: typeof sendMail = sendMail) {
   const [x] = await ownerDb
-    .select({ d: deliveries, r: reminders, dueAt: reminderOccurrences.dueAt, creatorEmail: user.email })
-    .from(deliveries)
-    .innerJoin(reminders, eq(reminders.id, deliveries.reminderId))
-    .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, deliveries.occurrenceId))
-    .innerJoin(user, eq(user.id, reminders.createdBy))
-    .where(eq(deliveries.id, deliveryId));
+    .select({ a: taskAssignments, r: reminders, dueAt: reminderOccurrences.dueAt, email: user.email })
+    .from(taskAssignments)
+    .innerJoin(reminders, eq(reminders.id, taskAssignments.reminderId))
+    .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, taskAssignments.occurrenceId))
+    .innerJoin(user, eq(user.id, taskAssignments.userId))
+    .where(eq(taskAssignments.id, assignmentId));
   // Marked done (or cancelled) between the claim and now: nothing to nag about.
-  if (!x || x.d.doneAt || x.r.status === "cancelled" || !x.dueAt) return "skipped";
+  if (!x || x.a.doneAt || x.r.status === "cancelled" || !x.dueAt) return "skipped";
+  if (!x.r.channels.includes("email")) return "skipped"; // ponytail: Slack follow-up DMs arrive in phase B
+  const [creator] = await ownerDb.select({ email: user.email }).from(user).where(eq(user.id, x.r.createdBy));
   await send({
-    to: x.d.email,
+    to: x.email,
     subject: `Overdue: ${x.r.title}`,
     text: `This task was due ${formatInZone(x.dueAt, x.r.timeZone)} (${x.r.timeZone}) and isn't marked done yet. You'll get this reminder daily until it is.`,
     links: [{ label: "Mark it done in NotifyHub", url: `${process.env.BETTER_AUTH_URL}/reminders/${x.r.id}` }],
     fromName: `${x.r.senderName} via NotifyHub`,
-    replyTo: x.creatorEmail,
+    replyTo: creator?.email,
   });
   return "sent";
 }

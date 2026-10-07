@@ -45,6 +45,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Roles
             </NavLink>
           )}
+          {can(access, "company.manage_integrations") && (
+            <NavLink href="/settings/integrations" icon="integrations">
+              Integrations
+            </NavLink>
+          )}
           {can(access, "company.edit") && (
             <NavLink href="/settings/company" icon="settings">
               Settings

@@ -21,6 +21,7 @@ export type ReminderInput = {
   timeZone: string;
   isTask: boolean;
   dueAfterMinutes: number | null;
+  channels: ("email" | "slack")[];
   targets: Target[];
 };
 type Actor = { id: string; access: Access };
@@ -46,9 +47,18 @@ export type RawReminder = {
   repeat: RepeatFields;
   isTask: boolean;
   dueLocal: string;
+  channels: string[]; // "email" | "slack"
+  slackChannelIds: string[];
 };
 
-export function validateInput(raw: RawReminder, timeZone: string, defaultSender: string, now = new Date()) {
+// slack: the company's public channels when Slack is connected, else null.
+export function validateInput(
+  raw: RawReminder,
+  timeZone: string,
+  defaultSender: string,
+  now = new Date(),
+  slack: { id: string; name: string }[] | null = null,
+) {
   const title = raw.title.trim();
   if (!title || title.length > 200) return { error: "Title must be 1–200 characters." };
   const description = raw.description.trim();
@@ -82,6 +92,24 @@ export function validateInput(raw: RawReminder, timeZone: string, defaultSender:
         ...[...new Set(raw.userIds)].map((ref) => ({ kind: "user" as const, ref })),
       ];
   targets.push(...emails.map((ref) => ({ kind: "email" as const, ref })));
+
+  // Channels (PRD 5.3).
+  const channels = [...new Set(raw.channels)].filter((c): c is "email" | "slack" => c === "email" || c === "slack");
+  if (channels.length === 0) return { error: "Choose at least one channel: email or Slack." };
+  const slackChannels = [...new Set(raw.slackChannelIds)].map((id) => slack?.find((c) => c.id === id));
+  if (slackChannels.length && !channels.includes("slack")) return { error: "Tick Slack as a channel to post to Slack channels." };
+  if (channels.includes("slack")) {
+    if (!slack) return { error: "Slack isn't connected. An admin can connect it under Integrations." };
+    if (slackChannels.some((c) => !c)) return { error: "One of the Slack channels no longer exists." };
+    const people = targets.some((t) => t.kind === "user" || t.kind === "department");
+    if (raw.company && !slackChannels.length)
+      return { error: "To send to the whole company on Slack, pick a Slack channel. Everyone isn't messaged one by one." };
+    if (!people && !raw.company && !slackChannels.length)
+      return { error: "Slack needs a channel, people or a department." };
+  }
+  if (channels.includes("email") && !targets.length)
+    return { error: "Email needs people, a department, the whole company or email addresses." };
+  targets.push(...slackChannels.map((c) => ({ kind: "slack_channel" as const, ref: c!.id, label: c!.name })));
   if (targets.length === 0) return { error: "Choose at least one recipient." };
 
   let sendAt = now;
@@ -125,6 +153,7 @@ export function validateInput(raw: RawReminder, timeZone: string, defaultSender:
       timeZone,
       isTask: raw.isTask,
       dueAfterMinutes,
+      channels,
       targets,
     } satisfies ReminderInput,
   };
@@ -161,6 +190,9 @@ export async function outOfScope(tx: Tx, companyId: string, actor: Actor, target
   }
   reasons.push(...resolved.users.filter((u) => !inScope.has(u.id)).map((u) => u.email));
   reasons.push(...resolved.external.map((e) => `${e} (outside the company)`));
+  // ponytail: a channel's audience isn't known up front, so any channel counts
+  // as out of scope; upgrade: map conversations.members to users by email.
+  reasons.push(...targets.filter((t) => t.kind === "slack_channel").map((t) => `the #${t.label ?? t.ref} Slack channel`));
   return [...new Set(reasons)];
 }
 
@@ -362,7 +394,16 @@ export async function reminderAccess(
     tx
       .select({ id: deliveries.id })
       .from(deliveries)
-      .where(and(eq(deliveries.reminderId, r.id), eq(deliveries.email, viewer.email.toLowerCase())))
+      .where(
+        and(
+          eq(deliveries.reminderId, r.id),
+          // Slack DMs carry user_id; email deliveries may be to a typed address.
+          or(
+            eq(deliveries.userId, viewer.id),
+            and(eq(deliveries.channel, "email"), eq(deliveries.address, viewer.email.toLowerCase())),
+          ),
+        ),
+      )
       .limit(1),
   );
   return got ? "recipient" : null;
@@ -410,7 +451,9 @@ export async function getReminder(companyId: string, id: string) {
           ? `${deptNames.find((d) => d.id === t.ref)?.name ?? "Deleted department"} (department)`
           : t.kind === "user"
             ? (userNames.find((u) => u.id === t.ref)?.name ?? "Removed person")
-            : t.ref!;
+            : t.kind === "slack_channel"
+              ? `#${t.label ?? t.ref} (Slack)`
+              : t.ref!;
 
     // Why it needs approval, recomputed with the creator's own access.
     let outOfScopeList: string[] = [];
@@ -501,15 +544,18 @@ export async function deliveryLog(companyId: string, reminderId: string) {
       ? await tx
           .select({
             id: deliveries.id,
-            email: deliveries.email,
+            channel: deliveries.channel,
+            address: deliveries.address,
+            userName: user.name,
             status: deliveries.status,
             sentAt: deliveries.sentAt,
             lastError: deliveries.lastError,
             attempts: deliveries.attempts,
           })
           .from(deliveries)
+          .leftJoin(user, eq(user.id, deliveries.userId))
           .where(eq(deliveries.occurrenceId, latest.id))
-          .orderBy(deliveries.email)
+          .orderBy(deliveries.channel, deliveries.address)
       : [];
     return { latest: latest ?? null, rows, history };
   });

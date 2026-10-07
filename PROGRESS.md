@@ -2,6 +2,57 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — Slack phase A: connect a workspace, send to channels and DMs
+
+- **Built against a fake Slack, by the user's choice** (no Slack app yet).
+  `scripts/fake-slack.ts` implements the OAuth authorize page and the
+  methods we call, with a "noslack" directory rule and `/_messages`. Unit
+  tests inject an in-process fake fetch. **Shipped unverified against real
+  Slack;** the setup steps are in DEPLOYMENT.md.
+- **What's in place:**
+  - Integrations page: Add to Slack, Disconnect, fallback channel;
+  - reminder form: Channels (Email / Slack) and Slack channel picks;
+  - PRD 5.3 rules: at least one channel, email needs email recipients,
+    Slack needs a channel or people, and the whole company on Slack must
+    pick a channel;
+  - the worker sends Slack DMs (users looked up by email at send time) and
+    channel posts; no Slack account → fallback channel with a note, or
+    failed if there's no fallback;
+  - the delivery table has a Channel column.
+- **Data model changes, and why:**
+  - deliveries are now unique per (occurrence, channel, address), since one
+    person can get email and Slack for the same occurrence;
+  - so task completion moved to `task_assignments` (one row per occurrence
+    and person), backfilled; all task tests pass unchanged in meaning;
+  - `deliveries.email` → `address` was done in its own migration, because
+    drizzle-kit asks interactively on renames and would otherwise risk a
+    drop + add. The prompt was answered with `expect`, and the generated SQL
+    is a true `RENAME COLUMN`.
+- **Security:**
+  - the token is AES-256-GCM encrypted (`ENCRYPTION_KEY`; processes refuse
+    to start without it, which is tested);
+  - the OAuth state is a random value in an httpOnly cookie bound to company
+    and user, checked on return;
+  - a forged callback is refused; one workspace can't be claimed by two
+    companies (`team_id` unique).
+- **Scope:** for non-approvers any Slack channel counts as out of scope,
+  because the channel's audience isn't known. Marked `ponytail:`, with the
+  member-based upgrade path.
+- **Verified against `next start` + `pnpm worker` + fake Slack + Mailpit:**
+  - members get 404 on integrations and install;
+  - Add to Slack completes and the stored token is encrypted;
+  - the fallback channel saves;
+  - an Ops reminder on email + Slack + `#ops` → pending (the channel) →
+    approved → 3 emails, 2 DMs, 1 `#ops` post, and carol (no Slack) in
+    `#random` with a note; `<` and `&` escaped;
+  - the whole company on Slack without a channel → refused;
+  - a second company can't connect the same workspace;
+  - Disconnect removes the connection and the Slack option.
+
+  54 tests pass.
+- **Note:** the E2E run stopped the background worker. Run `pnpm worker`
+  (and `pnpm fake-slack` for Slack in dev).
+
 ## 2026-10-07 — desktop-first layout (sidebar, tables)
 
 - **What went wrong:** earlier the user wrote "your design is for website

@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import { db, withTenant } from "./index";
-import { departments, reminders, roles, user } from "./schema";
+import { departments, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
 import { ALL_PERMISSIONS, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "@/lib/permissions";
 
 // Seeds as the owner (bypasses RLS), then reads through the app role.
@@ -13,7 +13,7 @@ const a = randomUUID();
 const b = randomUUID();
 
 after(async () => {
-  for (const table of ["reminders", "department_members", "user_roles", "roles", "departments"]) {
+  for (const table of ["slack_installations", "reminders", "department_members", "user_roles", "roles", "departments"]) {
     await owner.query(`delete from ${table} where company_id = any($1)`, [[a, b]]);
   }
   await owner.query(`delete from "user" where company_id = any($1)`, [[a, b]]);
@@ -67,6 +67,20 @@ test("reminders are tenant-isolated", async () => {
         timeZone: "UTC",
         anchorLocal: "2026-01-01T00:00",
       }),
+    ),
+  );
+});
+
+test("slack installations and task assignments are tenant-isolated", async () => {
+  await owner.query(
+    "insert into slack_installations (company_id, team_id, team_name, bot_token_enc, bot_user_id) values ($1, $2, 'B ws', 'x', 'U')",
+    [b, `T-${b}`],
+  );
+  assert.equal((await withTenant(a, (tx) => tx.select().from(slackInstallations))).length, 0);
+  assert.equal((await withTenant(a, (tx) => tx.select().from(taskAssignments))).length, 0);
+  await assert.rejects(
+    withTenant(a, (tx) =>
+      tx.insert(slackInstallations).values({ companyId: b, teamId: "T-other", teamName: "x", botTokenEnc: "x", botUserId: "U" }),
     ),
   );
 });
