@@ -60,8 +60,8 @@ export function SelectField({
   );
 }
 
-export function Button(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button className={styles.button} {...props} />;
+export function Button({ variant, ...props }: { variant?: "danger" } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button className={variant === "danger" ? `${styles.button} ${styles.danger}` : styles.button} {...props} />;
 }
 
 export function Hint({ children }: { children: React.ReactNode }) {

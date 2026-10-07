@@ -2,6 +2,43 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — roles and permissions
+
+- **What's in place:**
+  - the permission catalogue in code;
+  - `roles` (system roles have `company_id` NULL), `user_roles`, and
+    `department_members.is_manager`;
+  - `can()` / `loadAccess()` / `requireMember()`;
+  - the onboarding creator becomes Company Admin; migration 0004 backfilled
+    existing companies;
+  - `/settings/roles` to create, edit and delete custom roles.
+- **Company Admin is "everything" in code, not in its row.** We rejected storing
+  the full list, because every new permission would then need a data migration,
+  and forgetting one would silently lock admins out of a feature.
+- **Manager permissions are a fixed list in code**, applied per managed
+  department. We rejected a configurable department-scoped role: no customer
+  has asked, and it doubles the `can()` logic. Marked `ponytail:`.
+- **System roles are protected by RLS plus explicit checks.** The tenant WITH
+  CHECK can't match NULL, so the app role can't edit, delete or create them
+  (tested). The actions also scope writes by `company_id`. Both layers are kept
+  deliberately.
+- **Delete confirmation is a required checkbox**, not a JS `confirm()`, so the
+  page stays free of client JS.
+- **Verified against `next start` with curl:**
+  - an admin sees the Roles link, the list, a read-only built-in role and the
+    new-role form;
+  - a malformed or unknown id gets 404;
+  - after a downgrade to Member, the link is gone and every roles URL is 404;
+  - signed out redirects to sign-in;
+  - calling the create action directly: an admin creates a role, while a
+    duplicate name, a built-in name and an unknown permission are each refused;
+  - **as a Member, the direct action call gets 404 and writes nothing.**
+
+  **Not checked:** the edit and delete actions by direct POST (covered by the
+  same `requireRoleManager()` path, plus RLS), and the pages in a browser.
+- **Not built yet:** assigning roles to users, picking managers, and last-admin
+  protection. All of these wait for user management and invites.
+
 ## 2026-10-07 — tailwind replaced with css modules
 
 - **Why:** with Tailwind, an element in devtools is a wall of utility classes,

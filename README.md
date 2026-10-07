@@ -14,6 +14,9 @@ One package, two processes, one Postgres:
 | `src/db/schema.ts` | Drizzle schema, including RLS policies. |
 | `src/db/index.ts` | `db` client (role `notifyhub_app`) and `withTenant()`. |
 | `src/lib/auth.ts` | Better Auth config and `authDb` (role `notifyhub_auth`). |
+| `src/lib/permissions.ts` | Permission catalogue, system role ids, `can()`, `loadAccess()`. |
+| `src/lib/session.ts` | `requireMember()`: session + company + permissions, or redirect. |
+| `src/app/settings/roles/` | Custom role management (`roles.manage`). |
 | `src/lib/mail.ts` | `sendMail()`: one recipient per message, over SMTP (Mailpit in dev, SES in prod). |
 | `src/lib/onboarding.ts` | Creates a company and attaches the signed-in user, in one transaction. |
 | `src/app/form.tsx` + `form.module.css` | Shared form components (FormPage, Field, Button, …). |
@@ -51,6 +54,21 @@ pnpm worker      # scheduler
   Pointing `DATABASE_URL` at the owner, a superuser or `notifyhub_auth` silently
   disables tenant isolation, and every query still "works". None of these roles
   use `BYPASSRLS`, which managed Postgres often refuses to grant.
+- **Permissions are checked on the server, in every page and server action:**
+  `requireMember()` then `can(access, "<permission>", departmentId?)`. Hiding a
+  link is cosmetic. Server actions are public POST endpoints that anyone can
+  call directly (tested: a Member calling the create-role action gets 404).
+- **The permission catalogue is code** (`PERMISSION_GROUPS`), not a table.
+  Roles store permission keys as `text[]`, and unknown keys are ignored on load.
+- **Company Admin means "every permission", decided in `loadAccess()`.** Its row
+  stores `'{}'`. Don't fill it in: a new catalogue key would then need a data
+  migration, or admins would silently lack it.
+- **System roles (`company_id IS NULL`) are readable by every company and
+  writable by none.** The tenant policy's WITH CHECK can't match NULL. Their ids
+  are fixed in code and in migration 0004.
+- **Manager permissions are fixed in code** (`MANAGER_PERMISSIONS`) and apply
+  only when `can()` is given a department the user manages
+  (`department_members.is_manager`).
 - **`authDb` must not be imported outside `src/lib`.** It sees every company's users.
 - **`user.company_id` is set only server-side.** It's a Better Auth
   `additionalField` with `input: false`. Better Auth rejects it from

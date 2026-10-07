@@ -33,6 +33,9 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0004 seeds the two system roles (Company Admin, Member) with fixed
+ids, and makes the earliest user of each existing company its Company Admin.
+
 ## Outside the repo
 
 - **AWS SES** (in the region used by `SMTP_URL`):
@@ -55,8 +58,8 @@ passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same
 - A failed verification email is only logged. The user gets a new link by signing in again.
 - Rate limiting is Better Auth's built-in in-memory limiter: per instance,
   reset on restart. The PRD wants a shared store that fails closed.
-- No roles yet. The user who onboards a company isn't marked admin anywhere.
-  When RBAC lands, backfill the earliest user per company as admin.
+- No UI to assign roles to users or pick department managers yet (that comes with invites).
+- No protection against removing the last Company Admin. It's needed once role assignment exists.
 
 ## Verification checklist
 

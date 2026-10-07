@@ -1,0 +1,29 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.newRole {
+  font-weight: 500;
+}

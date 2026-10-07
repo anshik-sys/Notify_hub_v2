@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { authDb } from "./auth";
-import { companies, user } from "@/db/schema";
+import { companies, user, userRoles } from "@/db/schema";
+import { COMPANY_ADMIN_ROLE_ID } from "./permissions";
 
 // ponytail: short list, swap for a maintained free-mail list when self-signup opens publicly
 const FREE_MAIL = new Set(["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com", "yahoo.com", "icloud.com", "proton.me", "protonmail.com"]);
@@ -14,7 +15,7 @@ export function isTimeZone(tz: string) {
   }
 }
 
-// Creates the company and attaches the signed-in user to it, atomically.
+// Creates the company and attaches the signed-in user to it as Company Admin, atomically.
 // Returns an error message, or null on success.
 export async function createCompany(
   me: { id: string; email: string; emailVerified: boolean },
@@ -40,6 +41,7 @@ export async function createCompany(
         .where(and(eq(user.id, me.id), isNull(user.companyId)))
         .returning({ id: user.id });
       if (updated.length === 0) throw new Error("already onboarded");
+      await tx.insert(userRoles).values({ companyId: company.id, userId: me.id, roleId: COMPANY_ADMIN_ROLE_ID });
     });
   } catch (e) {
     const code = (e as { cause?: { code?: string } }).cause?.code;

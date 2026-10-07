@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, pgPolicy, pgRole, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 
 // Tenant isolation: every tenant table carries company_id and a policy that
 // only matches rows of the company set by withTenant(). Unset => no rows.
@@ -127,3 +127,58 @@ export const verification = pgTable(
   },
   (t) => [index().on(t.identifier)],
 );
+
+// --- Roles and permissions (PRD 2.1). The permission catalogue is code:
+// src/lib/permissions.ts.
+
+// company_id NULL = system role: readable by every company, writable by none
+// through the app role (the tenant policy's WITH CHECK never matches NULL).
+export const roles = pgTable(
+  "roles",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    companyId: uuid().references(() => companies.id),
+    name: text().notNull(),
+    permissions: text().array().notNull(),
+    createdAt: ts().notNull().defaultNow(),
+  },
+  (t) => [
+    unique().on(t.companyId, t.name),
+    tenantPolicy("company_id"),
+    pgPolicy("system_roles_readable", { for: "select", to: "public", using: sql`company_id is null` }),
+  ],
+).enableRLS();
+
+export const userRoles = pgTable(
+  "user_roles",
+  {
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    roleId: uuid()
+      .notNull()
+      .references(() => roles.id, { onDelete: "cascade" }),
+  },
+  // authPolicy: onboarding makes the company's creator admin in its transaction.
+  (t) => [primaryKey({ columns: [t.userId, t.roleId] }), tenantPolicy("company_id"), authPolicy],
+).enableRLS();
+
+export const departmentMembers = pgTable(
+  "department_members",
+  {
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    departmentId: uuid()
+      .notNull()
+      .references(() => departments.id, { onDelete: "cascade" }),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    isManager: boolean().notNull().default(false),
+  },
+  (t) => [primaryKey({ columns: [t.departmentId, t.userId] }), index().on(t.userId), tenantPolicy("company_id")],
+).enableRLS();
