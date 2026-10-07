@@ -1,0 +1,11 @@
+.tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.note {
+  margin: -8px 0 14px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}

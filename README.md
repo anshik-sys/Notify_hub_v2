@@ -320,3 +320,19 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   which runs alongside the page, so marking read inside the reminder page
   would leave the count stale for that load. The list uses a plain `<a>` (no
   prefetch), so only a real click marks it read.
+- **One visibility rule for every list** (PRD 8): `visibleWhere`
+  (`src/lib/views.ts`) is the SQL form of `canSeeReminder`: your own, all for
+  `view_all`/`approve`, plus reminders by people in a department you manage.
+  The list, dashboard stats, upcoming and the calendar all use it, so anything
+  you can open you can also find. Change both together.
+- **List filters live in the URL** (a GET form, no client JS): every view is
+  deep-linkable and the back button works. `parseFilters` drops anything
+  unknown instead of erroring. Search is `ilike` with `%`/`_` escaped, and
+  paging is offset-based, which is fine to a few thousand reminders per
+  company; beyond that, use `pg_trgm` and keyset paging.
+- **The dashboard's numbers match the lists they link to.** Each card's link
+  is the filter for exactly what it counts (same SQL conditions). Change them
+  in pairs.
+- **The calendar expands series from their rule** (`between()`), from the next
+  occurrence, minus recorded (skipped) ones, up to 500 scheduled reminders
+  per request.

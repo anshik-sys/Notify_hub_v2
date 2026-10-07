@@ -1,0 +1,51 @@
+.bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 20px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+/* The search box takes a whole row's start. */
+.bar > :first-child {
+  grid-column: span 2;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.apply {
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.clear {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.pager {
+  display: flex;
+  gap: 16px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.pager a {
+  color: var(--fg);
+}

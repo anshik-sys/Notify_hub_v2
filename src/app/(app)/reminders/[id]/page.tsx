@@ -71,6 +71,11 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
       <p className={styles.status}>
         <span className={styles.badge}>{statusLabel(r)}</span>
         <span>{r.shortId}</span>
+        {r.tags.map((t) => (
+          <Link key={t} href={`/reminders?tag=${encodeURIComponent(t)}`} className={styles.tag}>
+            {t}
+          </Link>
+        ))}
       </p>
 
       {isDelayed(r) && (

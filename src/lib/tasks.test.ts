@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { db } from "@/db";
-import { myOpenTasks, myTaskStatus, setDone, taskProgress } from "./tasks";
+import { myDoneTasks, myOpenTasks, myTaskStatus, setDone, taskProgress } from "./tasks";
 import { seeder } from "./test-helpers";
 
 const s = seeder();
@@ -77,4 +77,11 @@ test("the creator hears once when everyone is done", async () => {
   await setDone(bob, s.companyId, dB, false);
   await setDone(bob, s.companyId, dB, true);
   assert.equal(await done(), 1); // undo and redo: still once
+});
+
+test("my done tasks, newest first; only mine", async () => {
+  const done = await myDoneTasks(s.companyId, bob);
+  assert.deepEqual(done.map((d) => d.assignmentId), [dB]);
+  assert.ok(!(await myOpenTasks(s.companyId, bob)).some((t) => t.assignmentId === dB));
+  assert.ok((await myDoneTasks(s.companyId, alice)).every((d) => d.assignmentId === dA));
 });

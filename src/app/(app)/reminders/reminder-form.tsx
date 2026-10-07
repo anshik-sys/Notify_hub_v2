@@ -25,6 +25,7 @@ export type ReminderDefaults = {
   dueLocal: string;
   channels: string[];
   slackChannelIds: string[];
+  tags: string;
 };
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -148,6 +149,7 @@ export function ReminderForm({
 
       <Field label="Title" name="title" maxLength={200} required defaultValue={defaults.title} />
       <TextArea label="Description (optional)" name="description" maxLength={5000} defaultValue={defaults.description} />
+      <Field label="Tags (optional, comma separated)" name="tags" maxLength={400} placeholder="payroll, q3" defaultValue={defaults.tags} />
 
       <Section title="Links">
         <LinkRow index={0} link={defaults.links[0]} />

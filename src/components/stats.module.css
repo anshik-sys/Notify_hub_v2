@@ -1,0 +1,42 @@
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 0 0 28px;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.card:hover {
+  background: var(--surface);
+}
+
+.value {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.danger {
+  border-color: var(--danger-fg);
+}
+
+.danger .value {
+  color: var(--danger-fg);
+}

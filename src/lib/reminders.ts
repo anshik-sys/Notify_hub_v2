@@ -25,6 +25,7 @@ export type ReminderInput = {
   isTask: boolean;
   dueAfterMinutes: number | null;
   channels: ("email" | "slack")[];
+  tags: string[];
   targets: Target[];
 };
 type Actor = { id: string; access: Access };
@@ -52,6 +53,7 @@ export type RawReminder = {
   dueLocal: string;
   channels: string[]; // "email" | "slack"
   slackChannelIds: string[];
+  tags: string; // comma separated
 };
 
 // slack: the company's public channels when Slack is connected, else null.
@@ -144,8 +146,11 @@ export function validateInput(
     if (dueAfterMinutes < 1) return { error: "The due time must be after it's sent." };
     if (dueAfterMinutes > 365 * 24 * 60) return { error: "The due time must be within a year of sending." };
   }
+  const tags = parseTags(raw.tags);
+  if ("error" in tags) return tags;
   return {
     input: {
+      tags: tags.tags,
       title,
       description,
       links,
@@ -160,6 +165,17 @@ export function validateInput(
       targets,
     } satisfies ReminderInput,
   };
+}
+
+const TAG = /^[a-z0-9][a-z0-9 _-]{0,29}$/;
+
+// Lowercased and de-duplicated; at most 10 of 1–30 characters.
+export function parseTags(raw: string): { tags: string[] } | { error: string } {
+  const tags = [...new Set(raw.split(",").map((t) => t.trim().toLowerCase().replace(/\s+/g, " ")).filter(Boolean))];
+  const bad = tags.find((t) => !TAG.test(t));
+  if (bad) return { error: `"${bad}" isn't a valid tag: use letters, numbers, spaces, - or _, up to 30 characters.` };
+  if (tags.length > 10) return { error: "At most 10 tags." };
+  return { tags };
 }
 
 // --- Recipients and scope ---------------------------------------------------
@@ -538,28 +554,6 @@ export async function getReminder(companyId: string, id: string) {
     }
     return { ...r.reminder, creatorName: r.creatorName, creatorEmail: r.creatorEmail, targets, targetLabels: targets.map(label), outOfScope: outOfScopeList };
   });
-}
-
-export function listReminders(companyId: string, viewer: Actor) {
-  return withTenant(companyId, (tx) =>
-    tx
-      .select({
-        id: reminders.id,
-        shortId: reminders.shortId,
-        title: reminders.title,
-        status: reminders.status,
-        sendAt: reminders.sendAt,
-        updatedAt: reminders.updatedAt,
-        recurrence: reminders.recurrence,
-        anchorLocal: reminders.anchorLocal,
-        timeZone: reminders.timeZone,
-        isTask: reminders.isTask,
-      })
-      .from(reminders)
-      .where(can(viewer.access, "reminders.view_all") ? undefined : eq(reminders.createdBy, viewer.id))
-      .orderBy(desc(reminders.sendAt))
-      .limit(100),
-  );
 }
 
 export function listPendingApprovals(companyId: string) {

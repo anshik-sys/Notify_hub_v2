@@ -2,6 +2,55 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — dashboard, All reminders, My tasks, calendar, tags (PRD 8, phase A)
+
+- **Scope, decided with the user:** the views first, with tags (PRD 5.1)
+  because search and filters need them. Next come Team plus groups, then
+  Settings (profile, 2FA, sessions), which PRD 8 also lists but which need
+  features that don't exist yet.
+- **What's in place:**
+  - **Home is a dashboard:** stat cards (needs approval, active, due in 7
+    days, completed, failed in the last 30 days), approvals waiting, my open
+    tasks, upcoming, and recent activity (my notifications). Departments,
+    roles, appearance and sign out stay below until the Profile step.
+  - **Reminders:**
+    - search across title, description, ID, tags and recipients (people,
+      departments, emails, channels);
+    - filters: status, channel, repeat, type, creator, tag, date range;
+    - sort, and pages of 25.
+  - **My tasks:** Open and Done tabs, Mark done / Undo in place.
+  - **Calendar:** a month grid in the company time zone; series expanded,
+    skipped days left out; more than 3 on a day expands in place.
+  - **Tags** on the form (comma separated, lowercased, ≤10, 1–30
+    characters), shown as chips that link to the filtered list.
+- **Fixed on the way:** the list only showed your own reminders unless you
+  had `view_all`, while the detail page also let approvers and managers in.
+  Now one rule (`visibleWhere`, matching `canSeeReminder`) drives every list.
+- **Filters are a GET form**, so every view is a URL (deep links, the back
+  button), with no client JS. Junk parameters are ignored, not errors.
+- **Each stat card links to the exact filter it counts.** In E2E, all five
+  cards matched their lists, for a member and for an admin.
+- **Verified against `next start` + worker:**
+  - visibility: alice 6, carol (her manager) 6, bob 1 (his own), admin 34;
+  - tags via the form were saved lowercased and de-duplicated ("Finance, Q3
+    ,finance" → finance, q3), chips link to `?tag=`, the edit form is
+    pre-filled, `<b>` is refused;
+  - searching "bob" found a reminder sent to bob;
+  - paging: 27 results → page 1 of 2, page 2 keeps the filters;
+  - My tasks: done → back on /tasks, it's in Done; undo → open again;
+    `next=//evil.test` → redirected to / (safeNext);
+  - calendar: 22 daily-standup entries this month, as expected (one skipped
+    day missing), 30 next month; bob's private reminder not shown to alice;
+    a bad month → 404.
+
+  93 tests pass (new: `views.test.ts`; tag, task and dashboard cases).
+- **Script lessons:**
+  - a shell function run in `$( )` can't advance a counter (use random ids);
+  - React puts `<!-- -->` between text parts, so strip it before grepping;
+  - `curl -F "x=<b>"` reads a file (use `--form-string`).
+- **Not in this step:** groups and the Team page, profile, 2FA and
+  sessions, a week view, saved filters, full-text ranking.
+
 ## 2026-10-07 — notification centre and preferences (PRD 7.5)
 
 - **What's in place:**

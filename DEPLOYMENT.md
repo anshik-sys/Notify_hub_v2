@@ -38,6 +38,8 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0020: `reminders.tags` (text[], GIN index). Existing reminders get no tags.
+
 Migration 0019: `notifications` + `notification_mutes`. No backfill: the
 notification centre starts empty and fills from new events.
 
@@ -177,6 +179,9 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Send now on a daily reminder: recipients get it within seconds and "Next" doesn't move; on a one-time reminder for next week, it's sent now and shows Sent.
 - [ ] Send a reminder to a colleague: their sidebar shows "Notifications 1"; clicking it in Notifications opens the reminder and the count goes away. "Mark all read" clears the rest.
 - [ ] Notifications → Preferences: untick approval emails; a new out-of-scope reminder shows up in Notifications but sends no approval email.
+- [ ] Home: each stat card's number matches the list it opens. Reminders: search by a recipient's name finds it; filters and page 2 survive a reload and the back button.
+- [ ] Tags: add "Finance, Q3" to a reminder → shown as chips; clicking one lists reminders with that tag.
+- [ ] My tasks: Mark done moves it to Done and stays on the page; Calendar shows a daily reminder on each remaining day, not on a skipped one.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

@@ -18,6 +18,7 @@ import {
   type Target,
   updateReminder,
   validateInput,
+  parseTags,
 } from "./reminders";
 import { checkFile } from "./attachments";
 import { resolveRecipients } from "./recipients";
@@ -47,6 +48,7 @@ const raw = (over: Partial<RawReminder> = {}): RawReminder => ({
   dueLocal: "",
   channels: ["email"],
   slackChannelIds: [],
+  tags: "",
   ...over,
 });
 const oneTime = {
@@ -56,6 +58,7 @@ const oneTime = {
   isTask: false,
   dueAfterMinutes: null,
   channels: ["email" as const],
+  tags: [] as string[],
 };
 // An hour ahead: a worker running on this machine must not send test reminders
 // mid-test (it would, within a second, for anything due now).
@@ -431,4 +434,13 @@ test("notifications: approvers in-app (email unless muted); the creator hears th
   assert.deepEqual(await kinds(alice), ["decided"]);
   assert.match((await q("select text from notifications where reminder_id = $1 and user_id = $2", [r.id, alice]))[0].text, /Rejected: No/);
   await setMutes(s.companyId, admin, []);
+});
+
+test("tags: lowercased, de-duplicated, validated", () => {
+  assert.deepEqual(parseTags(" Payroll, q3 ,payroll,,  Big   Push "), { tags: ["payroll", "q3", "big push"] });
+  assert.match((parseTags("ok, <script>") as { error: string }).error, /isn't a valid tag/);
+  assert.match((parseTags("x".repeat(31)) as { error: string }).error, /isn't a valid tag/);
+  assert.match((parseTags(Array.from({ length: 11 }, (_, i) => `t${i}`).join(",")) as { error: string }).error, /At most 10/);
+  const v = validateInput(raw({ userIds: [alice], tags: "A, b" }), "UTC", "S");
+  assert.deepEqual("input" in v && v.input?.tags, ["a", "b"]);
 });

@@ -13,9 +13,12 @@ export function ListRow({
   title,
   meta,
   badge,
+  plain,
   children,
 }: {
   href?: string;
+  /** A full page load with no prefetch, for links that change something when opened. */
+  plain?: boolean;
   title: React.ReactNode;
   meta?: React.ReactNode;
   badge?: string;
@@ -33,12 +36,21 @@ export function ListRow({
   if (href)
     return (
       <li className={styles.item}>
-        <Link href={href} className={`${styles.row} ${styles.link}`}>
-          {text}
-          <span aria-hidden="true" className={styles.chevron}>
-            ›
-          </span>
-        </Link>
+        {plain ? (
+          <a href={href} className={`${styles.row} ${styles.link}`}>
+            {text}
+            <span aria-hidden="true" className={styles.chevron}>
+              ›
+            </span>
+          </a>
+        ) : (
+          <Link href={href} className={`${styles.row} ${styles.link}`}>
+            {text}
+            <span aria-hidden="true" className={styles.chevron}>
+              ›
+            </span>
+          </Link>
+        )}
       </li>
     );
   return (

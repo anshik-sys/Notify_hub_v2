@@ -257,6 +257,8 @@ export const reminders = pgTable(
     // Delivery channels (PRD 5.3): email and/or slack.
     channels: text().array().$type<("email" | "slack")[]>().notNull().default(sql`'{email}'`),
     dueAfterMinutes: integer(),
+    // Free-form labels for filtering (PRD 5.1): lowercase, validated in validateInput.
+    tags: text().array().notNull().default(sql`'{}'`),
     status: text().$type<ReminderStatus>().notNull(),
     decidedBy: text().references(() => user.id),
     decidedAt: ts(),
@@ -270,6 +272,7 @@ export const reminders = pgTable(
   (t) => [
     index().on(t.status, t.sendAt),
     index("reminders_send_now_idx").on(t.sendNowAt).where(sql`${t.sendNowAt} is not null`),
+    index("reminders_tags_idx").using("gin", t.tags),
     check("reminders_task_due", sql`not ${t.isTask} or ${t.dueAfterMinutes} > 0`),
     check("reminders_channels_valid", sql`cardinality(${t.channels}) > 0 and ${t.channels} <@ array['email','slack']`),
     check("reminders_status_valid", sql`${t.status} in ('pending_approval','rejected','scheduled','paused','sending','sent','cancelled')`),

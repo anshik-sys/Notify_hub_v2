@@ -1,7 +1,7 @@
 "use server";
 
 import { notFound, redirect } from "next/navigation";
-import { errorUrl } from "@/components/form";
+import { errorUrl, safeNext } from "@/components/form";
 import { type CheckedFile, checkFile, MAX_FILES_PER_SAVE } from "@/lib/attachments";
 import { can } from "@/lib/permissions";
 import {
@@ -48,6 +48,7 @@ export async function saveReminder(fd: FormData) {
       sendAtLocal: str(fd, "sendAt"),
       channels: all(fd, "channels"),
       slackChannelIds: all(fd, "slackChannels"),
+      tags: str(fd, "tags"),
       isTask: fd.get("isTask") === "on",
       dueLocal: str(fd, "due"),
       repeat: {
@@ -130,7 +131,9 @@ export async function markTaskAction(fd: FormData) {
   const [id, assignmentId] = [str(fd, "id"), str(fd, "assignmentId")];
   if (!isUuid(id) || !isUuid(assignmentId)) notFound();
   const error = await setDone(user.id, companyId, assignmentId, fd.get("done") === "true");
-  redirect(error ? errorUrl(`/reminders/${id}`, error) : `/reminders/${id}`);
+  // From the My tasks page, go back there.
+  const back = fd.get("next") ? safeNext(fd.get("next")) : `/reminders/${id}`;
+  redirect(error ? errorUrl(back, error) : back);
 }
 
 export async function sendNowAction(fd: FormData) {

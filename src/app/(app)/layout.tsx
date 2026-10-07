@@ -26,10 +26,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <NavLink href="/notifications" icon="notifications" count={unread}>
             Notifications
           </NavLink>
+          <NavLink href="/tasks" icon="tasks">
+            Tasks
+          </NavLink>
           {(can(access, "reminders.create") || can(access, "reminders.view_all")) && (
-            <NavLink href="/reminders" icon="reminders">
-              Reminders
-            </NavLink>
+            <>
+              <NavLink href="/reminders" icon="reminders">
+                Reminders
+              </NavLink>
+              <NavLink href="/calendar" icon="calendar">
+                Calendar
+              </NavLink>
+            </>
           )}
           {can(access, "reminders.approve") && (
             <NavLink href="/approvals" icon="approvals">

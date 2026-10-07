@@ -70,10 +70,16 @@ export async function taskProgress(companyId: string, occurrenceId: string) {
   return { rows, done: rows.filter((r) => r.doneAt).length, total: rows.length };
 }
 
-export function myOpenTasks(companyId: string, userId: string) {
+export function myOpenTasks(companyId: string, userId: string, limit = 20) {
   return withTenant(companyId, (tx) =>
     tx
-      .select({ reminderId: reminders.id, title: reminders.title, timeZone: reminders.timeZone, dueAt: reminderOccurrences.dueAt })
+      .select({
+        assignmentId: taskAssignments.id,
+        reminderId: reminders.id,
+        title: reminders.title,
+        timeZone: reminders.timeZone,
+        dueAt: reminderOccurrences.dueAt,
+      })
       .from(taskAssignments)
       .innerJoin(reminders, eq(reminders.id, taskAssignments.reminderId))
       .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, taskAssignments.occurrenceId))
@@ -86,7 +92,28 @@ export function myOpenTasks(companyId: string, userId: string) {
         ),
       )
       .orderBy(reminderOccurrences.dueAt)
-      .limit(20),
+      .limit(limit),
+  );
+}
+
+// The ones I've finished, most recent first (the My tasks "Done" tab).
+export function myDoneTasks(companyId: string, userId: string, limit = 50) {
+  return withTenant(companyId, (tx) =>
+    tx
+      .select({
+        assignmentId: taskAssignments.id,
+        reminderId: reminders.id,
+        title: reminders.title,
+        timeZone: reminders.timeZone,
+        dueAt: reminderOccurrences.dueAt,
+        doneAt: taskAssignments.doneAt,
+      })
+      .from(taskAssignments)
+      .innerJoin(reminders, eq(reminders.id, taskAssignments.reminderId))
+      .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, taskAssignments.occurrenceId))
+      .where(and(eq(taskAssignments.userId, userId), isNotNull(taskAssignments.doneAt)))
+      .orderBy(desc(taskAssignments.doneAt))
+      .limit(limit),
   );
 }
 

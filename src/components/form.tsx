@@ -190,7 +190,7 @@ export function Hint({ children }: { children: React.ReactNode }) {
   return <p className={styles.hint}>{children}</p>;
 }
 
-export const errorUrl = (path: string, message: string) => `${path}?error=${encodeURIComponent(message)}`;
+export const errorUrl = (path: string, message: string) => `${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`;
 
 // Only same-origin paths: "/x" yes, "//evil.com" and "https://…" no.
 export const safeNext = (v: unknown) => (typeof v === "string" && /^\/(?![/\\])/.test(v) ? v : "/");

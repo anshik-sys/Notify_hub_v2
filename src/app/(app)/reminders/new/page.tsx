@@ -31,6 +31,7 @@ export default async function NewReminder(props: PageProps<"/reminders/new">) {
           emails: "",
           when: "now",
           sendAtLocal: "",
+          tags: "",
           repeat: fieldsFromRule(null, ""),
           isTask: false,
           dueLocal: "",

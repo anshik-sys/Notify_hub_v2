@@ -52,6 +52,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           // approval) reopens as "Now"; a past "later" time would fail validation.
           when: isPast(r.sendAt) ? "now" : "later",
           sendAtLocal: isPast(r.sendAt) ? "" : toLocalInput(r.sendAt, r.timeZone),
+          tags: r.tags.join(", "),
           repeat: fieldsFromRule(r.recurrence, r.anchorLocal),
           isTask: r.isTask,
           channels: r.channels,
