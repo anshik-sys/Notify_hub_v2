@@ -47,14 +47,20 @@ export function SelectField({
   label,
   options,
   ...props
-}: { label: string; options: string[] } & React.SelectHTMLAttributes<HTMLSelectElement>) {
+}: { label: string; options: (string | { value: string; label: string })[] } & React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <label className={styles.field}>
       {label}
       <select className={styles.input} {...props}>
-        {options.map((o) => (
-          <option key={o}>{o}</option>
-        ))}
+        {options.map((o) =>
+          typeof o === "string" ? (
+            <option key={o}>{o}</option>
+          ) : (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ),
+        )}
       </select>
     </label>
   );

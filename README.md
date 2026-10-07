@@ -19,6 +19,8 @@ One package, two processes, one Postgres:
 | `src/app/settings/roles/` | Custom role management (`roles.manage`). |
 | `src/lib/invitations.ts` | Create, find, accept and revoke invites. |
 | `src/lib/users.ts` | Directory, role assignment, activation, last-admin guard. |
+| `src/lib/departments.ts` | Departments, members, managers. |
+| `src/app/departments/` | Department list and detail pages. |
 | `src/lib/test-helpers.ts` | `seeder()` for DB tests: one throwaway company per test file. |
 | `src/app/users/`, `src/app/invite/[token]` | People pages and the public invite accept page. |
 | `src/lib/mail.ts` | `sendMail()`: one recipient per message, over SMTP (Mailpit in dev, SES in prod). |
@@ -90,6 +92,14 @@ pnpm worker      # scheduler
 - **Escalation rule (`canGrant`):** you can grant, remove, or act on a person
   holding a role only if you hold every permission in it. Only admins make or
   unmake admins.
+- **Department actions are checked two ways on purpose:**
+  - member add/remove calls `can(access, "departments.manage_members", departmentId)`,
+    so a manager passes for the departments they manage and nowhere else;
+  - rename, delete and make-manager call `can()` *without* a department, so only
+    company-wide (admin) permissions count. Passing the department id there
+    would not grant managers anything today (those keys aren't in
+    `MANAGER_PERMISSIONS`), but one added key would silently let managers
+    promote themselves.
 - **Last-admin guard:** role and activation changes lock the company row
   (`FOR UPDATE`) and then require at least one active Company Admin. The lock is
   what stops two admins demoting each other at the same moment.

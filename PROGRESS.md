@@ -2,6 +2,42 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — departments, managers, members (phase B)
+
+- **What's in place:**
+  - `/departments` list and create;
+  - `/departments/[id]` with members, add/remove, make/unmake manager, rename,
+    and delete;
+  - invites can place people in departments;
+  - a person's page lists their departments.
+- **Managers are chosen only by admins.** Make-manager checks
+  `departments.edit` with no department argument, so manager permissions never
+  apply to it. That guards against a future `MANAGER_PERMISSIONS` change letting
+  managers promote themselves.
+- **Invite acceptance adds memberships through `authDb`.** Migration 0006
+  grants it SELECT on departments (scoped by the tenant setting accept already
+  sets) and INSERT on `department_members`. Departments deleted between invite
+  and accept are skipped, and an invitee never joins as a manager.
+- `SelectField` now takes `{ value, label }` options as well as plain strings.
+- **Verified against `next start` + Mailpit with curl:**
+  - the admin creates departments; a duplicate name is refused;
+  - an invite into Ops lands the new user in Ops;
+  - the admin makes them manager of Ops;
+  - **calling the actions directly as that manager:** add/remove in Ops goes
+    through; adding to Sales, making anyone manager, rename, delete and create
+    all get 404;
+  - **as a plain Member:** every action gets 404, and a bad uuid gets 404;
+  - the final DB state matches exactly, and the admin's delete works.
+
+  12 tests pass.
+
+  **Not checked:** the browser layout of the department pages and the
+  department checkboxes on the invite form.
+- **Dead end, script only:** the first E2E run got 500s everywhere because
+  `eval` in the test script expanded `$ACTION_ID_…` field names into empty
+  strings. It wasn't an app bug. Fixed with quoting, plus a 30-second cap on
+  waiting for mail.
+
 ## 2026-10-07 — invites, people list, role assignment, deactivation (phase A)
 
 - **Invites:**

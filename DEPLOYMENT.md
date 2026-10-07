@@ -33,6 +33,9 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0006 adds `invitations.department_ids` and lets `notifyhub_auth`
+read departments and insert memberships (invite acceptance).
+
 Migration 0005 adds `invitations` and `user.deactivated_at`. Invite links are
 built from `BETTER_AUTH_URL`, so it must be the public origin.
 
@@ -61,7 +64,6 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - A failed verification email is only logged. The user gets a new link by signing in again.
 - Rate limiting is Better Auth's built-in in-memory limiter: per instance,
   reset on restart. The PRD wants a shared store that fails closed.
-- No UI to pick department managers yet (phase B).
 - Google sign-in can't be used to accept an invite (password only).
 - Tests need Mailpit running: `createInvitation` sends real mail.
 
@@ -71,6 +73,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Worker logs `tick` once a minute.
 - [ ] Sign up → verification email arrives (check spam and the `From`) → link lands on onboarding → home shows the company name; sign out returns to `/sign-in`.
 - [ ] Invite someone → email arrives → accept link creates the account and lands on the company → the same link again says "already used".
+- [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".
 - [ ] Signing in before verifying shows "Verify your email first" and sends a new link.
 - [ ] Google sign-in round-trips (only if configured).

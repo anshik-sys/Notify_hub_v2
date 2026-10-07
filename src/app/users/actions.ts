@@ -18,7 +18,9 @@ export async function inviteUser(formData: FormData) {
   const { user, companyId, access } = await requirePermission("users.create");
   const email = String(formData.get("email") ?? "");
   const roleIds = formData.getAll("roles").map(String);
-  const error = await createInvitation({ id: user.id, name: user.name, access }, companyId, email, roleIds);
+  const departmentIds = formData.getAll("departments").map(String);
+  if (![...roleIds, ...departmentIds].every(isUuid)) notFound();
+  const error = await createInvitation({ id: user.id, name: user.name, access }, companyId, email, roleIds, departmentIds);
   if (error) redirect(errorUrl("/users/invite", error));
   redirect(`/users?notice=${encodeURIComponent(`Invite sent to ${email.trim().toLowerCase()}.`)}`);
 }
@@ -34,7 +36,9 @@ export async function revokeInvite(formData: FormData) {
 export async function saveUserRoles(formData: FormData) {
   const { user, companyId, access } = await requirePermission("users.manage_roles");
   const userId = String(formData.get("userId"));
-  const error = await setUserRoles({ id: user.id, access }, companyId, userId, formData.getAll("roles").map(String));
+  const roleIds = formData.getAll("roles").map(String);
+  if (!roleIds.every(isUuid)) notFound();
+  const error = await setUserRoles({ id: user.id, access }, companyId, userId, roleIds);
   redirect(error ? errorUrl(`/users/${userId}`, error) : `/users/${userId}?notice=Roles%20saved.`);
 }
 

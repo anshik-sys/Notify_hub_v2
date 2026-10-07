@@ -43,6 +43,13 @@
       "when": 1791353780588,
       "tag": "0005_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791354654683,
+      "tag": "0006_invite_departments",
+      "breakpoints": true
     }
   ]
 }

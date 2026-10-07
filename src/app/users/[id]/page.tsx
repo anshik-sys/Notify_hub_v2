@@ -22,6 +22,18 @@ export default async function UserDetail(props: PageProps<"/users/[id]">) {
         {person.deactivatedAt && " · Deactivated"}
       </Hint>
 
+      <Hint>
+        {person.departments.length === 0
+          ? "Not in any department."
+          : person.departments.map((d, i) => (
+              <span key={d.id}>
+                {i > 0 && ", "}
+                <Link href={`/departments/${d.id}`}>{d.name}</Link>
+                {d.isManager && " (manager)"}
+              </span>
+            ))}
+      </Hint>
+
       {roles.length > 0 && (
         <Form action={saveUserRoles}>
           <input type="hidden" name="userId" value={person.id} />

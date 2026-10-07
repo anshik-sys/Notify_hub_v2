@@ -1,6 +1,6 @@
 import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { invitations, roles, session, user, userRoles } from "@/db/schema";
+import { departmentMembers, departments, invitations, roles, session, user, userRoles } from "@/db/schema";
 import { authDb } from "./auth";
 import { type Access, canGrant, COMPANY_ADMIN_ROLE_ID, MEMBER_ROLE_ID } from "./permissions";
 
@@ -39,7 +39,13 @@ export async function getUser(companyId: string, userId: string) {
       .where(eq(user.id, userId));
     if (!u) return null;
     const held = await tx.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, userId));
-    return { ...u, roleIds: held.map((h) => h.roleId) };
+    const memberOf = await tx
+      .select({ id: departments.id, name: departments.name, isManager: departmentMembers.isManager })
+      .from(departmentMembers)
+      .innerJoin(departments, eq(departments.id, departmentMembers.departmentId))
+      .where(eq(departmentMembers.userId, userId))
+      .orderBy(departments.name);
+    return { ...u, roleIds: held.map((h) => h.roleId), departments: memberOf };
   });
 }
 

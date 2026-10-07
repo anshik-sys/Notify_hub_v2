@@ -182,7 +182,8 @@ export const departmentMembers = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     isManager: boolean().notNull().default(false),
   },
-  (t) => [primaryKey({ columns: [t.departmentId, t.userId] }), index().on(t.userId), tenantPolicy("company_id")],
+  // authPolicy: accepting an invite adds the new user to its departments.
+  (t) => [primaryKey({ columns: [t.departmentId, t.userId] }), index().on(t.userId), tenantPolicy("company_id"), authPolicy],
 ).enableRLS();
 
 // Only the SHA-256 of the emailed token is stored. authPolicy: the accept page
@@ -196,6 +197,7 @@ export const invitations = pgTable(
       .references(() => companies.id),
     email: text().notNull(),
     roleIds: uuid().array().notNull(),
+    departmentIds: uuid().array().notNull().default(sql`'{}'`),
     invitedBy: text()
       .notNull()
       .references(() => user.id),

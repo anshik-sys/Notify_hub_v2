@@ -19,10 +19,10 @@ after(async () => {
   await db.$client.end();
 });
 
-const invite = (token: string, email: string, roleIds: string[], expiresInMs = 3_600_000) =>
+const invite = (token: string, email: string, roleIds: string[], expiresInMs = 3_600_000, departmentIds: string[] = []) =>
   s.owner.query(
-    "insert into invitations (company_id, email, role_ids, invited_by, token_hash, expires_at) values ($1, $2, $3, $4, $5, $6)",
-    [s.companyId, email, roleIds, adminId, hashToken(token), new Date(Date.now() + expiresInMs)],
+    "insert into invitations (company_id, email, role_ids, department_ids, invited_by, token_hash, expires_at) values ($1, $2, $3, $4, $5, $6, $7)",
+    [s.companyId, email, roleIds, departmentIds, adminId, hashToken(token), new Date(Date.now() + expiresInMs)],
   );
 
 test("createInvitation stores a hash, refuses members and escalation", async () => {
@@ -39,6 +39,7 @@ test("createInvitation stores a hash, refuses members and escalation", async () 
   assert.equal((await s.owner.query("select 1 from invitations where company_id = $1", [s.companyId])).rowCount, 1);
 
   assert.match((await createInvitation(admin, s.companyId, "nope", []))!, /valid email/);
+  assert.match((await createInvitation(admin, s.companyId, `d@${s.domain}`, [], ["00000000-0000-4000-8000-0000000000ff"]))!, /Unknown department/);
   const memberEmail = (await s.owner.query(`select email from "user" where id = $1`, [adminId])).rows[0].email;
   assert.match((await createInvitation(admin, s.companyId, memberEmail, []))!, /already a member/);
 
@@ -51,8 +52,12 @@ test("acceptInvitation: single use, expiry, one company per user, roles", async 
   await s.owner.query("delete from invitations where company_id = $1", [s.companyId]);
   await s.owner.query("insert into roles (id, company_id, name, permissions) values (gen_random_uuid(), $1, 'Gone', '{}')", [s.companyId]);
   const gone = (await s.owner.query("select id from roles where company_id = $1", [s.companyId])).rows[0].id;
-  await invite("tok-1", email, [gone]);
-  await s.owner.query("delete from roles where id = $1", [gone]); // deleted after inviting
+  const kept = (await s.owner.query("insert into departments (company_id, name) values ($1, 'Kept') returning id", [s.companyId])).rows[0].id;
+  const dropped = (await s.owner.query("insert into departments (company_id, name) values ($1, 'Dropped') returning id", [s.companyId])).rows[0].id;
+  await invite("tok-1", email, [gone], 3_600_000, [kept, dropped]);
+  // Deleted after inviting: skipped on accept.
+  await s.owner.query("delete from roles where id = $1", [gone]);
+  await s.owner.query("delete from departments where id = $1", [dropped]);
 
   assert.deepEqual(await findInvitation("tok-1"), { email, companyName: "Test Co" });
   assert.equal(await findInvitation("wrong"), null);
@@ -64,6 +69,8 @@ test("acceptInvitation: single use, expiry, one company per user, roles", async 
   assert.deepEqual(rows[0], { company_id: s.companyId, email_verified: true });
   const roles = await s.owner.query("select role_id from user_roles where user_id = $1", [joiner]);
   assert.deepEqual(roles.rows.map((r) => r.role_id), [MEMBER_ROLE_ID]);
+  const memberships = await s.owner.query("select d.name, m.is_manager from department_members m join departments d on d.id = m.department_id where m.user_id = $1", [joiner]);
+  assert.deepEqual(memberships.rows, [{ name: "Kept", is_manager: false }]);
 
   assert.match((await acceptInvitation("tok-1", joiner))!, /already used/);
   assert.equal(await findInvitation("tok-1"), null);

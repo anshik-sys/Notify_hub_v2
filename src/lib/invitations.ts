@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { companies, invitations, roles, user, userRoles } from "@/db/schema";
+import { companies, departmentMembers, departments, invitations, roles, user, userRoles } from "@/db/schema";
 import { authDb } from "./auth";
 import { sendMail } from "./mail";
 import { type Access, canGrant, MEMBER_ROLE_ID } from "./permissions";
@@ -18,6 +18,7 @@ export async function createInvitation(
   companyId: string,
   rawEmail: string,
   roleIds: string[],
+  departmentIds: string[] = [],
 ) {
   const email = rawEmail.trim().toLowerCase();
   if (!EMAIL.test(email)) return "Enter a valid email address.";
@@ -33,6 +34,9 @@ export async function createInvitation(
       if (found.length !== wanted.length) throw new Refused("Unknown role.");
       const forbidden = found.find((r) => !canGrant(actor.access, r));
       if (forbidden) throw new Refused(`You can't grant the ${forbidden.name} role.`);
+      const depts = [...new Set(departmentIds)];
+      const foundDepts = depts.length ? await tx.select({ id: departments.id }).from(departments).where(inArray(departments.id, depts)) : [];
+      if (foundDepts.length !== depts.length) throw new Refused("Unknown department.");
 
       await tx
         .delete(invitations)
@@ -41,6 +45,7 @@ export async function createInvitation(
         companyId,
         email,
         roleIds: wanted,
+        departmentIds: depts,
         invitedBy: actor.id,
         tokenHash: hashToken(token),
         expiresAt: new Date(Date.now() + INVITE_DAYS * 86_400_000),
@@ -119,6 +124,15 @@ export async function acceptInvitation(token: string, userId: string) {
       // Roles deleted since the invite are skipped; everyone is at least a Member.
       const roleIds = [...new Set([MEMBER_ROLE_ID, ...valid.map((r) => r.id)])];
       await tx.insert(userRoles).values(roleIds.map((roleId) => ({ companyId: invite.companyId, userId, roleId })));
+
+      // Departments deleted since the invite are skipped. Never as manager.
+      const depts = invite.departmentIds.length
+        ? await tx.select({ id: departments.id }).from(departments).where(inArray(departments.id, invite.departmentIds))
+        : [];
+      if (depts.length)
+        await tx
+          .insert(departmentMembers)
+          .values(depts.map((d) => ({ companyId: invite.companyId, departmentId: d.id, userId })));
     });
   } catch (e) {
     if (e instanceof Refused) return e.message;
