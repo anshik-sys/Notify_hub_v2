@@ -16,6 +16,7 @@ import {
 } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { channelChoices } from "@/lib/slack-installations";
+import { sendNow, sendTest } from "@/lib/send-now";
 import { setDone } from "@/lib/tasks";
 import { isUuid } from "@/lib/validate";
 
@@ -130,4 +131,24 @@ export async function markTaskAction(fd: FormData) {
   if (!isUuid(id) || !isUuid(assignmentId)) notFound();
   const error = await setDone(user.id, companyId, assignmentId, fd.get("done") === "true");
   redirect(error ? errorUrl(`/reminders/${id}`, error) : `/reminders/${id}`);
+}
+
+export async function sendNowAction(fd: FormData) {
+  const { user, companyId, access } = await requireMember();
+  const id = str(fd, "id");
+  if (!isUuid(id)) notFound();
+  const r = await sendNow({ id: user.id, email: user.email, access }, companyId, id);
+  if ("error" in r) redirect(errorUrl(`/reminders/${id}`, r.error!));
+  const notice = r.mode === "extra" ? "Sent now. The next scheduled one is unchanged." : "Sending now.";
+  redirect(`/reminders/${id}?notice=${encodeURIComponent(notice)}`);
+}
+
+export async function sendTestAction(fd: FormData) {
+  const { user, companyId, access } = await requireMember();
+  const id = str(fd, "id");
+  if (!isUuid(id)) notFound();
+  const r = await sendTest({ id: user.id, email: user.email, access }, companyId, id);
+  const via = (r.sent ?? []).map((c) => (c === "email" ? "email" : "Slack")).join(" and ");
+  if ("error" in r && r.error) redirect(errorUrl(`/reminders/${id}`, via ? `Test sent by ${via}. ${r.error}` : r.error));
+  redirect(`/reminders/${id}?notice=${encodeURIComponent(`Test sent to you by ${via}.`)}`);
 }

@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { encrypt } from "@/lib/crypto";
 import { seeder } from "@/lib/test-helpers";
 import { ownerDb } from "./db";
-import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
+import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, dispatchManual, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
 const s = seeder();
 let reminderId: string;
@@ -407,5 +407,30 @@ test("attachments: email within the 20 MB budget; Slack uploads into the thread"
   const [row] = await q("select last_error from deliveries where id = $1", [slackId]);
   assert.match(row.last_error, /reconnect Slack/);
   assert.equal(calls.filter((c) => c === "chat.postMessage").length, 1); // not re-posted per file
+  await q("update reminders set status = 'cancelled' where id = $1", [id]);
+});
+
+test("send now on a repeating task: one extra occurrence, schedule untouched", async () => {
+  const sendNowAt = new Date(Date.now() - 1000);
+  const [{ id }] = await q(
+    `insert into reminders (company_id, short_id, created_by, title, sender_name, send_at, status, time_zone, anchor_local, recurrence, is_task, due_after_minutes, send_now_at)
+     values ($1, 'R-SNOW01', $2, 'Weekly task', 'HR', now() + interval '6 days', 'scheduled', 'UTC', '2026-01-05T09:00', $3, true, 120, $4) returning id`,
+    [s.companyId, creator, JSON.stringify({ freq: "weekly", interval: 1, weekdays: [0], end: { type: "never" } }), sendNowAt],
+  );
+  await q("insert into reminder_targets values ($1, $2, 'user', $3, null)", [id, s.companyId, alice]);
+  const before = (await q("select send_at from reminders where id = $1", [id]))[0].send_at.getTime();
+  const ids: string[] = [];
+  const enqueue = async (x: string[]) => void ids.push(...x);
+  const [a, b] = await Promise.all([dispatchManual(enqueue, s.companyId), dispatchManual(enqueue, s.companyId)]);
+  assert.equal(a + b, 1);
+  assert.equal(ids.length, 1); // alice, by email
+  const occ = await q("select occurs_at, due_at from reminder_occurrences where reminder_id = $1", [id]);
+  assert.equal(occ.length, 1);
+  assert.equal(occ[0].occurs_at.getTime(), sendNowAt.getTime());
+  assert.equal(occ[0].due_at.getTime(), sendNowAt.getTime() + 120 * 60_000);
+  const [r] = await q("select send_at, send_now_at, status from reminders where id = $1", [id]);
+  assert.deepEqual([r.send_at.getTime(), r.send_now_at, r.status], [before, null, "scheduled"]);
+  assert.equal((await q("select 1 from task_assignments where reminder_id = $1", [id])).length, 1);
+  assert.equal(await dispatchManual(enqueue, s.companyId), 0); // nothing left
   await q("update reminders set status = 'cancelled' where id = $1", [id]);
 });

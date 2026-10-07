@@ -2,7 +2,7 @@ import { Client } from "pg";
 import { PgBoss } from "pg-boss";
 import { ownerUrl } from "./db";
 import { claimDigests, digestOne } from "./digest";
-import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
+import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, dispatchManual, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
 // Long-running process, deployed separately from the web app.
 // Sends due reminders: immediately when the web app NOTIFYs `reminders_due`,
@@ -37,7 +37,9 @@ function dispatch() {
   running = (async () => {
     do {
       again = false;
-      const n = await dispatchDue(enqueue).catch((e) => (console.error("dispatch failed", e), 0));
+      const n =
+        (await dispatchDue(enqueue).catch((e) => (console.error("dispatch failed", e), 0))) +
+        (await dispatchManual(enqueue).catch((e) => (console.error("send-now dispatch failed", e), 0)));
       if (n) console.log(`dispatched ${n} reminder(s)`);
     } while (again);
     running = null;

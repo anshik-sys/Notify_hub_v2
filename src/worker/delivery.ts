@@ -1,6 +1,7 @@
 import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
 import { attachments, deliveries, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user } from "@/db/schema";
-import { EMAIL_ATTACHMENT_BUDGET } from "@/lib/attachments";
+import { emailFiles } from "@/lib/attachments";
+import { renderReminderEmail } from "@/lib/email-render";
 import { getBlob } from "@/lib/storage";
 import { decrypt } from "@/lib/crypto";
 import { lookupByEmail, openDm, postMessage, reminderMessage, SlackError, uploadFile } from "@/lib/slack";
@@ -21,6 +22,91 @@ import { ownerDb } from "./db";
 
 export const MAX_ATTEMPTS = 5;
 const STUCK_AFTER_MS = 10 * 60_000;
+
+type Reminder = typeof reminders.$inferSelect;
+type Tx = Parameters<Parameters<typeof ownerDb.transaction>[0]>[0];
+
+function occurrenceRow(r: Reminder, occursAt: Date, status: "sending" | "missed") {
+  return {
+    companyId: r.companyId,
+    reminderId: r.id,
+    occursAt,
+    status,
+    // Tasks: each occurrence is due the same time after it's sent.
+    dueAt: r.isTask && r.dueAfterMinutes ? new Date(occursAt.getTime() + r.dueAfterMinutes * 60_000) : null,
+  };
+}
+
+// One occurrence at occursAt: resolve recipients now, one delivery per
+// (channel, address), task assignments. Returns the new delivery ids, or null
+// if that occurrence already exists (skipped, or a duplicate run).
+async function createOccurrence(tx: Tx, r: Reminder, occursAt: Date) {
+  const [occ] = await tx
+    .insert(reminderOccurrences)
+    .values(occurrenceRow(r, occursAt, "sending"))
+    .onConflictDoNothing()
+    .returning({ id: reminderOccurrences.id });
+  if (!occ) return null;
+  const targets = await tx
+    .select({ kind: reminderTargets.kind, ref: reminderTargets.ref })
+    .from(reminderTargets)
+    .where(eq(reminderTargets.reminderId, r.id));
+  const { users, external } = await resolveRecipients(tx, r.companyId, targets);
+  type Row = { channel: "email" | "slack"; address: string; userId: string | null };
+  const rows: Row[] = [];
+  if (r.channels.includes("email"))
+    rows.push(
+      ...users.map((u) => ({ channel: "email" as const, address: u.email, userId: u.id })),
+      ...external.map((address) => ({ channel: "email" as const, address, userId: null })),
+    );
+  if (r.channels.includes("slack")) {
+    // Company-wide on Slack goes to channels only, never a DM to everyone (PRD 5.3).
+    if (!targets.some((t) => t.kind === "company"))
+      rows.push(...users.map((u) => ({ channel: "slack" as const, address: u.id, userId: u.id })));
+    rows.push(
+      ...targets.filter((t) => t.kind === "slack_channel").map((t) => ({ channel: "slack" as const, address: t.ref!, userId: null })),
+    );
+  }
+  // A task's assignees: every internal recipient, once, whatever the channels.
+  if (r.isTask && users.length)
+    await tx
+      .insert(taskAssignments)
+      .values(users.map((u) => ({ companyId: r.companyId, reminderId: r.id, occurrenceId: occ.id, userId: u.id })))
+      .onConflictDoNothing();
+  const deliveryRows = rows.map((x) => ({ ...x, companyId: r.companyId, reminderId: r.id, occurrenceId: occ.id }));
+  if (!deliveryRows.length) {
+    // Nobody left to send to (everyone deactivated since): done, with an empty log.
+    await tx.update(reminderOccurrences).set({ status: "sent" }).where(eq(reminderOccurrences.id, occ.id));
+    return [];
+  }
+  return (await tx.insert(deliveries).values(deliveryRows).onConflictDoNothing().returning({ id: deliveries.id })).map((d) => d.id);
+}
+
+// "Send now" on a repeating reminder: one extra occurrence at send_now_at.
+// The claim clears the field in the same transaction (SKIP LOCKED keeps two
+// workers apart; the occurrence's unique key makes a repeat harmless). The
+// schedule (send_at) and status are untouched.
+export async function dispatchManual(enqueue: (deliveryIds: string[]) => Promise<void>, onlyCompany?: string) {
+  let count = 0;
+  for (;;) {
+    const ids = await ownerDb.transaction(async (tx) => {
+      const [r] = await tx
+        .select()
+        .from(reminders)
+        .where(and(sql`${reminders.sendNowAt} is not null`, onlyCompany ? eq(reminders.companyId, onlyCompany) : undefined))
+        .limit(1)
+        .for("update", { skipLocked: true });
+      if (!r) return null;
+      await tx.update(reminders).set({ sendNowAt: null }).where(eq(reminders.id, r.id));
+      // Cancelled (or otherwise stopped) since the click: drop the request.
+      if (r.status !== "scheduled" && r.status !== "paused") return [];
+      return (await createOccurrence(tx, r, r.sendNowAt!)) ?? [];
+    });
+    if (ids === null) return count;
+    count++;
+    if (ids.length) await enqueue(ids);
+  }
+}
 
 // Returns how many reminders were dispatched; enqueue gets the new delivery ids.
 // onlyCompany and now are for tests: a test run never dispatches anyone else's
@@ -59,64 +145,13 @@ export async function dispatchDue(
         if (due.length) [toSend, missed] = [due.at(-1)!, due.slice(0, -1)];
         next = nextAfter(r.recurrence, r.anchorLocal, r.timeZone, now);
       }
-      const occurrence = (occursAt: Date, status: "sending" | "missed") => ({
-        companyId: r.companyId,
-        reminderId: r.id,
-        occursAt,
-        status,
-        // Tasks: each occurrence is due the same time after it's sent.
-        dueAt: r.isTask && r.dueAfterMinutes ? new Date(occursAt.getTime() + r.dueAfterMinutes * 60_000) : null,
-      });
       if (missed.length)
         await tx
           .insert(reminderOccurrences)
-          .values(missed.map((at) => occurrence(at, "missed")))
+          .values(missed.map((at) => occurrenceRow(r, at, "missed")))
           .onConflictDoNothing();
-      // Nothing returned = this occurrence already exists (the user skipped it): don't send.
-      const [occ] = await tx
-        .insert(reminderOccurrences)
-        .values(occurrence(toSend, "sending"))
-        .onConflictDoNothing()
-        .returning({ id: reminderOccurrences.id });
-
-      let deliveryIds: string[] = [];
-      if (occ) {
-        const targets = await tx
-          .select({ kind: reminderTargets.kind, ref: reminderTargets.ref })
-          .from(reminderTargets)
-          .where(eq(reminderTargets.reminderId, r.id));
-        const { users, external } = await resolveRecipients(tx, r.companyId, targets);
-        type Row = { channel: "email" | "slack"; address: string; userId: string | null };
-        const rows: Row[] = [];
-        if (r.channels.includes("email"))
-          rows.push(
-            ...users.map((u) => ({ channel: "email" as const, address: u.email, userId: u.id })),
-            ...external.map((address) => ({ channel: "email" as const, address, userId: null })),
-          );
-        if (r.channels.includes("slack")) {
-          // Company-wide on Slack goes to channels only, never a DM to everyone (PRD 5.3).
-          if (!targets.some((t) => t.kind === "company"))
-            rows.push(...users.map((u) => ({ channel: "slack" as const, address: u.id, userId: u.id })));
-          rows.push(
-            ...targets
-              .filter((t) => t.kind === "slack_channel")
-              .map((t) => ({ channel: "slack" as const, address: t.ref!, userId: null })),
-          );
-        }
-        // A task's assignees: every internal recipient, once, whatever the channels.
-        if (r.isTask && users.length)
-          await tx
-            .insert(taskAssignments)
-            .values(users.map((u) => ({ companyId: r.companyId, reminderId: r.id, occurrenceId: occ.id, userId: u.id })))
-            .onConflictDoNothing();
-        const deliveryRows = rows.map((x) => ({ ...x, companyId: r.companyId, reminderId: r.id, occurrenceId: occ.id }));
-        if (deliveryRows.length)
-          deliveryIds = (
-            await tx.insert(deliveries).values(deliveryRows).onConflictDoNothing().returning({ id: deliveries.id })
-          ).map((d) => d.id);
-        // Nobody left to send to (everyone deactivated since): done, with an empty log.
-        else await tx.update(reminderOccurrences).set({ status: "sent" }).where(eq(reminderOccurrences.id, occ.id));
-      }
+      // null = this occurrence already exists (the user skipped it): nothing sent.
+      const deliveryIds = (await createOccurrence(tx, r, toSend)) ?? [];
 
       // A series with more to come stays scheduled at its next occurrence;
       // otherwise the reminder finishes once this occurrence's sends are done.
@@ -184,38 +219,19 @@ const filesOf = (reminderId: string) =>
     .orderBy(attachments.createdAt);
 
 async function sendEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
-  const task = r.reminder.isTask && r.dueAt;
-  // Attach in order while the total stays within the budget; the rest are
-  // named in the body (PRD 5.7). ponytail: bytes are re-read per recipient;
-  // cache per dispatch if large company-wide sends with files get slow.
-  const mailFiles: { filename: string; content: Buffer; contentType: string }[] = [];
-  const tooBig: string[] = [];
-  let used = 0;
-  for (const f of await filesOf(r.reminder.id)) {
-    const data = used + f.size <= EMAIL_ATTACHMENT_BUDGET ? await getBlob(ownerDb, f.id) : null;
-    if (data) {
-      mailFiles.push({ filename: f.fileName, content: data, contentType: f.contentType });
-      used += f.size;
-    } else tooBig.push(f.fileName);
-  }
-  const body =
-    (r.reminder.description || r.reminder.title) +
-    (tooBig.length ? `\n\nNot attached (too large for email): ${tooBig.join(", ")}. Download in NotifyHub.` : "");
-  await send({
-    to: d.address,
-    subject: task ? `Task: ${r.reminder.title}` : r.reminder.title,
-    text: task ? `${body}\n\nDue ${formatInZone(r.dueAt!, r.reminder.timeZone)} (${r.reminder.timeZone}).` : body,
-    links: [
-      ...r.reminder.links,
-      {
-        label: task ? "Mark it done in NotifyHub" : "Open in NotifyHub",
-        url: `${process.env.BETTER_AUTH_URL}/reminders/${r.reminder.id}`,
-      },
-    ],
-    fromName: `${r.reminder.senderName} via NotifyHub`,
-    replyTo: r.creatorEmail,
-    attachments: mailFiles,
+  // ponytail: bytes are re-read per recipient; cache per dispatch if large
+  // company-wide sends with files get slow.
+  const { attached, tooBig } = await emailFiles(await filesOf(r.reminder.id), (id) => getBlob(ownerDb, id));
+  const email = renderReminderEmail({
+    title: r.reminder.title,
+    description: r.reminder.description,
+    links: r.reminder.links,
+    senderName: r.reminder.senderName,
+    appUrl: `${process.env.BETTER_AUTH_URL}/reminders/${r.reminder.id}`,
+    due: r.reminder.isTask && r.dueAt ? `${formatInZone(r.dueAt, r.reminder.timeZone)} (${r.reminder.timeZone})` : undefined,
+    tooBig,
   });
+  await send({ to: d.address, ...email, replyTo: r.creatorEmail, attachments: attached });
   return {};
 }
 

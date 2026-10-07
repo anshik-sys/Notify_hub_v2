@@ -5,6 +5,7 @@ import type { RepeatFields } from "@/lib/recurrence";
 import { saveReminder } from "./actions";
 import type { DepartmentChoice, Person } from "./form-data";
 import { PeoplePicker } from "./people-picker";
+import { ReminderPreview } from "./preview";
 import styles from "./reminder-form.module.css";
 
 export type ReminderDefaults = {
@@ -299,6 +300,10 @@ export function ReminderForm({
       </Section>
 
       <Field label="Sender name" name="senderName" maxLength={100} placeholder={defaultSender} defaultValue={defaults.senderName} />
+
+      <Section title="Preview">
+        <ReminderPreview defaultSender={defaultSender} timeZone={timeZone} />
+      </Section>
 
       <Button>{defaults.id ? "Save reminder" : "Create reminder"}</Button>
     </Form>

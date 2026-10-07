@@ -243,6 +243,9 @@ export const reminders = pgTable(
     senderName: text().notNull(),
     // The next occurrence (for a one-time reminder, its only one).
     sendAt: ts().notNull(),
+    // "Send now" on a repeating reminder: the worker sends one extra occurrence
+    // at this instant and clears it; sendAt (the schedule) is untouched.
+    sendNowAt: ts(),
     // Null = one-time. Occurrences are computed from anchorLocal in timeZone
     // (src/lib/recurrence.ts); the zone is copied from the company at create.
     recurrence: jsonb().$type<import("@/lib/recurrence").Rule>(),
@@ -266,6 +269,7 @@ export const reminders = pgTable(
   },
   (t) => [
     index().on(t.status, t.sendAt),
+    index("reminders_send_now_idx").on(t.sendNowAt).where(sql`${t.sendNowAt} is not null`),
     check("reminders_task_due", sql`not ${t.isTask} or ${t.dueAfterMinutes} > 0`),
     check("reminders_channels_valid", sql`cardinality(${t.channels}) > 0 and ${t.channels} <@ array['email','slack']`),
     check("reminders_status_valid", sql`${t.status} in ('pending_approval','rejected','scheduled','paused','sending','sent','cancelled')`),

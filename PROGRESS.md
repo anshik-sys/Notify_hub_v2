@@ -2,6 +2,44 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — preview, send now, send a test (PRD 5.12)
+
+- **What's in place:**
+  - the reminder form has a live **Preview**: the email (From, Subject, body
+    in a sandboxed iframe) and, with Slack ticked, the Slack message;
+  - a reminder's page has **Send me a test** (anyone with full access, so an
+    approver can see what they're approving) and **Send now** (the creator,
+    or `reminders.send_now`), with a required "send it to all recipients"
+    tick instead of a confirm dialog.
+- **One email builder for preview, test and real sends** (`email-render.ts`).
+  The worker used to assemble its own; with three callers they would drift.
+  It's pure, so the client preview imports the same code.
+- **Send now on a recurring reminder sends an extra occurrence** and leaves
+  the schedule alone (PRD: "the next occurrence stays on its normal
+  schedule"). The web sets `send_now_at`; the worker's `dispatchManual`
+  claims it with `SKIP LOCKED` and reuses the occurrence creation from normal
+  dispatch (extracted into `createOccurrence`), so tasks, Slack and
+  attachments behave the same. A one-time reminder just moves `send_at` to
+  now.
+- **Tests aren't deliveries:** sent synchronously from the web action, to
+  you only, with nothing written, so the notice can say what actually went
+  out.
+- **Verified against `next start` + worker + Mailpit + fake Slack:**
+  - Send me a test → one "[Test] Daily standup" email and one DM to alice;
+    bob got nothing; 0 deliveries and 0 occurrences recorded;
+  - Send now on a daily reminder due tomorrow → bob's email and Slack
+    within seconds, 1 occurrence, `send_at` unchanged, page still "Next: 8 Oct";
+  - Send now on a one-time reminder for next week → Sent, 2 deliveries;
+  - bob (not the creator) calling Send now directly → "Reminder not found.";
+    on a pending reminder → "waiting for approval".
+
+  81 tests pass.
+- **Not verified by me:** the preview's live updating is client JS, so it
+  only renders after the page loads (the server HTML has the section, not
+  the iframe). Check it in the browser.
+- **Not in this step:** a preview of the Slack file uploads, scheduled
+  tests, "Send again" for an already-sent one-time reminder.
+
 ## 2026-10-07 — comments with @mentions (PRD 5.11)
 
 - **What's in place:**

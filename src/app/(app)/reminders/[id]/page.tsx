@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button, Field, firstParam, Form, Hint, LinkButton, Page, Section } from "@/components/form";
+import { Button, Checkbox, Field, firstParam, Form, Hint, LinkButton, Page, Section } from "@/components/form";
 import { List, ListRow } from "@/components/list";
 import { Badge, Muted, Table } from "@/components/table";
 import { can } from "@/lib/permissions";
@@ -11,7 +11,7 @@ import { requireMember } from "@/lib/session";
 import { myTaskStatus, taskProgress } from "@/lib/tasks";
 import { formatInZone } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
-import { cancelReminderAction, decideReminderAction, markTaskAction, seriesAction } from "../actions";
+import { cancelReminderAction, decideReminderAction, markTaskAction, sendNowAction, sendTestAction, seriesAction } from "../actions";
 import { Discussion } from "./discussion";
 import styles from "./page.module.css";
 import { listComments } from "@/lib/comments";
@@ -49,6 +49,9 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   const tz = r.timeZone;
   const mayChange = editable && (user.id === r.createdBy || can(access, "reminders.edit"));
   const mayDecide = r.status === "pending_approval" && can(access, "reminders.approve");
+  const maySendNow =
+    (r.status === "scheduled" || (r.recurrence && r.status === "paused")) &&
+    (user.id === r.createdBy || can(access, "reminders.send_now"));
 
   return (
     <Page
@@ -228,6 +231,28 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
               ],
             }))}
           />
+        </Section>
+      )}
+
+      {seeAs === "full" && (
+        <Section title="Send">
+          <div className={styles.sendRow}>
+            <form action={sendTestAction}>
+              <input type="hidden" name="id" value={r.id} />
+              <Button variant="secondary">Send me a test</Button>
+            </form>
+          </div>
+          {maySendNow && (
+            <Form action={sendNowAction}>
+              <input type="hidden" name="id" value={r.id} />
+              {/* A required checkbox stands in for a confirm dialog, without client JS. */}
+              <Checkbox
+                label={r.recurrence ? "Send it to all recipients now (the schedule stays as it is)" : "Send it to all recipients now instead of at the scheduled time"}
+                required
+              />
+              <Button>Send now</Button>
+            </Form>
+          )}
         </Section>
       )}
 

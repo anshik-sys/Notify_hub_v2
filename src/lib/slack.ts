@@ -154,10 +154,12 @@ export function reminderMessage(m: {
   // Snooze only in a DM (it's personal).
   task?: { occurrenceId: string; dm: boolean };
   prefix?: string; // "Overdue" / "Snoozed reminder" lines for follow-ups
+  test?: boolean; // "Send me a test"
 }) {
   const blocks: unknown[] = [
     { type: "header", text: { type: "plain_text", text: (m.due ? `Task: ${m.title}` : m.title).slice(0, 150) } },
   ];
+  if (m.test) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: "Test: only sent to you." }] });
   if (m.prefix) blocks.push({ type: "section", text: { type: "mrkdwn", text: `*${esc(m.prefix)}*` } });
   if (m.note) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: esc(m.note) }] });
   if (m.description) blocks.push({ type: "section", text: { type: "mrkdwn", text: esc(m.description).slice(0, 3000) } });

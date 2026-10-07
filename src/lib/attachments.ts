@@ -125,6 +125,25 @@ export function csvFormulaCheck(text: string) {
   return null;
 }
 
+// Attach in order while the total stays within the email budget; the rest are
+// named in the body instead (PRD 5.7). load fetches the bytes.
+export async function emailFiles(
+  files: { id: string; fileName: string; contentType: string; size: number }[],
+  load: (id: string) => Promise<Buffer | null>,
+) {
+  const attached: { filename: string; content: Buffer; contentType: string }[] = [];
+  const tooBig: string[] = [];
+  let used = 0;
+  for (const f of files) {
+    const data = used + f.size <= EMAIL_ATTACHMENT_BUDGET ? await load(f.id) : null;
+    if (data) {
+      attached.push({ filename: f.fileName, content: data, contentType: f.contentType });
+      used += f.size;
+    } else tooBig.push(f.fileName);
+  }
+  return { attached, tooBig };
+}
+
 // --- One file ------------------------------------------------------------------------
 
 export type CheckedFile = { fileName: string; contentType: string; size: number; sha256: string; data: Buffer };

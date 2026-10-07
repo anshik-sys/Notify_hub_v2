@@ -43,3 +43,9 @@
     flex-wrap: wrap;
   }
 }
+
+.sendRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

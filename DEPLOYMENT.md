@@ -38,6 +38,10 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0018: `reminders.send_now_at` (Send now on a recurring reminder),
+with a partial index. Deploy the worker with it: an older worker ignores the
+column, so a Send now on a recurring reminder would sit until it's upgraded.
+
 Migration 0017: `comments` + `comment_mentions`. New permission
 `comments.delete_any` (Company Admin has it automatically).
 
@@ -166,6 +170,8 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Integrations → Daily digest: enable it, pick a channel and a person, set the time to a minute from now → one digest in each; nothing more that day.
 - [ ] Reminder with a PDF and a CSV: both listed on the reminder, downloadable by a recipient (not by another department); the email carries them; Slack shows them in the message's thread. A `.pdf` that's really text, or a CSV with `=…`, is refused.
 - [ ] Comment on a reminder mentioning a colleague (pick them from the @ list): they get an email (and a Slack DM); mentioning someone who can't see the reminder shows "can't see this reminder" and sends nothing.
+- [ ] New reminder form: the Preview updates as you type (email and, with Slack ticked, the Slack message). On a saved reminder, "Send me a test" → one "[Test] …" email (and a Slack DM) to you only, and no change to its sent count.
+- [ ] Send now on a daily reminder: recipients get it within seconds and "Next" doesn't move; on a one-time reminder for next week, it's sent now and shows Sent.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

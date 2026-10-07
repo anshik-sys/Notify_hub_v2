@@ -294,3 +294,16 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
 - **The worker cannot run on serverless.** It holds a persistent connection and
   runs a cron every minute.
 - `package.json` has `"type": "module"`, which the worker's top-level `await` needs.
+- **Preview, test and real sends share one email builder** (`src/lib/email-render.ts`,
+  pure, so the browser preview imports it too); Slack uses `reminderMessage`
+  for all three. Change the message there, not in the worker.
+- **Send now:**
+  - a one-time reminder just has `send_at` moved to now, and the normal
+    dispatch sends it;
+  - a recurring one gets `send_now_at` set; the worker's `dispatchManual` turns
+    that into one extra occurrence at exactly that time and clears it.
+    `send_at` (the next scheduled one) is never touched. The unique
+    `(reminder_id, occurs_at)` makes a double run harmless.
+- **"Send me a test" isn't a delivery.** It sends from the web process, to the
+  clicking user only, and writes no `deliveries`, occurrences or task rows, so
+  it never shows in counts, history or follow-ups.
