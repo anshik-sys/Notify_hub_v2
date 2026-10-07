@@ -12,8 +12,12 @@ One package, two processes, one Postgres:
 | `src/app/` | Next.js 16 web app and API (App Router). |
 | `src/worker/index.ts` | Long-running worker: pg-boss queue, per-minute scheduler tick. Run with `pnpm worker`. |
 | `src/db/schema.ts` | Drizzle schema, including RLS policies. |
-| `src/db/index.ts` | `db` client and `withTenant()`. |
-| `drizzle/` | SQL migrations. Generated, except `0001_app_role.sql` (hand-written). |
+| `src/db/index.ts` | `db` client (role `notifyhub_app`) and `withTenant()`. |
+| `src/lib/auth.ts` | Better Auth config and `authDb` (role `notifyhub_auth`). |
+| `src/lib/onboarding.ts` | Creates a company and attaches the signed-in user, in one transaction. |
+| `src/app/sign-in`, `sign-up`, `onboarding` | Server-rendered forms posting to server actions. No client-side auth code. |
+| `src/app/api/auth/[...all]` | Better Auth's HTTP endpoints (sessions, OAuth callbacks). |
+| `drizzle/` | SQL migrations. `0001` is hand-written; `0003` is generated plus hand-added role creation and grants. |
 
 ## Local setup
 
@@ -23,6 +27,7 @@ createdb notifyhub
 cp .env.example .env
 pnpm db:migrate
 psql notifyhub -c "ALTER ROLE notifyhub_app PASSWORD 'dev'"
+psql notifyhub -c "ALTER ROLE notifyhub_auth PASSWORD 'dev'"
 pnpm test        # tenant isolation test
 pnpm dev         # web
 pnpm worker      # scheduler
@@ -30,11 +35,25 @@ pnpm worker      # scheduler
 
 ## Constraints you cannot see from the code
 
-- **Two database roles, on purpose.** `DATABASE_URL` (web) connects as
-  `notifyhub_app`, which is subject to row-level security. `OWNER_DATABASE_URL`
-  (migrations, worker) is the table owner and bypasses RLS. Pointing
-  `DATABASE_URL` at the owner or a superuser silently disables tenant isolation;
-  every query still "works".
+- **Three database roles, on purpose.**
+  - `DATABASE_URL` → `notifyhub_app`: all app code, through RLS. It has no
+    grant on `session`, `account` or `verification` (tokens, password hashes).
+  - `AUTH_DATABASE_URL` → `notifyhub_auth`: Better Auth only. It has an
+    `auth_unscoped` policy on `user` and `companies`, because sign-in looks a
+    user up by email before any company is known, and onboarding creates the
+    company. It has no grant on tenant data tables (`departments`, etc.).
+  - `OWNER_DATABASE_URL` → table owner: migrations and the worker. Bypasses RLS.
+
+  Pointing `DATABASE_URL` at the owner, a superuser or `notifyhub_auth` silently
+  disables tenant isolation, and every query still "works". None of these roles
+  use `BYPASSRLS`, which managed Postgres often refuses to grant.
+- **`authDb` must not be imported outside `src/lib`.** It sees every company's users.
+- **`user.company_id` is set only server-side.** It's a Better Auth
+  `additionalField` with `input: false`. Better Auth rejects it from
+  `/update-user` with `FIELD_NOT_ALLOWED`. Do not flip `input` to true.
+- **A company's domain is claimed by whoever onboards first with that email
+  domain.** There's no email verification yet, so this is not proof of
+  ownership. See DEPLOYMENT known gaps.
 - **Tenant queries must go through `withTenant(companyId, fn)`.** It sets
   `app.company_id` with `set_config(..., true)`, so the setting is
   transaction-local. Changing it to session-level (`false`) leaks one tenant's id

@@ -2,6 +2,43 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — sign-up, sign-in and company onboarding
+
+- **Better Auth 1.7, email/password and Google.** Google is wired, but
+  **shipped unverified**: there are no OAuth credentials yet, so the button is
+  hidden. Unverified Google emails are rejected in `mapProfileToUser`.
+- **A third DB role, `notifyhub_auth`.** Sign-in looks a user up by email before
+  any company is known, which RLS on `user` would block. Rejected alternatives:
+  - leaving `user` without RLS: the directory would rely on every query
+    remembering a `where company_id`;
+  - giving Better Auth the owner URL: the web process would hold a key that
+    bypasses everything;
+  - `BYPASSRLS`: managed Postgres often refuses to grant it.
+
+  Instead: a role-specific `auth_unscoped` policy, plus grants limited to auth
+  tables and `companies`. `notifyhub_app` lost its grants on
+  `session`/`account`/`verification` (tested).
+- **Onboarding is one transaction on `authDb`:** insert the company, then attach
+  the user only if they have no company yet. A duplicate domain or a second
+  attempt rolls back with no stray company (tested). The domain comes from the
+  email, and common free-mail domains are refused.
+- **Server actions, not the client SDK.** Errors come back as `?error=` on the
+  same page. Less JS; trade-off: no inline validation without a reload.
+- **Verified against `next start` with curl:**
+  - sign-up creates a session (7-day sliding expiry);
+  - `/` sends an unonboarded user to `/onboarding`;
+  - once a company is attached, `/` renders its name through the RLS role;
+  - sign-out deletes the server-side session;
+  - a wrong password is rejected;
+  - a client-supplied `companyId` gets `FIELD_NOT_ALLOWED`;
+  - a mismatched origin gets `INVALID_ORIGIN`.
+
+  **Not driven through the browser:** the onboarding form's server action itself
+  (its logic is covered by `onboarding.test.ts`) and the visual layout.
+- **Known hole, deliberately left for now:** no email verification, so the first
+  person to sign up with a domain claims that company. It's blocked on email
+  sending (SES). Listed in DEPLOYMENT known gaps.
+
 ## 2026-10-07 — repo setup and tenant isolation
 
 - **Stack:** Next.js 16 + Postgres + Drizzle + pg-boss worker, all TypeScript.
