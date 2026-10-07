@@ -64,6 +64,10 @@ export default async function DepartmentDetail(props: PageProps<"/departments/[i
         <Hint>No members yet.</Hint>
       )}
 
+      {manageMembers && dept.candidates.length === 0 && (
+        <Hint>Everyone in the company is already in this department. New people join the company by invite first.</Hint>
+      )}
+
       {manageMembers && dept.candidates.length > 0 && (
         <Form action={addMemberAction}>
           <input type="hidden" name="departmentId" value={dept.id} />
