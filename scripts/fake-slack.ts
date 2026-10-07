@@ -4,6 +4,7 @@
 //   pnpm fake-slack                       # http://localhost:4999
 //   GET  /_messages                       # everything posted/updated, newest last
 //   DELETE /_messages                     # reset
+//   POST /_respond                        # stands in for an interaction's response_url
 //
 // Directory: every email has a Slack user, except local parts starting with
 // "noslack" (to exercise the fallback channel). Bot token: xoxb-fake.
@@ -18,7 +19,7 @@ const CHANNELS = [
   { id: "C0RANDOM", name: "random" },
   { id: "C0OPS", name: "ops" },
 ];
-type Msg = { kind: "post" | "update"; channel: string; ts: string; text: string; blocks: unknown };
+type Msg = { kind: "post" | "update" | "respond"; channel: string; ts: string; text: string; blocks: unknown };
 const messages: Msg[] = [];
 let tsCounter = 1000;
 const users = new Map<string, string>(); // slack id -> email
@@ -81,6 +82,13 @@ createServer(async (req, res) => {
     back.searchParams.set("state", url.searchParams.get("state") ?? "");
     res.writeHead(302, { Location: back.toString() });
     return res.end();
+  }
+  if (url.pathname === "/_respond" && req.method === "POST") {
+    let raw = "";
+    for await (const chunk of req) raw += chunk;
+    const body = JSON.parse(raw || "{}");
+    messages.push({ kind: "respond", channel: body.response_type ?? "", ts: "", text: body.text ?? "", blocks: [] });
+    return send(200, { ok: true });
   }
   if (url.pathname === "/_messages") {
     if (req.method === "DELETE") messages.length = 0;

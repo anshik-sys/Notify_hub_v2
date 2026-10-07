@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { encrypt } from "@/lib/crypto";
 import { seeder } from "@/lib/test-helpers";
 import { ownerDb } from "./db";
-import { claimFollowUps, deliverOne, dispatchDue, followUpOne, MAX_ATTEMPTS, sweep } from "./delivery";
+import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
 const s = seeder();
 let reminderId: string;
@@ -218,7 +218,7 @@ test("tasks: due_at per occurrence; daily follow-ups at the company's local time
 // An in-process fake Slack: emails starting "noslack" have no account; a
 // channel listed in rateLimitOnce answers 429 the first time.
 function fakeSlack(rateLimitOnce = new Set<string>()) {
-  const posts: { channel: string; text: string }[] = [];
+  const posts: { channel: string; text: string; actions: string[] }[] = [];
   const f = (async (url: string, init: RequestInit) => {
     const method = url.split("/").pop()!;
     const p = init.body as URLSearchParams;
@@ -231,7 +231,8 @@ function fakeSlack(rateLimitOnce = new Set<string>()) {
       const channel = p.get("channel")!;
       if (rateLimitOnce.delete(channel)) return json({ ok: false }, 429, { "retry-after": "1" });
       if (channel === "C0GONE") return json({ ok: false, error: "channel_not_found" });
-      posts.push({ channel, text: p.get("text")! });
+      const blocks = JSON.parse(p.get("blocks") ?? "[]") as { type: string; elements?: { action_id: string }[] }[];
+      posts.push({ channel, text: p.get("text")!, actions: blocks.find((b) => b.type === "actions")?.elements?.map((e) => e.action_id) ?? [] });
       return json({ ok: true, channel, ts: `${posts.length}.0` });
     }
     return json({ ok: false, error: "unknown_method" });
@@ -304,4 +305,46 @@ test("slack: DMs, channel posts, fallback, company-wide, 429 and permanent error
   assert.equal(await deliverOne(g.ids[0], async () => ({}) as never, fakeSlack().f), "failed");
   assert.match((await rowsOf(g.id))[0], /channel_not_found/);
   for (const r of [a, b, c, g]) await q("update reminders set status = 'cancelled' where id = $1", [r.id]);
+});
+
+test("slack tasks: buttons on the first DM; follow-ups and snoozes as DMs", async () => {
+  const [{ id }] = await q(
+    `insert into reminders (company_id, short_id, created_by, title, sender_name, send_at, status, time_zone, anchor_local, channels, is_task, due_after_minutes)
+     values ($1, 'R-SLTASK', $2, 'Slack task', 'HR', now() + interval '1 hour', 'scheduled', 'UTC', '2026-01-01T00:00', '{slack}', true, 30) returning id`,
+    [s.companyId, creator],
+  );
+  await q("insert into reminder_targets values ($1, $2, 'user', $3, null)", [id, s.companyId, alice]);
+  const ids: string[] = [];
+  await dispatchDue(async (x) => void ids.push(...x), s.companyId, new Date(Date.now() + 2 * 3_600_000));
+  const sl = fakeSlack();
+  await deliverOne(ids[0], async () => ({}) as never, sl.f);
+  assert.deepEqual(sl.posts[0].actions, ["task_done", "snooze_1h", "snooze_tomorrow", "open"]);
+  const [a] = await q("select id from task_assignments where reminder_id = $1", [id]);
+
+  // A Slack-only task's follow-up is a DM with buttons (it used to be skipped).
+  const mails: string[] = [];
+  const mail = (async (m: { subject: string }) => void mails.push(m.subject)) as never;
+  assert.equal(await followUpOne(a.id, mail, sl.f), "sent");
+  assert.deepEqual(mails, []);
+  assert.match(sl.posts[1].text, /^Overdue: this was due/);
+  assert.deepEqual(sl.posts[1].actions, ["task_done", "snooze_1h", "snooze_tomorrow", "open"]);
+
+  // Email + Slack: both; a Slack failure doesn't throw (or re-send the email).
+  await q("update reminders set channels = '{email,slack}' where id = $1", [id]);
+  const broken = (async () => {
+    throw new Error("Slack down");
+  }) as unknown as typeof fetch;
+  assert.equal(await followUpOne(a.id, mail, broken), "sent");
+  assert.deepEqual(mails, ["Overdue: Slack task"]);
+
+  // Snoozes: due ones are claimed once; a done one isn't.
+  await q("update task_assignments set snoozed_until = now() - interval '1 minute' where id = $1", [a.id]);
+  assert.deepEqual(await claimSnoozes(new Date(), s.companyId), [a.id]);
+  assert.deepEqual(await claimSnoozes(new Date(), s.companyId), []);
+  assert.equal(await snoozeOne(a.id, sl.f), "sent");
+  assert.ok(sl.posts[2].text.startsWith("Snoozed reminder: "));
+  await q("update task_assignments set snoozed_until = now() - interval '1 minute', done_at = now() where id = $1", [a.id]);
+  assert.deepEqual(await claimSnoozes(new Date(), s.companyId), []);
+  assert.equal(await followUpOne(a.id, mail, sl.f), "skipped"); // done
+  await q("update reminders set status = 'cancelled' where id = $1", [id]);
 });

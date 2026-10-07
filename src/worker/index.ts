@@ -1,7 +1,7 @@
 import { Client } from "pg";
 import { PgBoss } from "pg-boss";
 import { ownerUrl } from "./db";
-import { claimFollowUps, deliverOne, dispatchDue, followUpOne, MAX_ATTEMPTS, sweep } from "./delivery";
+import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
 // Long-running process, deployed separately from the web app.
 // Sends due reminders: immediately when the web app NOTIFYs `reminders_due`,
@@ -15,6 +15,7 @@ await boss.createQueue("tick");
 await boss.createQueue("deliver", { notify: true });
 await boss.updateQueue("deliver", { notify: true }); // createQueue leaves an existing queue as it was
 await boss.createQueue("followup", { notify: true });
+await boss.createQueue("snooze", { notify: true });
 
 const enqueue = async (ids: string[]) => {
   for (const deliveryId of ids)
@@ -52,6 +53,10 @@ await boss.work<{ assignmentId: string }>("followup", { localConcurrency: 10 }, 
   console.log(`follow-up ${job.data.assignmentId}: ${await followUpOne(job.data.assignmentId)}`);
 });
 
+await boss.work<{ assignmentId: string }>("snooze", { localConcurrency: 10 }, async ([job]) => {
+  console.log(`snooze ${job.data.assignmentId}: ${await snoozeOne(job.data.assignmentId)}`);
+});
+
 await boss.schedule("tick", "* * * * *");
 await boss.work("tick", async () => {
   await enqueue(await sweep());
@@ -59,6 +64,8 @@ await boss.work("tick", async () => {
   // Claimed once per delivery per local day; the job only sends.
   for (const assignmentId of await claimFollowUps())
     await boss.send("followup", { assignmentId }, { retryLimit: 3, retryDelay: 30, retryBackoff: true });
+  // Claimed (cleared) once; a failed re-send isn't retried, to never DM twice.
+  for (const assignmentId of await claimSnoozes()) await boss.send("snooze", { assignmentId }, { retryLimit: 0 });
 });
 
 // LISTEN needs a plain session connection (not a transaction-mode pooler).

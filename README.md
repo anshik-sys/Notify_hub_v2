@@ -27,6 +27,7 @@ One package, two processes, one Postgres:
 | `src/lib/slack.ts`, `src/lib/slack-installations.ts` | Slack Web API client and message builder; the company's connection (encrypted token). |
 | `src/lib/crypto.ts` | AES-256-GCM for integration secrets (`ENCRYPTION_KEY`). |
 | `src/app/api/slack/{install,oauth}` | "Add to Slack" OAuth (state cookie checked on return). |
+| `src/app/api/slack/interactions` + `src/lib/slack-{signature,actions}.ts` | Mark done / Snooze buttons: signature check, then the click handler. |
 | `scripts/fake-slack.ts` | **Dev/test only** fake Slack (`pnpm fake-slack`). Never deployed. |
 | `src/lib/tasks.ts` | Task completion (`setDone`), progress, my open tasks. |
 | `src/lib/time.ts` | Company-time-zone wall clock ↔ UTC (Intl only, DST-tested). |
@@ -120,6 +121,20 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     audience isn't known), so it needs approval;
   - permanent Slack errors (channel gone, token revoked) fail at once; 429s
     retry.
+- **Slack buttons:**
+  - **the signature is checked first, on the raw body** (`verifySlackSignature`: HMAC plus a 5-minute timestamp window). Without it anyone could POST a fake "Mark done";
+  - a button's `value` is the **occurrence**, never a person. The clicker is
+    mapped Slack user → email (`users.info`) → NotifyHub user, and must be an
+    assignee of that occurrence. So the same buttons are safe in shared
+    channel posts, and nobody can act for someone else;
+  - the click's database change happens before we answer Slack; message
+    updates and ephemeral replies run in `after()` (Slack's 3-second limit);
+  - **snooze** sets `task_assignments.snoozed_until`. The minute tick claims
+    due snoozes by clearing the field in the same UPDATE, and re-sends the DM
+    once (the job has no retries, on purpose).
+- **Task follow-ups go over the task's channels:** email first (a failure
+  retries), then a Slack DM whose failure is only logged, so a Slack problem
+  never causes a second email.
 - **Deliveries are per (occurrence, channel, address).** One person can get
   an email and a Slack DM for the same occurrence. That's why task completion
   moved off `deliveries`.

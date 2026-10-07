@@ -2,6 +2,50 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — Slack phase B: Mark done / Snooze buttons, Slack follow-ups
+
+- **What's in place:**
+  - task messages carry Mark done (DMs and channel posts) plus Snooze 1 hour
+    / Snooze until tomorrow 09:00 (DMs only; it's personal);
+  - `/api/slack/interactions` verifies Slack's signature, then marks done or
+    snoozes;
+  - in a DM the buttons turn into "✅ Done …" / "⏰ Snoozed until …"; in a
+    channel the clicker gets an ephemeral reply;
+  - follow-ups go out as Slack DMs as well as email (a Slack-only task got
+    none before);
+  - snoozed DMs are re-sent once when due.
+- **The trust model:** the button carries the occurrence, not a person. The
+  clicker is resolved through `users.info` → email → user, and must hold an
+  assignment, so a click in `#general` can't mark someone else done.
+  - Unsigned or tampered requests → 401 (tested in unit and E2E).
+  - A stale timestamp → rejected (replay).
+- **Data:** migration 0014 adds `task_assignments.snoozed_until`, and lets
+  `notifyhub_auth` read `slack_installations`, because a click only names a
+  workspace (`team_id`). That's the same pattern as invite acceptance.
+- **Delivery semantics:**
+  - snooze is claimed by clearing the field in one UPDATE, and the job has
+    `retryLimit: 0`: at most one re-send;
+  - follow-ups send email first (retryable), then Slack (errors only logged),
+    so a Slack outage never causes a second email.
+- **Done clears a pending snooze**, and a repeat Mark done is a no-op.
+- **E2E found this:** the user had connected their own company to the fake
+  Slack, so my test company couldn't claim the same fake workspace (the
+  `team_id` uniqueness working as intended). I ran the fake as another
+  workspace (`FAKE_SLACK_TEAM`) instead of touching the user's data.
+- **Verified against `next start` + `pnpm worker` + fake Slack:**
+  - DMs carry the buttons;
+  - an unsigned or tampered click → 401;
+  - bob's signed Mark done → done in the app ("1 of 2") and his DM updated;
+  - a non-assignee → "This task isn't assigned to you.", nothing changed;
+  - alice's snooze → set, and the DM updated;
+  - forced due → exactly one "Snoozed reminder" DM;
+  - forced follow-up → an "Overdue" DM with buttons for alice, none for
+    bob (done).
+
+  60 tests pass.
+- **Not checked:** a real Slack workspace (the buttons' look, real
+  `users.info` behaviour).
+
 ## 2026-10-07 — Slack phase A: connect a workspace, send to channels and DMs
 
 - **Built against a fake Slack, by the user's choice** (no Slack app yet).

@@ -201,10 +201,14 @@ async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
   const token = decrypt(inst.botTokenEnc);
   let channel = d.address;
   let note: string | undefined;
+  let dm = false;
   if (d.userId) {
     const [u] = await ownerDb.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, d.userId));
     const slackUser = await lookupByEmail(token, u.email, f);
-    if (slackUser) channel = await openDm(token, slackUser, f);
+    if (slackUser) {
+      channel = await openDm(token, slackUser, f);
+      dm = true;
+    }
     else if (inst.fallbackChannelId) {
       channel = inst.fallbackChannelId;
       note = `For ${u.name}: they have no Slack account under ${u.email}, so this is posted here.`;
@@ -217,6 +221,8 @@ async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
     appUrl: `${process.env.BETTER_AUTH_URL}/reminders/${r.reminder.id}`,
     due: r.reminder.isTask && r.dueAt ? `${formatInZone(r.dueAt, r.reminder.timeZone)} (${r.reminder.timeZone})` : undefined,
     note,
+    // Buttons on tasks; snooze only in a real DM (a fallback-channel post is shared).
+    task: r.reminder.isTask ? { occurrenceId: d.occurrenceId, dm } : undefined,
   });
   try {
     const posted = await postMessage(token, channel, msg.text, msg.blocks, f);
@@ -315,9 +321,39 @@ export async function claimFollowUps(now = new Date(), onlyCompany?: string) {
   return rows.map((r) => r.id);
 }
 
-// Sends one assignment's follow-up over the task's channels (email here;
-// Slack DMs join in phase B).
-export async function followUpOne(assignmentId: string, send: typeof sendMail = sendMail) {
+// A task DM to one assignee, with the Mark done / Snooze buttons (follow-ups
+// and snoozes). No Slack connection or account: skipped, logged; no
+// fallback-channel noise for these.
+async function taskDm(assignmentId: string, prefix: string, f?: typeof fetch) {
+  const [x] = await ownerDb
+    .select({ a: taskAssignments, r: reminders, dueAt: reminderOccurrences.dueAt, email: user.email, inst: slackInstallations })
+    .from(taskAssignments)
+    .innerJoin(reminders, eq(reminders.id, taskAssignments.reminderId))
+    .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, taskAssignments.occurrenceId))
+    .innerJoin(user, eq(user.id, taskAssignments.userId))
+    .leftJoin(slackInstallations, eq(slackInstallations.companyId, taskAssignments.companyId))
+    .where(eq(taskAssignments.id, assignmentId));
+  if (!x?.inst) return "no-slack";
+  const token = decrypt(x.inst.botTokenEnc);
+  const slackUser = await lookupByEmail(token, x.email, f);
+  if (!slackUser) return "not-on-slack";
+  const msg = reminderMessage({
+    title: x.r.title,
+    description: x.r.description,
+    links: x.r.links,
+    appUrl: `${process.env.BETTER_AUTH_URL}/reminders/${x.r.id}`,
+    due: x.dueAt ? `${formatInZone(x.dueAt, x.r.timeZone)} (${x.r.timeZone})` : undefined,
+    prefix,
+    task: { occurrenceId: x.a.occurrenceId, dm: true },
+  });
+  await postMessage(token, await openDm(token, slackUser, f), `${prefix}: ${msg.text}`, msg.blocks, f);
+  return "sent";
+}
+
+// Sends one assignment's follow-up over the task's channels: email first (a
+// failure throws, so pg-boss retries before Slack is tried), then a Slack DM
+// whose failure is only logged (so it never causes a second email).
+export async function followUpOne(assignmentId: string, send: typeof sendMail = sendMail, slackFetch?: typeof fetch) {
   const [x] = await ownerDb
     .select({ a: taskAssignments, r: reminders, dueAt: reminderOccurrences.dueAt, email: user.email })
     .from(taskAssignments)
@@ -327,15 +363,42 @@ export async function followUpOne(assignmentId: string, send: typeof sendMail = 
     .where(eq(taskAssignments.id, assignmentId));
   // Marked done (or cancelled) between the claim and now: nothing to nag about.
   if (!x || x.a.doneAt || x.r.status === "cancelled" || !x.dueAt) return "skipped";
-  if (!x.r.channels.includes("email")) return "skipped"; // ponytail: Slack follow-up DMs arrive in phase B
-  const [creator] = await ownerDb.select({ email: user.email }).from(user).where(eq(user.id, x.r.createdBy));
-  await send({
-    to: x.email,
-    subject: `Overdue: ${x.r.title}`,
-    text: `This task was due ${formatInZone(x.dueAt, x.r.timeZone)} (${x.r.timeZone}) and isn't marked done yet. You'll get this reminder daily until it is.`,
-    links: [{ label: "Mark it done in NotifyHub", url: `${process.env.BETTER_AUTH_URL}/reminders/${x.r.id}` }],
-    fromName: `${x.r.senderName} via NotifyHub`,
-    replyTo: creator?.email,
-  });
+  const due = `${formatInZone(x.dueAt, x.r.timeZone)} (${x.r.timeZone})`;
+  if (x.r.channels.includes("email")) {
+    const [creator] = await ownerDb.select({ email: user.email }).from(user).where(eq(user.id, x.r.createdBy));
+    await send({
+      to: x.email,
+      subject: `Overdue: ${x.r.title}`,
+      text: `This task was due ${due} and isn't marked done yet. You'll get this reminder daily until it is.`,
+      links: [{ label: "Mark it done in NotifyHub", url: `${process.env.BETTER_AUTH_URL}/reminders/${x.r.id}` }],
+      fromName: `${x.r.senderName} via NotifyHub`,
+      replyTo: creator?.email,
+    });
+  }
+  if (x.r.channels.includes("slack"))
+    await taskDm(assignmentId, `Overdue: this was due ${due} and isn't marked done yet`, slackFetch).catch((e) =>
+      console.error("Slack follow-up failed", assignmentId, e),
+    );
   return "sent";
 }
+
+// --- Slack snooze -------------------------------------------------------------------
+// "Snooze" set snoozed_until; once it passes, the next tick claims it (clears
+// it in the same UPDATE, so it's sent at most once) and re-sends the DM.
+export async function claimSnoozes(now = new Date(), onlyCompany?: string) {
+  const rows = await ownerDb
+    .update(taskAssignments)
+    .set({ snoozedUntil: null })
+    .where(
+      and(
+        lte(taskAssignments.snoozedUntil, now),
+        sql`${taskAssignments.doneAt} is null`,
+        onlyCompany ? eq(taskAssignments.companyId, onlyCompany) : undefined,
+      ),
+    )
+    .returning({ id: taskAssignments.id });
+  return rows.map((r) => r.id);
+}
+
+export const snoozeOne = (assignmentId: string, slackFetch?: typeof fetch) =>
+  taskDm(assignmentId, "Snoozed reminder", slackFetch);

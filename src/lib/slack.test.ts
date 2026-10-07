@@ -57,3 +57,13 @@ test("reminderMessage escapes and includes task fields", () => {
   assert.ok(json.includes("*Due* 8 Oct 2026, 10:00"));
   assert.equal(m.text, "Task: Pay <invoices> & co (due 8 Oct 2026, 10:00)");
 });
+
+test("task buttons: DM gets done + snoozes, channel gets done only; value is the occurrence", () => {
+  const actions = (dm: boolean) =>
+    (reminderMessage({ title: "T", description: "", links: [], appUrl: "u", due: "d", task: { occurrenceId: "occ-1", dm } }).blocks.find(
+      (b) => (b as { type: string }).type === "actions",
+    ) as { elements: { action_id: string; value?: string }[] }).elements;
+  assert.deepEqual(actions(true).map((e) => e.action_id), ["task_done", "snooze_1h", "snooze_tomorrow", "open"]);
+  assert.deepEqual(actions(false).map((e) => e.action_id), ["task_done", "open"]);
+  assert.ok(actions(true).filter((e) => e.action_id !== "open").every((e) => e.value === "occ-1"));
+});

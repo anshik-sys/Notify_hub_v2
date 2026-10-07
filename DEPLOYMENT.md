@@ -38,6 +38,9 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0014: `task_assignments.snoozed_until`, and `notifyhub_auth` may
+read `slack_installations` (a button click names a workspace, not a company).
+
 Migrations 0011–0013 (Slack):
 - 0011 moves task completion from `deliveries` to `task_assignments`
   (backfilled);
@@ -93,7 +96,8 @@ ids, and makes the earliest user of each existing company its Company Admin.
   2. Bot Token Scopes: `chat:write`, `chat:write.public`, `channels:read`,
      `users:read`, `users:read.email`, `im:write`.
   3. Interactivity & Shortcuts → On, Request URL
-     `https://<host>/api/slack/interactions` (phase B).
+     `https://<host>/api/slack/interactions`. Requests without a valid
+     `SLACK_SIGNING_SECRET` signature get 401.
   4. Basic Information → copy the Client ID, Client Secret and Signing Secret
      into the env.
   5. Manage Distribution → activate public distribution, so other companies'
@@ -141,6 +145,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] A task for two people: both get "Task: …"; one marks done → "1 of 2 done"; at the company follow-up time the other gets one "Overdue: …" (only one that day).
 - [ ] Integrations → Add to Slack → back on the page, "Connected to <workspace>"; set a fallback channel.
 - [ ] A reminder on Email + Slack to a department plus a channel: emails arrive, each member gets a DM, the channel gets one post; someone without Slack shows up in the fallback channel.
+- [ ] A Slack task: each DM has Mark done / Snooze. Mark done → the DM shows "✅ Done" and the app shows it done; Snooze 1 hour → the DM comes back about an hour later, once.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

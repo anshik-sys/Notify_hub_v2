@@ -387,6 +387,8 @@ export const taskAssignments = pgTable(
     doneAt: ts(),
     followups: integer().notNull().default(0),
     lastFollowupOn: date({ mode: "string" }),
+    // Slack "Snooze": the worker re-sends the DM once this passes (then clears it).
+    snoozedUntil: ts(),
     createdAt: ts().notNull().defaultNow(),
   },
   (t) => [unique().on(t.occurrenceId, t.userId), index().on(t.userId), tenantPolicy("company_id")],
@@ -410,5 +412,7 @@ export const slackInstallations = pgTable(
     installedBy: text().references(() => user.id, { onDelete: "set null" }),
     createdAt: ts().notNull().defaultNow(),
   },
-  () => [tenantPolicy("company_id")],
+  // authPolicy: a Slack button click names a workspace (team_id), not a
+  // company; the interactions endpoint finds the company through authDb.
+  () => [tenantPolicy("company_id"), authPolicy],
 ).enableRLS();

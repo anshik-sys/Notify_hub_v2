@@ -94,6 +94,18 @@ export async function postMessage(token: string, channel: string, text: string, 
   return { ts: r.ts, channel: r.channel };
 }
 
+// The email on a Slack user's profile (needs users:read.email); null if hidden/unknown.
+export async function usersInfo(token: string, slackUserId: string, f?: Fetch) {
+  const r = await slackApi<{ user: { profile?: { email?: string } } }>("users.info", token, { user: slackUserId }, f);
+  return r.user.profile?.email?.toLowerCase() ?? null;
+}
+
+// Reply through an interaction's response_url (e.g. an ephemeral message only
+// the clicker sees). Not a Web API method: plain JSON, no token.
+export async function respond(responseUrl: string, body: object, f: Fetch = fetch) {
+  await f(responseUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+
 export const updateMessage = (token: string, channel: string, ts: string, text: string, blocks: unknown[], f?: Fetch) =>
   slackApi("chat.update", token, { channel, ts, text, blocks }, f);
 
@@ -109,10 +121,15 @@ export function reminderMessage(m: {
   appUrl: string;
   due?: string; // tasks: formatted due time
   note?: string; // e.g. fallback-channel explanation
+  // Task buttons. value = occurrence id: the clicker must be an assignee of it.
+  // Snooze only in a DM (it's personal).
+  task?: { occurrenceId: string; dm: boolean };
+  prefix?: string; // "Overdue" / "Snoozed reminder" lines for follow-ups
 }) {
   const blocks: unknown[] = [
     { type: "header", text: { type: "plain_text", text: (m.due ? `Task: ${m.title}` : m.title).slice(0, 150) } },
   ];
+  if (m.prefix) blocks.push({ type: "section", text: { type: "mrkdwn", text: `*${esc(m.prefix)}*` } });
   if (m.note) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: esc(m.note) }] });
   if (m.description) blocks.push({ type: "section", text: { type: "mrkdwn", text: esc(m.description).slice(0, 3000) } });
   if (m.due) blocks.push({ type: "section", text: { type: "mrkdwn", text: `*Due* ${esc(m.due)}` } });
@@ -121,10 +138,35 @@ export function reminderMessage(m: {
       type: "section",
       text: { type: "mrkdwn", text: m.links.map((l) => `• <${l.url}|${esc(l.label)}>`).join("\n") },
     });
-  blocks.push({
-    type: "actions",
-    elements: [{ type: "button", text: { type: "plain_text", text: "Open in NotifyHub" }, url: m.appUrl, action_id: "open" }],
-  });
+  blocks.push({ type: "actions", block_id: "task", elements: [...taskButtons(m.task), openButton(m.appUrl)] });
   const text = m.due ? `Task: ${m.title} (due ${m.due})` : m.title; // notification/fallback text
   return { text, blocks };
+}
+
+const button = (text: string, action_id: string, value: string, style?: "primary") => ({
+  type: "button",
+  text: { type: "plain_text", text },
+  action_id,
+  value,
+  ...(style ? { style } : {}),
+});
+const openButton = (url: string) => ({ type: "button", text: { type: "plain_text", text: "Open in NotifyHub" }, url, action_id: "open" });
+
+function taskButtons(task?: { occurrenceId: string; dm: boolean }) {
+  if (!task) return [];
+  return [
+    button("Mark done", "task_done", task.occurrenceId, "primary"),
+    ...(task.dm
+      ? [button("Snooze 1 hour", "snooze_1h", task.occurrenceId), button("Snooze until tomorrow", "snooze_tomorrow", task.occurrenceId)]
+      : []),
+  ];
+}
+
+// After a click in a DM: keep the message, swap the buttons for a status line.
+export function withStatus(blocks: { type: string; block_id?: string }[], status: string, appUrl: string) {
+  return [
+    ...blocks.filter((b) => b.block_id !== "task" && b.block_id !== "status"),
+    { type: "context", block_id: "status", elements: [{ type: "mrkdwn", text: esc(status) }] },
+    { type: "actions", block_id: "task", elements: [openButton(appUrl)] },
+  ];
 }

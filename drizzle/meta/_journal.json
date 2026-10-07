@@ -99,6 +99,13 @@
       "when": 1791364915963,
       "tag": "0013_slack",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791365828681,
+      "tag": "0014_slack_buttons",
+      "breakpoints": true
     }
   ]
 }
