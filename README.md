@@ -48,7 +48,7 @@ psql notifyhub -c "ALTER ROLE notifyhub_auth PASSWORD 'dev'"
 # Mailpit on localhost:1025 (SMTP) / :8025 (UI) catches all mail
 pnpm test        # tenant isolation and onboarding tests
 pnpm dev         # web
-pnpm worker      # scheduler
+pnpm worker      # sends reminders; without it they sit "Scheduled" and show "Delayed"
 ```
 
 ## Constraints you cannot see from the code
@@ -100,6 +100,10 @@ pnpm worker      # scheduler
   transaction that schedules a due reminder (create, edit, approve). The
   worker `LISTEN`s and dispatches at once; the minute tick is only a safety
   net. pg-boss's own queue `notify` wakes the deliver workers.
+- **"Delayed" is derived, not reported.** `isDelayed()` means Scheduled over a
+  minute past due, or Sending with no progress for 2 minutes. That only
+  happens when no worker is running or it's badly behind. There's no heartbeat
+  table to keep in sync.
 - **The worker connects as the table owner (no RLS).** Every worker query
   filters by company or by ids it got from a company-scoped row. The test-only
   `dispatchDue(…, onlyCompany)` exists so a test run can't dispatch real dev

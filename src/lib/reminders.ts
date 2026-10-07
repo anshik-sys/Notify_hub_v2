@@ -376,6 +376,7 @@ export function listReminders(companyId: string, viewer: Actor) {
         title: reminders.title,
         status: reminders.status,
         sendAt: reminders.sendAt,
+        updatedAt: reminders.updatedAt,
       })
       .from(reminders)
       .where(can(viewer.access, "reminders.view_all") ? undefined : eq(reminders.createdBy, viewer.id))
@@ -393,6 +394,14 @@ export function listPendingApprovals(companyId: string) {
       .where(eq(reminders.status, "pending_approval"))
       .orderBy(reminders.sendAt),
   );
+}
+
+// Due but not picked up: the worker isn't running (or is far behind). The worker
+// sends within seconds and its tick runs every minute, so a minute late means
+// something is wrong. "sending" stuck 2 minutes = deliveries queued, nobody sending.
+export function isDelayed(r: { status: ReminderStatus; sendAt: Date; updatedAt: Date }, now = new Date()) {
+  const ago = (d: Date) => now.getTime() - d.getTime();
+  return (r.status === "scheduled" && ago(r.sendAt) > 60_000) || (r.status === "sending" && ago(r.updatedAt) > 120_000);
 }
 
 export const STATUS_LABELS: Record<ReminderStatus, string> = {

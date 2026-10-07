@@ -17,8 +17,13 @@ export const MAX_ATTEMPTS = 5;
 const STUCK_AFTER_MS = 10 * 60_000;
 
 // Returns how many reminders were dispatched; enqueue gets the new delivery ids.
-// onlyCompany is for tests, so a test run never dispatches anyone else's reminders.
-export async function dispatchDue(enqueue: (deliveryIds: string[]) => Promise<void>, onlyCompany?: string) {
+// onlyCompany and now are for tests: a test run never dispatches anyone else's
+// reminders, and a test reminder due "in an hour" is invisible to a live worker.
+export async function dispatchDue(
+  enqueue: (deliveryIds: string[]) => Promise<void>,
+  onlyCompany?: string,
+  now = new Date(),
+) {
   let count = 0;
   for (;;) {
     const ids = await ownerDb.transaction(async (tx) => {
@@ -28,7 +33,7 @@ export async function dispatchDue(enqueue: (deliveryIds: string[]) => Promise<vo
         .where(
           and(
             eq(reminders.status, "scheduled"),
-            lte(reminders.sendAt, new Date()),
+            lte(reminders.sendAt, now),
             onlyCompany ? eq(reminders.companyId, onlyCompany) : undefined,
           ),
         )

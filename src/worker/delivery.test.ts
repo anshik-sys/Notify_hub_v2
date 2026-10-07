@@ -22,7 +22,7 @@ before(async () => {
   for (const u of [alice, bob, gone]) await q("insert into department_members values ($1, $2, $3, false)", [s.companyId, ops, u]);
   [{ id: reminderId }] = await q(
     `insert into reminders (company_id, short_id, created_by, title, description, sender_name, send_at, status)
-     values ($1, $2, $3, 'Fire drill', 'At 3pm', 'HR', now() - interval '1 minute', 'scheduled') returning id`,
+     values ($1, $2, $3, 'Fire drill', 'At 3pm', 'HR', now() + interval '1 hour', 'scheduled') returning id`,
     [s.companyId, `R-${s.companyId.slice(0, 6).toUpperCase()}`, creator],
   );
   await q("insert into reminder_targets values ($1, $2, 'department', $3), ($1, $2, 'email', $4)", [
@@ -40,13 +40,18 @@ after(async () => {
 test("dispatch: parallel runs make one delivery per recipient", async () => {
   const enqueued: string[] = [];
   const enqueue = async (ids: string[]) => void enqueued.push(...ids);
-  const [a, b] = await Promise.all([dispatchDue(enqueue, s.companyId), dispatchDue(enqueue, s.companyId)]);
+  // "Now" is two hours ahead, so the reminder (due in 1h) is due for us but not for a live worker.
+  const inTwoHours = new Date(Date.now() + 2 * 3_600_000);
+  const [a, b] = await Promise.all([
+    dispatchDue(enqueue, s.companyId, inTwoHours),
+    dispatchDue(enqueue, s.companyId, inTwoHours),
+  ]);
   assert.equal(a + b, 1); // one run got it, the other skipped the locked row
   const rows = await q("select email, status from deliveries where reminder_id = $1 order by email", [reminderId]);
   assert.equal(rows.length, 3); // alice, bob, ext (not the deactivated one)
   assert.equal(enqueued.length, 3);
   assert.deepEqual((await q("select status from reminders where id = $1", [reminderId]))[0], { status: "sending" });
-  assert.equal(await dispatchDue(enqueue, s.companyId), 0); // nothing left due
+  assert.equal(await dispatchDue(enqueue, s.companyId, inTwoHours), 0); // nothing left due
 });
 
 test("deliver: one email even when claimed twice; retries then fails", async () => {

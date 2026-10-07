@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Button, Field, firstParam, Form, Hint, LinkButton, Page, Section } from "@/components/form";
 import { List, ListRow } from "@/components/list";
 import { can } from "@/lib/permissions";
-import { deliveryLog, getReminder, reminderAccess, STATUS_LABELS } from "@/lib/reminders";
+import { deliveryLog, getReminder, isDelayed, reminderAccess, STATUS_LABELS } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { formatInZone } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
@@ -38,6 +38,12 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
         <span>{r.shortId}</span>
       </p>
 
+      {isDelayed(r) && (
+        <p role="alert" className={styles.warning}>
+          Delivery is delayed: the sending service isn’t running. This reminder will go out automatically, once,
+          as soon as it’s back. If it stays like this, tell your admin.
+        </p>
+      )}
       {r.status === "pending_approval" && (
         <p role="status" className={styles.warning}>
           Waiting for an admin’s approval. Outside the sender’s departments: {r.outOfScope.join(", ")}.

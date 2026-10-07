@@ -2,6 +2,31 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-07 — "delivery is delayed" safeguard
+
+- **What happened:** the user created a "Now" reminder and it stayed
+  "Scheduled". The engine was fine: the worker wasn't running, because it
+  was stopped after the last test and nothing in the UI said so.
+- **Fix:** `isDelayed()` flags a reminder as Scheduled over 60s past due, or
+  Sending with no update for 120s. The list badge reads "Delayed" and the
+  detail page shows a warning saying it'll go out automatically, once.
+  - We rejected a worker heartbeat table: more moving parts, and it can only
+    say "no worker", while the derived check also catches a worker that's
+    alive but stuck.
+  - The 60s threshold: the worker normally sends within a second, and its
+    minute tick is the backstop.
+- **Tests no longer depend on whether a worker is running:**
+  - a live worker broke the lifecycle test by sending its "now" reminder
+    mid-test;
+  - fixed with test send times an hour ahead, plus a test-only `now` argument
+    to `dispatchDue`.
+- **Verified against `next start`:**
+  - worker stopped + a 2-minute-overdue reminder → "Delayed" badge and the
+    warning;
+  - worker started → sent, and the warning is gone.
+
+  24 tests pass.
+
 ## 2026-10-07 — reminders send for real; edit fix; recipient picker
 
 - **What the user reported:**

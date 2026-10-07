@@ -7,6 +7,7 @@ import {
   createReminder,
   decideReminder,
   getReminder,
+  isDelayed,
   outOfScope,
   reminderAccess,
   type RawReminder,
@@ -36,6 +37,9 @@ const raw = (over: Partial<RawReminder> = {}): RawReminder => ({
   sendAtLocal: "",
   ...over,
 });
+// An hour ahead: a worker running on this machine must not send test reminders
+// mid-test (it would, within a second, for anything due now).
+const later = () => new Date(Date.now() + 3_600_000);
 const actor = async (id: string) => ({ id, access: await loadAccess(s.companyId, id) });
 const dept = async (name: string, members: [string, boolean][]) => {
   const { rows } = await s.owner.query("insert into departments (company_id, name) values ($1, $2) returning id", [s.companyId, name]);
@@ -120,7 +124,7 @@ test("outOfScope (PRD 5.2)", async () => {
 });
 
 test("lifecycle: create, approve, reject, edit, widen, cancel", async () => {
-  const input = (targets: Target[]) => ({ title: "T", description: "", links: [], senderName: "S", sendAt: new Date(), targets });
+  const input = (targets: Target[]) => ({ title: "T", description: "", links: [], senderName: "S", sendAt: later(), targets });
 
   const own = await createReminder(await actor(alice), s.companyId, input([{ kind: "department", ref: ops }]));
   assert.ok("id" in own);
@@ -169,7 +173,7 @@ test("reminderAccess: owners full, recipients via delivery row, others none", as
     description: "",
     links: [],
     senderName: "S",
-    sendAt: new Date(),
+    sendAt: later(),
     targets: [{ kind: "department", ref: ops }],
   });
   assert.ok("id" in r);
@@ -185,4 +189,21 @@ test("reminderAccess: owners full, recipients via delivery row, others none", as
     carol,
   ]);
   assert.equal(await reminderAccess(s.companyId, await viewer(carol), ref), "recipient");
+});
+
+test("isDelayed", () => {
+  const now = new Date("2026-10-07T10:00:00Z");
+  const at = (secondsAgo: number) => new Date(now.getTime() - secondsAgo * 1000);
+  const r = (status: "scheduled" | "sending" | "sent" | "pending_approval", sendAgo: number, updAgo = 0) => ({
+    status,
+    sendAt: at(sendAgo),
+    updatedAt: at(updAgo),
+  });
+  assert.equal(isDelayed(r("scheduled", 30), now), false); // just due: the worker has a minute
+  assert.equal(isDelayed(r("scheduled", -3600), now), false); // future
+  assert.equal(isDelayed(r("scheduled", 90), now), true);
+  assert.equal(isDelayed(r("sending", 600, 60), now), false);
+  assert.equal(isDelayed(r("sending", 600, 180), now), true);
+  assert.equal(isDelayed(r("sent", 3600, 3600), now), false);
+  assert.equal(isDelayed(r("pending_approval", 3600), now), false); // waiting on a person, not the worker
 });

@@ -87,7 +87,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Invite someone → email arrives → accept link creates the account and lands on the company → the same link again says "already used".
 - [ ] As a member, a reminder to your own department is "Scheduled", and one to another department is "Needs approval"; admins get an email.
 - [ ] "Now" to two people: both emails arrive within seconds, each addressed only to that person, Reply-To the creator; the reminder shows "2 sent".
-- [ ] Stop the worker, create a "Now" reminder (it stays Scheduled), start the worker: it's sent once.
+- [ ] Stop the worker, create a "Now" reminder: after a minute it shows "Delayed" with the warning; start the worker: it's sent once and the warning is gone.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".
