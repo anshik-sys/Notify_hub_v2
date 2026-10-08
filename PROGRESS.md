@@ -2,6 +2,23 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — one-button theme toggle in the top bar
+
+- The top bar had System / Light / Dark. The user asked to drop System since
+  it's the default. Kept half of that: the **top bar is now a single
+  light/dark toggle**, but **Settings > Appearance keeps all three**.
+  Without a System option anywhere, someone who once picked Light or Dark
+  could never go back to following their device.
+- While the choice is "system" the server can't tell which theme is on
+  screen, so the toggle renders both "Dark theme" and "Light theme" buttons
+  and CSS (the same media query and `data-theme` selectors as `globals.css`)
+  shows the one that switches away from the current look. Still no client JS.
+- `!important` on those display rules is deliberate: the button's look comes
+  from `layout.module.css` (`.round`), and CSS Modules don't guarantee which
+  file loads last.
+- Verified in Chromium: device light → shows moon; device dark → shows sun;
+  repeated flips; Settings → System clears `data-theme`; axe 0; fits at 320px.
+
 ## 2026-10-08 — design feedback round: flatter frame, toned stats, two-column home
 
 Outside feedback on the second design. All five points taken:

@@ -40,10 +40,29 @@
   color: var(--primary-fg);
 }
 
-.compact .option {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  padding: 0;
+.toggle {
+  display: contents;
+}
+
+/* Show the button that switches away from what's on screen. */
+.toLight {
+  display: none !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme="light"])) .toDark {
+    display: none !important;
+  }
+
+  :global(:root:not([data-theme="light"])) .toLight {
+    display: inline-flex !important;
+  }
+}
+
+:global(:root[data-theme="dark"]) .toDark {
+  display: none !important;
+}
+
+:global(:root[data-theme="dark"]) .toLight {
+  display: inline-flex !important;
 }

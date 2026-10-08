@@ -11,28 +11,35 @@ async function setTheme(formData: FormData) {
 }
 
 const LABELS: Record<Theme, string> = { system: "System", light: "Light", dark: "Dark" };
-const ICONS = { system: "system", light: "sun", dark: "moon" } as const;
-
-// A segmented control: each option is a submit button; the server action sets
-// the cookie and the page re-renders in the new theme. compact: round icon
-// buttons for the top bar (name via aria-label, tooltip via title).
-export async function ThemeSwitcher({ compact }: { compact?: boolean }) {
+// The full control (Settings > Appearance): System / Light / Dark. Each option
+// is a submit button; the server action sets the cookie and the page
+// re-renders in the new theme.
+export async function ThemeSwitcher() {
   const theme = await currentTheme();
   return (
-    <form action={setTheme} className={compact ? `${styles.switcher} ${styles.compact}` : styles.switcher} aria-label="Theme">
+    <form action={setTheme} className={styles.switcher} aria-label="Theme">
       {THEMES.map((t) => (
-        <button
-          key={t}
-          name="theme"
-          value={t}
-          className={styles.option}
-          aria-pressed={theme === t}
-          aria-label={compact ? `${LABELS[t]} theme` : undefined}
-          title={compact ? `${LABELS[t]} theme` : undefined}
-        >
-          {compact ? <Icon name={ICONS[t]} /> : LABELS[t]}
+        <button key={t} name="theme" value={t} className={styles.option} aria-pressed={theme === t}>
+          {LABELS[t]}
         </button>
       ))}
+    </form>
+  );
+}
+
+// The top-bar toggle: one round button that flips light/dark. The server
+// can't see the device's theme while the choice is "system", so both buttons
+// render and CSS shows the one that fits what's on screen. Going back to
+// "system" is in Settings > Appearance.
+export function ThemeToggle({ className }: { className: string }) {
+  return (
+    <form action={setTheme} className={styles.toggle}>
+      <button name="theme" value="dark" className={`${className} ${styles.toDark}`} aria-label="Dark theme" title="Dark theme">
+        <Icon name="moon" />
+      </button>
+      <button name="theme" value="light" className={`${className} ${styles.toLight}`} aria-label="Light theme" title="Light theme">
+        <Icon name="sun" />
+      </button>
     </form>
   );
 }

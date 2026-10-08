@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
-import { ThemeSwitcher } from "@/components/theme-switcher";
+import { ThemeToggle } from "@/components/theme-switcher";
 import { unreadCount } from "@/lib/notifications";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
@@ -64,7 +64,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           )}
 
           <div className={styles.tools}>
-            <ThemeSwitcher compact />
+            <ThemeToggle className={styles.round} />
             <Link
               href="/notifications"
               className={styles.round}
