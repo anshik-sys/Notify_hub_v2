@@ -15,11 +15,12 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Next.js 16, React 19, Drizzle 0.45, pg-boss 12. Check `node_modules` docs, not memory.
 - Import alias: `@/*` -> `src/*`.
 - **Design desktop-first** (the user works on a laptop). Narrow windows must still work, but the laptop is the target.
-  - Signed-in pages live in `src/app/(app)/` and get the shell: a left sidebar (top bar below 768px). Auth pages stay outside and use `<Page center>`.
+  - Signed-in pages live in `src/app/(app)/` and get the shell: a top bar (logo pill, pill tabs for the main areas, bell, avatar, black "+") and a slim left rail of round icon buttons for admin pages (a row below 900px). Icons come from `src/components/icon.tsx`; icon-only buttons need `aria-label` and `data-label` (the tooltip). Auth pages stay outside and use `<Page center>`.
   - A page's main action goes in `Page`'s `actions` (top right). Sub-pages pass `back={{ href, label }}`.
   - Lists with more than one fact per row are `Table`s (`src/components/table.tsx`, with `Badge`, `Muted`). `List`/`ListRow` is for short lists (Home sections, links).
   - Forms stay at 640px max; buttons size to their label (full width only in `<Page center>`).
-  - Build screens from `src/components/` and add to the kit rather than restyling per page.
+  - Build screens from `src/components/` and add to the kit rather than restyling per page. Kit: `form`, `table` (`Badge` tones, `Bar`), `list`, `stats` (`StatCards` with `icon`/`hint`), `chart` (`BarChart`), `tabs` (sub-page switcher), `filters`, `avatar`, `icon`.
+  - The look follows a reference dashboard the user picked (grey-blue canvas, translucent rounded cards, black accents, lime icon circles). It lives in the `globals.css` tokens (`--card`, `--card-border`, `--pill`, `--lime`, `--chart-1..3`, `--radius-lg`, `--select-chevron`, `--font`) so it can be swapped in one file; the user may change it.
   - When asking the user to check something, say "in the browser", never "on a phone".
 - **Styling: plain CSS Modules, no Tailwind.** Each component gets its own
   `<name>.module.css` beside it, with semantic class names (`.field`, `.signOut`).

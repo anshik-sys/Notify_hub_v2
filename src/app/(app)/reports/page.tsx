@@ -1,3 +1,4 @@
+import { Tabs } from "@/components/tabs";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FilterBar } from "@/components/filters";
@@ -36,13 +37,7 @@ export default async function Reports(props: PageProps<"/reports">) {
         )
       }
     >
-      <nav className={styles.tabs} aria-label="Report">
-        {TABS.map(([key, label]) => (
-          <Link key={key} href={`/reports?${qs({ ...f, report: key })}`} aria-current={f.report === key ? "page" : undefined}>
-            {label}
-          </Link>
-        ))}
-      </nav>
+      <Tabs label="Report" tabs={TABS.map(([key, label]) => ({ href: `/reports?${qs({ ...f, report: key })}`, label, current: f.report === key }))} />
       <FilterBar action="/reports">
         <input type="hidden" name="report" value={f.report} />
         {f.report !== "overdue" && <Field label="From" name="from" type="date" defaultValue={f.from} />}

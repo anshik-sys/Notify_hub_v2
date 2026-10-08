@@ -1,26 +1,24 @@
 .hint {
-  margin: -8px 0 16px;
+  margin: -8px 0 0;
   color: var(--muted);
   font-size: 0.875rem;
 }
 
+/* The month: a card with a 7-column grid; days are soft tiles. */
 .grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  border-top: 1px solid var(--border);
-  border-left: 1px solid var(--border);
-}
-
-.weekday,
-.day,
-.blank {
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(14px);
 }
 
 .weekday {
-  padding: 6px 8px;
-  background: var(--surface);
+  padding: 4px 8px 6px;
   color: var(--muted);
   font-size: 0.8125rem;
   font-weight: 600;
@@ -29,46 +27,56 @@
 .day {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
-  min-height: 104px;
-  padding: 6px;
+  min-height: 112px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--input-bg);
 }
 
 .blank {
-  background: var(--surface);
+  border-radius: var(--radius);
+}
+
+.today {
+  box-shadow: inset 0 0 0 2px var(--primary-bg);
 }
 
 .today .date {
-  border-radius: 999px;
   background: var(--primary-bg);
   color: var(--primary-fg);
 }
 
 .date {
   align-self: flex-start;
-  min-width: 24px;
-  padding: 0 6px;
+  min-width: 26px;
+  padding: 0 7px;
+  border-radius: 999px;
   color: var(--muted);
   font-size: 0.8125rem;
-  line-height: 22px;
+  font-weight: 600;
+  line-height: 24px;
   text-align: center;
 }
 
+/* Each send: a small pill, tinted with the first chart colour. */
 .entry {
   display: block;
   overflow: hidden;
-  padding: 1px 4px;
-  border-radius: 4px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--chart-1) 22%, transparent);
   color: var(--fg);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
+  font-weight: 500;
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .entry:hover {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--chart-1) 40%, transparent);
 }
 
 .time {
@@ -79,12 +87,13 @@
 .more {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .more summary {
   padding: 0 4px;
   color: var(--muted);
   font-size: 0.75rem;
+  font-weight: 600;
   cursor: pointer;
 }

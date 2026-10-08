@@ -1,28 +1,54 @@
-/* Desktop-first shell: fixed-width sidebar + page. */
-.shell {
-  display: grid;
-  grid-template-columns: 232px 1fr;
-  flex: 1;
+/* The app shell, after the design reference: a top bar of pills (logo, main
+   tabs, round buttons) over a slim left rail of round icon buttons, all
+   floating on the canvas gradient. Colours and radii are tokens. */
+
+.app {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
+  padding: 20px 28px 40px;
 }
 
-.sidebar {
-  position: sticky;
-  top: 0;
+/* --- Top bar ------------------------------------------------------------- */
+
+.top {
   display: flex;
-  flex-direction: column;
-  gap: 24px;
-  height: 100vh;
-  padding: 20px 12px;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 24px;
+  margin-bottom: 26px;
 }
 
-.brand {
+.logoPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  padding: 0 22px 0 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--pill-active);
+  box-shadow: var(--shadow-sm);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  font-weight: 800;
+}
+
+.brandText {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 0 8px;
+  line-height: 1.15;
 }
 
 .product {
@@ -31,92 +57,261 @@
 }
 
 .company {
+  max-width: 160px;
   overflow: hidden;
   color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.nav {
+.tabs {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
 }
 
-.navItem {
-  display: flex;
+.tab {
+  display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
-  gap: 10px;
-  padding: 8px;
-  border-radius: var(--radius);
-  color: var(--muted);
+  height: 48px;
+  padding: 0 24px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--pill);
+  color: var(--fg);
   font-size: 0.9375rem;
   font-weight: 500;
   text-decoration: none;
+  transition: background 0.15s, box-shadow 0.15s;
 }
 
-.navItem:hover {
-  background: var(--bg);
+.tab:hover {
+  background: var(--pill-active);
+}
+
+.tab[aria-current="page"] {
+  background: var(--pill-active);
+  box-shadow: var(--shadow-sm);
+  font-weight: 650;
+}
+
+.topRight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Round icon buttons: search, notifications. */
+.round {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--pill);
   color: var(--fg);
+  transition: background 0.15s;
 }
 
-.navItem[aria-current="page"] {
-  background: var(--bg);
-  color: var(--fg);
-  box-shadow: 0 0 0 1px var(--border);
+.round:hover {
+  background: var(--pill-active);
 }
 
-.count {
-  margin-left: auto;
+.dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
   min-width: 20px;
-  padding: 0 6px;
+  padding: 0 5px;
+  border: 2px solid var(--bg);
+  border-radius: 999px;
+  background: var(--danger-fg);
+  color: var(--primary-fg);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* Your avatar, a bigger circle. */
+.me {
+  display: inline-flex;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px var(--pill-active);
+  text-decoration: none;
+}
+
+.me > * {
+  width: 48px;
+  height: 48px;
+  font-size: 0.9375rem;
+}
+
+/* The black "+": new reminder. */
+.plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
   border-radius: 999px;
   background: var(--primary-bg);
+  box-shadow: var(--shadow);
   color: var(--primary-fg);
-  font-size: 0.75rem;
-  line-height: 20px;
-  text-align: center;
+  transition: transform 0.15s;
+}
+
+.plus:hover {
+  transform: rotate(90deg);
+}
+
+/* --- Rail and content ---------------------------------------------------- */
+
+.body {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.railWrap {
+  position: sticky;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: calc(100vh - 140px);
+}
+
+/* A vertical pill holding round icon buttons. */
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--pill);
+}
+
+.rail:empty {
+  display: none;
+}
+
+.railItem {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pill-active);
+  color: var(--fg);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.railItem:hover {
+  background: var(--surface);
+}
+
+.railItem[aria-current="page"] {
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+}
+
+/* Icon-only buttons say what they are on hover and keyboard focus. */
+.railItem::after,
+.round::after,
+.plus::after {
+  position: absolute;
+  z-index: 20;
+  left: calc(100% + 10px);
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  content: attr(data-label);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+.round::after,
+.plus::after {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.round:not([data-label])::after {
+  content: none;
+}
+
+.railItem:hover::after,
+.railItem:focus-visible::after,
+.round:hover::after,
+.round:focus-visible::after,
+.plus:hover::after,
+.plus:focus-visible::after {
+  opacity: 1;
 }
 
 .content {
   min-width: 0;
-  padding: 32px 40px 48px;
 }
 
-/* Narrow windows: the sidebar becomes a top bar with a scrollable nav row. */
-@media (max-width: 767px) {
-  .shell {
-    grid-template-columns: 1fr;
+/* Narrow windows: tabs scroll, the rail becomes a row under the top bar. */
+@media (max-width: 900px) {
+  .app {
+    padding: 14px 14px 32px;
   }
 
-  .sidebar {
-    position: sticky;
-    z-index: 10;
-    height: auto;
-    gap: 8px;
-    padding: 12px 16px 8px;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
+  .tabs {
+    flex-basis: 100%;
+    order: 3;
+    justify-content: flex-start;
   }
 
-  .brand {
+  .topRight {
+    margin-left: auto;
+  }
+
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .railWrap {
+    position: static;
     flex-direction: row;
-    align-items: baseline;
-    gap: 8px;
-    padding: 0;
-  }
-
-  .nav {
-    flex-direction: row;
+    min-height: 0;
     overflow-x: auto;
   }
 
-  .navItem {
-    flex-shrink: 0;
+  .rail {
+    flex-direction: row;
   }
 
-  .content {
-    padding: 20px 16px 32px;
+  .railItem::after {
+    content: none;
   }
 }

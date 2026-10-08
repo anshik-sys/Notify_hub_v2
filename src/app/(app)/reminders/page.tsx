@@ -5,7 +5,7 @@ import { Badge, Muted, Table } from "@/components/table";
 import { REMINDER_STATUSES } from "@/db/schema";
 import { can } from "@/lib/permissions";
 import { describe } from "@/lib/recurrence";
-import { isDelayed, STATUS_LABELS, statusLabel } from "@/lib/reminders";
+import { isDelayed, STATUS_LABELS, statusLabel, statusTone } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { formatInZone } from "@/lib/time";
 import { filterUrl, PAGE_SIZE, parseFilters, searchReminders, SORTS, visibleCreators } from "@/lib/views";
@@ -106,7 +106,7 @@ export default async function Reminders(props: PageProps<"/reminders">) {
             href: `/reminders/${r.id}`,
             cells: [
               r.title,
-              <Badge key="s" tone={delayed || r.status === "rejected" ? "danger" : "neutral"}>
+              <Badge key="s" tone={statusTone(r)}>
                 {delayed ? "Delayed" : statusLabel(r)}
               </Badge>,
               r.recurrence ? (
@@ -121,7 +121,9 @@ export default async function Reminders(props: PageProps<"/reminders">) {
               ...(f.show === "mine" ? [] : [<Muted key="c">{r.creatorName}</Muted>]),
               <span key="t" className={styles.tags}>
                 {r.tags.map((t) => (
-                  <Badge key={t}>{t}</Badge>
+                  <Badge key={t} tone="accent">
+                    {t}
+                  </Badge>
                 ))}
               </span>,
               <Muted key="id">{r.shortId}</Muted>,

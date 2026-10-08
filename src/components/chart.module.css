@@ -1,0 +1,104 @@
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  list-style: none;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.plot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+}
+
+.axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-bottom: 26px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  text-align: right;
+}
+
+.groups {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  min-width: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.group {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bars {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+}
+
+.bar {
+  flex: 1;
+  max-width: 18px;
+  border-radius: 6px 6px 2px 2px;
+  transition: opacity 0.15s;
+}
+
+.bar:hover {
+  opacity: 0.75;
+}
+
+.swatch[data-color="1"],
+.bar[data-color="1"] {
+  background: var(--chart-1);
+}
+
+.swatch[data-color="2"],
+.bar[data-color="2"] {
+  background: var(--chart-2);
+}
+
+.swatch[data-color="3"],
+.bar[data-color="3"] {
+  background: var(--chart-3);
+}
+
+.label {
+  height: 26px;
+  padding-top: 8px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+  white-space: nowrap;
+}

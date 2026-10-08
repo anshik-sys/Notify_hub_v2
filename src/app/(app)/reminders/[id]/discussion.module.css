@@ -1,14 +1,13 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  max-width: 720px;
+  gap: 14px;
 }
 
 .title {
   margin: 0;
   font-size: 1.0625rem;
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .thread {
@@ -25,7 +24,7 @@
   gap: 8px;
   margin-left: 24px;
   padding-left: 12px;
-  border-left: 2px solid var(--border);
+  border-left: 2px solid var(--primary-soft);
 }
 
 .comment {
@@ -37,8 +36,8 @@
 
 .comment:target {
   border-radius: var(--radius);
-  outline: 2px solid var(--border);
-  outline-offset: 4px;
+  outline: 2px solid var(--primary-bg);
+  outline-offset: 6px;
 }
 
 .meta {
@@ -61,8 +60,10 @@
 }
 
 .mention {
+  padding: 0 3px;
   border-radius: 4px;
-  background: var(--surface);
+  background: var(--primary-soft);
+  color: var(--primary-text);
   font-weight: 600;
 }
 
@@ -97,7 +98,7 @@
   margin-top: 8px;
 }
 
-.form > :first-of-type:not(input) {
+.form > :first-of-type:not(input, button) {
   align-self: stretch;
 }
 
@@ -105,7 +106,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--muted);
+  color: var(--primary-text);
   font: inherit;
   text-decoration: underline;
   cursor: pointer;

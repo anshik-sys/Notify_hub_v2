@@ -1,14 +1,21 @@
 .avatar {
+  --tone: var(--accent-violet);
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
-  background: var(--surface);
-  box-shadow: 0 0 0 1px var(--border);
-  color: var(--muted);
-  font-size: 0.6875rem;
-  font-weight: 600;
+  background: color-mix(in srgb, var(--tone) 18%, var(--card));
+  color: var(--tone);
+  font-size: 0.75rem;
+  font-weight: 700;
 }
+
+.avatar[data-tone="coral"] { --tone: var(--accent-coral); }
+.avatar[data-tone="amber"] { --tone: var(--accent-amber); }
+.avatar[data-tone="teal"] { --tone: var(--accent-teal); }
+.avatar[data-tone="blue"] { --tone: var(--accent-blue); }
+.avatar[data-tone="pink"] { --tone: var(--accent-pink); }
+.avatar[data-tone="green"] { --tone: var(--accent-green); }

@@ -1,4 +1,4 @@
-import { Button, Checkbox, CheckboxGroup, Field, Form, Hint, RadioGroup, Section, SelectField, TextArea } from "@/components/form";
+import { Button, Checkbox, CheckboxGroup, Field, Hint, RadioGroup, Section, SelectField, TextArea } from "@/components/form";
 import { ACCEPT, MAX_FILES_PER_SAVE } from "@/lib/attachments";
 import { formatSize } from "@/lib/format";
 import type { RepeatFields } from "@/lib/recurrence";
@@ -151,12 +151,18 @@ export function ReminderForm({
   const teammates = new Set(mine.flatMap((d) => d.members.map((m) => m.id)));
 
   return (
-    <Form action={saveReminder}>
+    // Two columns on a laptop: the sections, and a sticky live preview with
+    // the save button. One <form>, so the preview can read it (preview.tsx).
+    <form action={saveReminder} className={styles.layout}>
+      <div className={styles.fields}>
       {defaults.id && <input type="hidden" name="id" value={defaults.id} />}
 
-      <Field label="Title" name="title" maxLength={200} required defaultValue={defaults.title} />
-      <TextArea label="Description (optional)" name="description" maxLength={5000} defaultValue={defaults.description} />
-      <Field label="Tags (optional, comma separated)" name="tags" maxLength={400} placeholder="payroll, q3" defaultValue={defaults.tags} />
+      <Section title="Message">
+        <Field label="Title" name="title" maxLength={200} required defaultValue={defaults.title} />
+        <TextArea label="Description (optional)" name="description" maxLength={5000} defaultValue={defaults.description} />
+        <Field label="Tags (optional, comma separated)" name="tags" maxLength={400} placeholder="payroll, q3" defaultValue={defaults.tags} />
+        <Field label="Sender name" name="senderName" maxLength={100} placeholder={defaultSender} defaultValue={defaults.senderName} />
+      </Section>
 
       <Section title="Links">
         <LinkRow index={0} link={defaults.links[0]} />
@@ -342,13 +348,15 @@ export function ReminderForm({
         </Hint>
       </Section>
 
-      <Field label="Sender name" name="senderName" maxLength={100} placeholder={defaultSender} defaultValue={defaults.senderName} />
-
-      <Section title="Preview">
-        <ReminderPreview defaultSender={defaultSender} timeZone={timeZone} />
-      </Section>
-
       <Button>{defaults.id ? "Save reminder" : "Create reminder"}</Button>
-    </Form>
+      </div>
+
+      <aside className={styles.side}>
+        <Section title="Preview">
+          <ReminderPreview defaultSender={defaultSender} timeZone={timeZone} />
+        </Section>
+        <Button>{defaults.id ? "Save reminder" : "Create reminder"}</Button>
+      </aside>
+    </form>
   );
 }

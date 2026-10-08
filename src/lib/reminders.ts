@@ -731,6 +731,14 @@ export function isDelayed(r: { status: ReminderStatus; sendAt: Date; updatedAt: 
 export const statusLabel = (r: { status: ReminderStatus; recurrence: Rule | null }) =>
   r.recurrence && r.status === "sent" ? "Ended" : STATUS_LABELS[r.status];
 
+// The badge colour for a status (kit tones, src/components/table.tsx).
+export function statusTone(r: { status: ReminderStatus; sendAt: Date; updatedAt: Date }, now = new Date()) {
+  if (isDelayed(r, now) || r.status === "rejected") return "danger" as const;
+  return ({ pending_approval: "warning", scheduled: "info", sending: "info", sent: "success", paused: "neutral", cancelled: "neutral" } as const)[
+    r.status as Exclude<ReminderStatus, "rejected">
+  ];
+}
+
 export const STATUS_LABELS: Record<ReminderStatus, string> = {
   pending_approval: "Needs approval",
   paused: "Paused",

@@ -1,5 +1,6 @@
 /* Design tokens and element defaults only. Component styles live in a
-   <component>.module.css next to the component.
+   <component>.module.css next to the component. The whole look (palette,
+   section accents, radii, shadows) is these tokens: change the feel here.
 
    Theme: <html data-theme="light|dark"> is set by the root layout from the
    "theme" cookie. No attribute = follow the device (prefers-color-scheme).
@@ -7,56 +8,159 @@
 
 :root {
   color-scheme: light;
-  --bg: #ffffff;
-  --fg: #171717;
-  --muted: #52525b;
-  --border: #d4d4d8;
-  --surface: #f4f4f5;
-  --input-bg: #ffffff;
-  --primary-bg: #18181b;
+  /* Canvas: soft grey-blue, a gentle gradient behind everything. */
+  --bg: #e6e9ee;
+  --bg-gradient: linear-gradient(160deg, #eef0f3 0%, #e3e7ed 55%, #d8e0ea 100%);
+  /* Cards float on it: near-white, slightly see-through, hairline white edge. */
+  --card: rgb(247 248 250 / 78%);
+  --card-solid: #f6f7f9; /* menus and popovers, where see-through hurts */
+  --card-border: rgb(255 255 255 / 75%);
+  --fg: #141519;
+  --muted: #6c717b;
+  --border: #dde1e7; /* row dividers, input edges */
+  --surface: rgb(20 21 25 / 5%); /* hover and quiet fills */
+  --input-bg: rgb(255 255 255 / 85%);
+  /* Pills: round buttons and tabs in the top bar and rail. */
+  --pill: rgb(255 255 255 / 45%);
+  --pill-active: #ffffff;
+  /* Ink: the strong accent (active rail item, primary buttons, the + button). */
+  --primary-bg: #141519;
   --primary-fg: #ffffff;
-  --danger-bg: #fef2f2;
-  --danger-fg: #991b1b;
+  --primary-soft: rgb(20 21 25 / 6%);
+  --primary-text: #141519;
+  --link: #2f6bd8;
+  /* Pale lime: icon circles on cards, highlights. */
+  --lime: #eef5a6;
+  --lime-fg: #1b1d12;
+  --danger-bg: #f8dfdb;
+  --danger-fg: #b03a2c;
+  --success-bg: #dcf1e3;
+  --success-fg: #1d7444;
+  --warning-bg: #f8edcc;
+  --warning-fg: #855800;
+  --info-bg: #dce9fb;
+  --info-fg: #2a5ca6;
   --paper: #ffffff; /* always light: QR codes must be dark on light */
-  --success-bg: #ecfdf5;
-  --success-fg: #065f46;
-  --radius: 6px;
+  /* Chart series. */
+  --chart-1: #7fb0f2;
+  --chart-2: #dfe96f;
+  --chart-3: #ee9d93;
+  /* Avatar initials. */
+  --accent-violet: #8a7cf0;
+  --accent-coral: #ee8a7e;
+  --accent-amber: #e5a93a;
+  --accent-teal: #3fb2a6;
+  --accent-blue: #5f98e8;
+  --accent-pink: #e47fb2;
+  --accent-green: #4fb279;
+  --accent-slate: #8a8f99;
+  --shadow-sm: 0 1px 2px rgb(30 40 60 / 5%);
+  --shadow: 0 2px 4px rgb(30 40 60 / 4%), 0 12px 32px rgb(30 40 60 / 8%);
+  --radius: 12px;
+  --radius-lg: 22px;
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236c717b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+  --font: var(--font-manrope), system-ui, sans-serif;
 }
 
+/* The two dark blocks must stay identical. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0a0a0a;
-    --fg: #ededed;
-    --muted: #a1a1aa;
-    --border: #3f3f46;
-    --surface: #27272a;
-    --input-bg: #18181b;
-    --primary-bg: #f4f4f5;
-    --primary-fg: #18181b;
-    --danger-bg: #450a0a;
-    --danger-fg: #fecaca;
+    --bg: #15171b;
+    --bg-gradient: linear-gradient(160deg, #1a1d22 0%, #15171b 55%, #12161d 100%);
+    --card: rgb(36 39 45 / 78%);
+    --card-solid: #24272d;
+    --card-border: rgb(255 255 255 / 6%);
+    --fg: #eef0f3;
+    --muted: #9ba1ab;
+    --border: #30343b;
+    --surface: rgb(255 255 255 / 6%);
+    --input-bg: rgb(255 255 255 / 5%);
+    --pill: rgb(255 255 255 / 6%);
+    --pill-active: #2f333a;
+    --primary-bg: #f1f2f4;
+    --primary-fg: #141519;
+    --primary-soft: rgb(255 255 255 / 7%);
+    --primary-text: #f1f2f4;
+    --link: #8db6ff;
+    --lime: #d9e66b;
+    --lime-fg: #1b1d12;
+    --danger-bg: #42201c;
+    --danger-fg: #ffb3a8;
+    --success-bg: #183324;
+    --success-fg: #8fdcae;
+    --warning-bg: #3b2e10;
+    --warning-fg: #f3cf7a;
+    --info-bg: #1a2c47;
+    --info-fg: #a3c6ff;
     --paper: #ffffff;
-    --success-bg: #052e1f;
-    --success-fg: #a7f3d0;
+    --chart-1: #6fa3ec;
+    --chart-2: #cfdb5e;
+    --chart-3: #e8877c;
+    --accent-violet: #a196f5;
+    --accent-coral: #f29d92;
+    --accent-amber: #efbd5b;
+    --accent-teal: #5ccabd;
+    --accent-blue: #80b0f2;
+    --accent-pink: #ee9cc5;
+    --accent-green: #73cb98;
+    --accent-slate: #a3a8b1;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+    --shadow: 0 2px 4px rgb(0 0 0 / 25%), 0 12px 32px rgb(0 0 0 / 30%);
+    --radius: 12px;
+    --radius-lg: 22px;
+    --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%239ba1ab' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+    --font: var(--font-manrope), system-ui, sans-serif;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0a0a0a;
-  --fg: #ededed;
-  --muted: #a1a1aa;
-  --border: #3f3f46;
-  --surface: #27272a;
-  --input-bg: #18181b;
-  --primary-bg: #f4f4f5;
-  --primary-fg: #18181b;
-  --danger-bg: #450a0a;
-  --danger-fg: #fecaca;
+  --bg: #15171b;
+  --bg-gradient: linear-gradient(160deg, #1a1d22 0%, #15171b 55%, #12161d 100%);
+  --card: rgb(36 39 45 / 78%);
+  --card-solid: #24272d;
+  --card-border: rgb(255 255 255 / 6%);
+  --fg: #eef0f3;
+  --muted: #9ba1ab;
+  --border: #30343b;
+  --surface: rgb(255 255 255 / 6%);
+  --input-bg: rgb(255 255 255 / 5%);
+  --pill: rgb(255 255 255 / 6%);
+  --pill-active: #2f333a;
+  --primary-bg: #f1f2f4;
+  --primary-fg: #141519;
+  --primary-soft: rgb(255 255 255 / 7%);
+  --primary-text: #f1f2f4;
+  --link: #8db6ff;
+  --lime: #d9e66b;
+  --lime-fg: #1b1d12;
+  --danger-bg: #42201c;
+  --danger-fg: #ffb3a8;
+  --success-bg: #183324;
+  --success-fg: #8fdcae;
+  --warning-bg: #3b2e10;
+  --warning-fg: #f3cf7a;
+  --info-bg: #1a2c47;
+  --info-fg: #a3c6ff;
   --paper: #ffffff;
-  --success-bg: #052e1f;
-  --success-fg: #a7f3d0;
+  --chart-1: #6fa3ec;
+  --chart-2: #cfdb5e;
+  --chart-3: #e8877c;
+  --accent-violet: #a196f5;
+  --accent-coral: #f29d92;
+  --accent-amber: #efbd5b;
+  --accent-teal: #5ccabd;
+  --accent-blue: #80b0f2;
+  --accent-pink: #ee9cc5;
+  --accent-green: #73cb98;
+  --accent-slate: #a3a8b1;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow: 0 2px 4px rgb(0 0 0 / 25%), 0 12px 32px rgb(0 0 0 / 30%);
+  --radius: 12px;
+  --radius-lg: 22px;
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%239ba1ab' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+  --font: var(--font-manrope), system-ui, sans-serif;
 }
 
 *,
@@ -74,14 +178,19 @@ body {
 body {
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  min-height: 100vh;
+  background: var(--bg-gradient) fixed, var(--bg);
   color: var(--fg);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font);
   -webkit-font-smoothing: antialiased;
 }
 
 a {
-  color: inherit;
+  color: var(--link);
+}
+
+::selection {
+  background: var(--primary-soft);
 }
 
 button,

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Tabs } from "@/components/tabs";
 import { Button, Page, firstParam } from "@/components/form";
 import { Badge, Muted, Table } from "@/components/table";
 import { requireMember } from "@/lib/session";
@@ -32,14 +32,13 @@ export default async function Tasks(props: PageProps<"/tasks">) {
 
   return (
     <Page title="My tasks" error={firstParam(sp.error)}>
-      <nav className={styles.tabs} aria-label="Show">
-        <Link href="/tasks" aria-current={showDone ? undefined : "page"}>
-          Open
-        </Link>
-        <Link href="/tasks?show=done" aria-current={showDone ? "page" : undefined}>
-          Done
-        </Link>
-      </nav>
+      <Tabs
+        label="Show"
+        tabs={[
+          { href: "/tasks", label: "Open", current: !showDone },
+          { href: "/tasks?show=done", label: "Done", current: showDone },
+        ]}
+      />
       <Table
         columns={showDone ? ["Task", "Was due", "Done", ""] : ["Task", "Due", ""]}
         empty={showDone ? "Nothing marked done yet." : "No open tasks. Nice."}

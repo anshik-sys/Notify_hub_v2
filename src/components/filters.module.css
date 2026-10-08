@@ -1,13 +1,14 @@
 .bar {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 14px;
   align-items: end;
-  margin-bottom: 20px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding: 20px 22px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(14px);
 }
 
 /* The search box takes a whole row's start. */
@@ -22,15 +23,19 @@
 }
 
 .apply {
-  min-height: 40px;
-  padding: 8px 16px;
+  min-height: 46px;
+  padding: 10px 24px;
   border: 0;
-  border-radius: var(--radius);
+  border-radius: 999px;
   background: var(--primary-bg);
   color: var(--primary-fg);
   font: inherit;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
+}
+
+.apply:hover {
+  opacity: 0.88;
 }
 
 .clear {
@@ -40,12 +45,19 @@
 
 .pager {
   display: flex;
-  gap: 16px;
+  align-items: center;
+  gap: 12px;
   margin-top: 14px;
   color: var(--muted);
   font-size: 0.875rem;
 }
 
 .pager a {
+  padding: 6px 16px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--pill-active);
   color: var(--fg);
+  font-weight: 600;
+  text-decoration: none;
 }

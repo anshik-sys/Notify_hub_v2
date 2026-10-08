@@ -4,8 +4,9 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--pill);
 }
 
 /* The chosen one looks pressed. */
@@ -13,7 +14,7 @@
   min-height: 34px;
   padding: 0 14px;
   border: 0;
-  border-radius: calc(var(--radius) - 2px);
+  border-radius: 999px;
   background: transparent;
   color: var(--muted);
   font-size: 0.9375rem;
@@ -24,4 +25,5 @@
 .option[aria-pressed="true"] {
   background: var(--primary-bg);
   color: var(--primary-fg);
+  font-weight: 650;
 }

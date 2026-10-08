@@ -1,8 +1,8 @@
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 12px;
-  margin: 0 0 28px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -10,33 +10,94 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  justify-content: space-between;
+  gap: 26px;
+  height: 100%;
+  padding: 18px 18px 18px 20px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(14px);
   color: var(--fg);
   text-decoration: none;
+  transition: box-shadow 0.15s, transform 0.15s;
 }
 
 .card:hover {
-  background: var(--surface);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
 }
 
-.value {
-  font-size: 1.75rem;
-  font-weight: 600;
-  line-height: 1.1;
+.head,
+.foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.foot {
+  align-items: flex-end;
 }
 
 .label {
-  color: var(--muted);
-  font-size: 0.875rem;
+  padding-top: 8px;
+  font-size: 1.0625rem;
+  font-weight: 500;
 }
 
-.danger {
-  border-color: var(--danger-fg);
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--lime);
+  color: var(--lime-fg);
 }
 
-.danger .value {
+.card[data-alert] .icon {
+  background: var(--danger-bg);
   color: var(--danger-fg);
+}
+
+.numbers {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.value {
+  font-size: 2.125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.arrow {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--pill-active);
+  box-shadow: var(--shadow-sm);
+  color: var(--fg);
+  transition: background 0.15s, color 0.15s;
+}
+
+.card:hover .arrow {
+  background: var(--primary-bg);
+  color: var(--primary-fg);
 }

@@ -48,7 +48,8 @@ export function Table({ columns, rows, empty }: { columns: string[]; rows: Table
   );
 }
 
-export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "danger" | "success"; children: React.ReactNode }) {
+export type Tone = "neutral" | "danger" | "success" | "info" | "warning" | "accent";
+export function Badge({ tone = "neutral", children }: { tone?: Tone; children: React.ReactNode }) {
   return <span className={`${styles.badge} ${styles[tone]}`}>{children}</span>;
 }
 

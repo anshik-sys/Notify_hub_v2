@@ -2,6 +2,52 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — design pass: reference-style shell, cards and tokens
+
+- **The look follows a reference dashboard the user picked** (it replaced the
+  first "friendly & colourful" direction):
+  - a soft grey-blue canvas with translucent, very rounded cards;
+  - black accents, with the icon in a pale lime circle on stat cards;
+  - blue/lime charts and pill badges;
+  - the Manrope font.
+- **Everything is a token in `globals.css`** (light plus both dark blocks), so
+  the user can change the look in one file. Pages were restyled through the
+  kit, not one by one.
+- **The shell:**
+  - **Top bar:** a logo pill; pill tabs for the main areas (Dashboard,
+    Reminders, Tasks, Calendar, Approvals, Reports, by permission); a round
+    search and bell (with an unread count), your avatar and a black "+" for
+    a new reminder.
+  - **Left rail:** round icon buttons for the admin pages, with tooltips and
+    `aria-label`s.
+  - **Narrow windows:** the tabs scroll and the rail becomes a row.
+- **New kit pieces:**
+  - `Icon` (inline SVGs, no icon package);
+  - `StatCards` with an icon, a hint and an arrow;
+  - `BarChart` (CSS only, no chart library);
+  - `Tabs` (the segmented sub-page switcher, replacing two copies);
+  - `Avatar` tones;
+  - `Badge` tones, with `statusTone()` choosing a reminder's colour.
+- **The pages:**
+  - **Home:** stat cards, a 14-day sends chart (with `reports.view`) and two
+    columns.
+  - **Reminder page:** details on the left, approval/send/recipients on the
+    right.
+  - **Reminder form:** fields on the left, with a sticky preview.
+  - **Calendar:** day tiles, with today ringed.
+- **Fixed on the way:**
+  - selects rendered grey (`:read-only` matches every `<select>`);
+  - the "Post comment" button stretched;
+  - the avatar link was underlined;
+  - IDs wrapped in tables.
+- **Verified:** screenshots at 1440px against `next start`, light and dark.
+  - Pages: Home, reminders list/detail/new, calendar, tasks, Team,
+    notifications, reports, company settings, setup and sign-in.
+  - Typecheck, lint and all 137 tests pass.
+  - **Not checked:** the platform console, groups/departments/roles detail
+    pages and settings/security, beyond the shared kit they use; a narrow
+    window, by screenshot.
+
 ## 2026-10-08 — guided setup after onboarding (PRD 3.1)
 
 - **What's in place:** after creating a company you land on `/setup`, five

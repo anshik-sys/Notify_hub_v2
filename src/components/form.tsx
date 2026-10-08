@@ -25,6 +25,14 @@ export function Page({
 }) {
   return (
     <main className={center ? `${styles.page} ${styles.center}` : styles.page}>
+      {center && (
+        <div className={styles.brand}>
+          <span className={styles.logo} aria-hidden="true">
+            N
+          </span>
+          NotifyHub
+        </div>
+      )}
       <div className={styles.header}>
         <div className={styles.headerText}>
           {back && (

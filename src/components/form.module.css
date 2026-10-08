@@ -5,23 +5,61 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 22px;
   width: 100%;
-  max-width: 1040px;
+  max-width: 1280px;
 }
 
 /* Sign-in style screens, outside the app shell: a centred card. */
 .center {
-  flex: 1;
+  flex: 0;
   justify-content: center;
   align-self: center;
-  max-width: 400px;
-  margin: 0 auto;
-  padding: 48px 16px;
+  max-width: 440px;
+  margin: auto;
+  padding: 34px 30px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
 }
 
 .center .button {
-  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 10px 22px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s, box-shadow 0.15s;
+}
+
+/* The wordmark on sign-in style screens. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.0625rem;
+  font-weight: 750;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  font-weight: 800;
 }
 
 .header {
@@ -49,29 +87,27 @@
   align-self: flex-start;
   color: var(--muted);
   font-size: 0.875rem;
+  font-weight: 500;
   text-decoration: none;
 }
 
 .back:hover {
-  color: var(--fg);
-  text-decoration: underline;
+  color: var(--primary-text);
 }
 
 .title {
   margin: 0;
-  font-size: 1.625rem;
+  font-size: 1.875rem;
   font-weight: 650;
-  line-height: 1.25;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
 .error,
 .notice {
-  max-width: 720px;
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  font-size: 0.9375rem;
+  background: var(--lime);
+  color: var(--lime-fg);
 }
 
 .error {
@@ -80,19 +116,28 @@
 }
 
 .notice {
-  background: var(--surface);
+  background: var(--success-bg);
+  color: var(--success-fg);
 }
 
+/* Sections are cards on the canvas. */
 .section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
+  padding: 24px 26px;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(14px);
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: 1.0625rem;
+  font-size: 1.3125rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .form {
@@ -119,61 +164,93 @@
 
 .input {
   width: 100%;
-  min-height: 40px;
-  padding: 8px 10px;
+  min-height: 46px;
+  padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--input-bg);
   color: var(--fg);
   font-size: 1rem;
   font-weight: 400;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.input:read-only {
+/* Selects drawn by us (the native one ignores the background); the chevron
+   is a token so it follows the theme. */
+select.input {
+  padding-right: 40px;
+  appearance: none;
+  background-image: var(--select-chevron);
+  background-position: right 14px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+}
+
+.input:hover {
+  border-color: var(--muted);
+}
+
+/* :read-only also matches every <select>; only text fields here. */
+input.input:read-only,
+textarea.input:read-only {
   background: var(--surface);
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--fg);
-  outline-offset: 1px;
+  border-color: var(--primary-bg);
+  outline: none;
+  box-shadow: 0 0 0 4px var(--primary-soft);
 }
 
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
-  padding: 8px 16px;
+  min-height: 42px;
+  padding: 9px 18px;
   border: 1px solid transparent;
   border-radius: var(--radius);
   font-size: 0.9375rem;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
+  transition: background 0.15s, transform 0.05s, box-shadow 0.15s;
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .button:focus-visible {
-  outline: 2px solid var(--fg);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 4px var(--primary-soft), 0 0 0 1px var(--primary-bg);
 }
 
 .primary {
   background: var(--primary-bg);
+  box-shadow: var(--shadow-sm);
   color: var(--primary-fg);
 }
 
 .primary:hover {
-  opacity: 0.9;
+  opacity: 0.88;
 }
 
 .secondary {
-  border-color: var(--border);
-  background: var(--bg);
+  border-color: var(--card-border);
+  background: var(--pill-active);
+  box-shadow: var(--shadow-sm);
   color: var(--fg);
 }
 
 .secondary:hover {
-  background: var(--surface);
+  border-color: var(--border);
+  background: var(--card-solid);
 }
 
 .danger {
@@ -181,10 +258,15 @@
   color: var(--danger-fg);
 }
 
+.danger:hover {
+  background: var(--danger-fg);
+  color: var(--card);
+}
+
 /* For actions inside table rows. */
 .small {
-  min-height: 32px;
-  padding: 4px 10px;
+  min-height: 34px;
+  padding: 6px 14px;
   font-size: 0.8125rem;
 }
 
@@ -198,9 +280,10 @@
   display: flex;
   flex-direction: column;
   margin: 0;
-  padding: 6px 12px;
+  padding: 10px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  background: var(--input-bg);
 }
 
 .legend {
@@ -220,8 +303,8 @@
 
 .checkboxInput {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
   margin: 0;
   accent-color: var(--primary-bg);
 }

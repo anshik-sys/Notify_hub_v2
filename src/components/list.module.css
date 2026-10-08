@@ -1,11 +1,24 @@
 .list {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0;
-  padding: 0;
+  padding: 4px 6px;
   list-style: none;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(14px);
+}
+
+/* A list inside a card section: no second frame. */
+/* A list inside a card section: rows only, no second frame. */
+section > .list {
+  max-width: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .item + .item {
@@ -16,8 +29,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 48px;
-  padding: 8px 14px;
+  min-height: 52px;
+  padding: 10px 16px;
 }
 
 .link {
@@ -25,8 +38,17 @@
   text-decoration: none;
 }
 
+.link {
+  border-radius: var(--radius);
+}
+
 .link:hover {
   background: var(--surface);
+}
+
+.link:hover .chevron {
+  color: var(--primary-text);
+  transform: translateX(2px);
 }
 
 .stacked {
@@ -52,11 +74,12 @@
 }
 
 .badge {
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--lime);
+  color: var(--lime-fg);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 650;
   white-space: nowrap;
 }
 
@@ -72,6 +95,7 @@
   color: var(--muted);
   font-size: 1.5rem;
   line-height: 1;
+  transition: transform 0.15s;
 }
 
 .actions {

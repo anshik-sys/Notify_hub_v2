@@ -39,9 +39,9 @@ One package, two processes, one Postgres:
 | `src/app/(app)/users/`, `src/app/invite/[token]` | People pages and the public invite accept page. |
 | `src/lib/mail.ts` | `sendMail()`: one recipient per message, over SMTP (Mailpit in dev, SES in prod). |
 | `src/lib/onboarding.ts` | Creates a company and attaches the signed-in user, in one transaction. |
-| `src/components/form.tsx`, `table.tsx`, `list.tsx` | The UI kit (`Page`, `Section`, `Form`, `Field`, `Button`, `LinkButton`, `Table`, `Badge`, `List`, …), each with its own `.module.css`. |
-| `src/app/(app)/` | Signed-in pages, wrapped by `layout.tsx`: the app shell (left sidebar; a top bar below 768px). The route group doesn't change URLs. |
-| `src/app/globals.css` | Design tokens (CSS variables, light and dark) and element defaults. |
+| `src/components/` | The UI kit (`Page`, `Section`, `Field`, `Button`, `Table`, `Badge`, `List`, `StatCards`, `BarChart`, `Tabs`, `Avatar`, `Icon`, …), each with its own `.module.css`. |
+| `src/app/(app)/` | Signed-in pages, wrapped by `layout.tsx`: the app shell (top bar with pill tabs, plus a left icon rail for admin pages; the rail becomes a row below 900px). The route group doesn't change URLs. |
+| `src/app/globals.css` | Design tokens (CSS variables, light and dark) and element defaults. Every colour, radius, shadow and the font (Manrope) is a token, so the whole look changes here. |
 | `src/app/sign-in`, `sign-up`, `onboarding` | Server-rendered forms posting to server actions. No client-side auth code. |
 | `src/app/api/auth/[...all]` | Better Auth's HTTP endpoints (sessions, OAuth callbacks). |
 | `drizzle/` | SQL migrations. `0001` is hand-written; `0003` is generated plus hand-added role creation and grants. |
