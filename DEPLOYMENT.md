@@ -187,6 +187,10 @@ ids, and makes the earliest user of each existing company its Company Admin.
   6. **Local testing against real Slack:** run `ngrok http 3000`, use the
      https URL as `BETTER_AUTH_URL` and in steps 1 and 3, and unset
      `SLACK_API_URL` / `SLACK_AUTHORIZE_URL`.
+     Open the app through the ngrok URL, not localhost: the OAuth state
+     cookie is set on whichever host you start from. `next.config.ts` already
+     lists ngrok domains in `allowedDevOrigins`. Restart `pnpm dev` and
+     `pnpm worker` after changing `.env`.
 
 - **AWS SES** (in the region used by `SMTP_URL`):
   - verify the `notifyhub.app` domain identity, and publish its DKIM CNAMEs, SPF and DMARC records in DNS;

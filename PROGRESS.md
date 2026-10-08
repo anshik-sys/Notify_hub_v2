@@ -2,6 +2,17 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — dev setup for testing against a real slack app
+
+- A real Slack app needs an https redirect and a public interactivity URL,
+  so local testing goes through ngrok. Next 16 blocks dev requests from
+  other hostnames, so `next.config.ts` now allows ngrok domains in
+  `allowedDevOrigins` (dev-server only; no effect on a production build).
+- You must browse via the ngrok URL: the OAuth state cookie is set on the
+  host where "Add to Slack" starts and checked where Slack redirects back.
+- **Not verified yet:** the user is creating the app now; the first real run
+  is still pending.
+
 ## 2026-10-08 — small motion on the second design
 
 - **What moves:**

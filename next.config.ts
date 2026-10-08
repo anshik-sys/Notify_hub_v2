@@ -4,6 +4,9 @@ const https = (process.env.BETTER_AUTH_URL ?? "").startsWith("https://");
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Dev only: lets the dev server answer through an ngrok tunnel, which a real
+  // Slack app needs (https redirect + interactivity URL). See DEPLOYMENT.md.
+  allowedDevOrigins: ["*.ngrok-free.app", "*.ngrok-free.dev", "*.ngrok.app"],
   experimental: {
     serverActions: {
       // Reminder attachments: up to 5 files x 10 MB per save, plus multipart
