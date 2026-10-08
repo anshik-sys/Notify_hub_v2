@@ -134,15 +134,21 @@
   outline-offset: 2px;
 }
 
-.dot {
+/* Unread count on the bell, top right. */
+.badge {
   position: absolute;
-  top: 10px;
-  right: 11px;
-  width: 9px;
-  height: 9px;
-  border: 2px solid var(--panel);
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  padding: 0 5px;
+  border: 2px solid var(--bg);
   border-radius: 999px;
   background: var(--count-bg);
+  color: var(--count-fg);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
 }
 
 .me {
@@ -220,18 +226,6 @@
   color: var(--primary-fg);
 }
 
-.count {
-  margin-left: auto;
-  min-width: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--count-bg);
-  color: var(--count-fg);
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 20px;
-  text-align: center;
-}
 
 .user {
   display: flex;

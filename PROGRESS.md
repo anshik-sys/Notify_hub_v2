@@ -20,6 +20,10 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   sticky sidebar. Rejected because it starts below the top bar, so a
   viewport-tall sticky sidebar overflows the window until you scroll. Below
   768px the page scrolls normally again.
+- **Notifications live only on the top-bar bell**, which shows the unread
+  count. The sidebar item was a duplicate. Trade-off: no sidebar highlight on
+  /notifications. The bell is server-rendered and doesn't know the current
+  path; worth a client wrapper only if people get lost there.
 - **Icons moved to `src/components/icon.tsx`.** The server layout needs them
   too, and a "use client" module can't share plain objects with it.
 - **Verified:** in Chromium at 1440 (light and dark), plus no sideways scroll

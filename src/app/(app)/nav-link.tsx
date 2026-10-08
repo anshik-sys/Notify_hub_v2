@@ -9,12 +9,10 @@ import styles from "./layout.module.css";
 export function NavLink({
   href,
   icon,
-  count,
   children,
 }: {
   href: string;
   icon: IconName;
-  count?: number;
   children: React.ReactNode;
 }) {
   const path = usePathname();
@@ -23,11 +21,6 @@ export function NavLink({
     <Link href={href} className={styles.navItem} aria-current={active ? "page" : undefined}>
       <Icon name={icon} />
       {children}
-      {!!count && (
-        <span className={styles.count} aria-label={`${count} unread`}>
-          {count > 99 ? "99+" : count}
-        </span>
-      )}
     </Link>
   );
 }

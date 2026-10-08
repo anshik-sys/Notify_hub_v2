@@ -52,7 +52,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               title="Notifications"
             >
               <Icon name="bell" />
-              {!!unread && <span className={styles.dot} aria-hidden="true" />}
+              {!!unread && (
+                <span className={styles.badge} aria-hidden="true">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
             </Link>
             <Link href="/settings/profile" className={styles.me} aria-label="Your profile" title={user.name}>
               <Avatar name={user.name} size="large" />
@@ -71,9 +75,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <p className={styles.navLabel}>Menu</p>
             <NavLink href="/" icon="home">
               Home
-            </NavLink>
-            <NavLink href="/notifications" icon="notifications" count={unread}>
-              Notifications
             </NavLink>
             <NavLink href="/tasks" icon="tasks">
               Tasks
