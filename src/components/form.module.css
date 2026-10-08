@@ -57,6 +57,7 @@
 }
 
 .back {
+  transition: color var(--duration) var(--ease-out);
   align-self: flex-start;
   color: var(--muted);
   font-size: 0.875rem;
@@ -149,6 +150,7 @@
 }
 
 .input {
+  transition: border-color var(--duration) var(--ease-out), background-color var(--duration) var(--ease-out);
   width: 100%;
   min-height: 40px;
   padding: 8px 10px;
@@ -170,6 +172,7 @@
 }
 
 .button {
+  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out), opacity var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -186,6 +189,11 @@
 .button:focus-visible {
   outline: 2px solid var(--fg);
   outline-offset: 2px;
+}
+
+/* A pressed button gives a little. */
+.button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .primary {

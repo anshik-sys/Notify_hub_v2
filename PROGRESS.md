@@ -2,6 +2,30 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — small motion on the second design
+
+- **What moves:**
+  - Hover and press colour changes ease in (nav, buttons, list and table
+    rows, the theme switch, the menu).
+  - Buttons shrink slightly when pressed (scale 0.94–0.98).
+  - Stat cards lift on hover and their arrow nudges.
+  - The account menu fades and rises in and out, and its chevron flips.
+- **How:** CSS only. Two tokens in `globals.css` (`--duration` 160ms,
+  `--ease-out`) plus `--shadow-hover`. The menu uses `@starting-style` and
+  `transition-behavior: allow-discrete` on `display`/`overlay`, so the close
+  animation plays too. In browsers without that (older Safari) it just
+  appears; nothing breaks.
+- **Rejected:**
+  - A black pill sliding between nav items: needs JS to measure positions,
+    for little gain.
+  - Animating focus rings: they stay instant so keyboard users aren't kept
+    waiting.
+- **Reduced motion:** a global `prefers-reduced-motion` rule makes every
+  transition instant.
+- **Verified in Chromium:** mid-animation values for menu open and close,
+  chevron rotation, press scale, and 0s transitions under reduced motion.
+  **Not checked:** Safari and Firefox, how it feels on a slow machine.
+
 ## 2026-10-08 — accessibility pass on the second design
 
 - **How it was checked:**

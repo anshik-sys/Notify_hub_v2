@@ -9,6 +9,7 @@
 
 /* Label top-left, a round arrow top-right, the number below. */
 .card {
+  transition: transform var(--duration) var(--ease-out), box-shadow var(--duration) var(--ease-out);
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: start;
@@ -34,6 +35,7 @@
 }
 
 .arrow {
+  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   display: inline-flex;
   grid-row: 1;
   grid-column: 2;
@@ -49,6 +51,20 @@
 .card:hover .arrow {
   background: var(--primary-bg);
   color: var(--primary-fg);
+}
+
+/* Hover: the card lifts and the arrow nudges the way it points. */
+.card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+
+.card:hover .arrow {
+  transform: translate(2px, -2px);
+}
+
+.card:active {
+  transform: translateY(0) scale(0.99);
 }
 
 .value {

@@ -57,6 +57,7 @@
 
 /* 24px tall: the minimum click target (WCAG 2.5.8). */
 .entry {
+  transition: background-color var(--duration) var(--ease-out);
   display: block;
   overflow: hidden;
   min-height: 24px;

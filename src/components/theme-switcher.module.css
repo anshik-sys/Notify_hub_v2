@@ -10,6 +10,7 @@
 
 /* The chosen one looks pressed. */
 .option {
+  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   min-height: 36px;
   padding: 0 16px;
   border: 0;
@@ -23,6 +24,10 @@
 
 .option:hover {
   color: var(--fg);
+}
+
+.option:active {
+  transform: scale(0.94);
 }
 
 .option:focus-visible {

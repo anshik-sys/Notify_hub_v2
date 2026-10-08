@@ -7,6 +7,7 @@
 
 /* Hidden until focused: the first Tab on any page offers to skip the shell. */
 .skip {
+  transition: transform var(--duration) var(--ease-out);
   position: fixed;
   top: 8px;
   left: 8px;
@@ -91,6 +92,7 @@
 }
 
 .search {
+  transition: background-color var(--duration) var(--ease-out);
   display: flex;
   flex: 1;
   align-items: center;
@@ -127,6 +129,7 @@
 
 /* Round icon buttons (bell, sign out). */
 .round {
+  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   position: relative;
   display: inline-flex;
   flex-shrink: 0;
@@ -143,6 +146,11 @@
 
 .round:hover {
   background: var(--surface);
+}
+
+.round:active,
+.invite:active {
+  transform: scale(0.94);
 }
 
 .round:focus-visible,
@@ -182,6 +190,7 @@
 }
 
 .invite {
+  transition: opacity var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -229,6 +238,7 @@
 }
 
 .navItem {
+  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -253,6 +263,7 @@
 
 /* The user card opens the account menu. */
 .user {
+  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -269,6 +280,19 @@
 
 .user:hover {
   background: var(--surface);
+}
+
+.user:active {
+  transform: scale(0.98);
+}
+
+/* The chevron flips while the menu is open. */
+.chevron {
+  transition: transform var(--duration) var(--ease-out);
+}
+
+.user:has(+ .menu:popover-open) .chevron {
+  transform: rotate(180deg);
 }
 
 .user:focus-visible,
@@ -295,15 +319,34 @@
   background: var(--bg);
   box-shadow: var(--shadow);
   color: var(--fg);
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+  transform-origin: bottom left;
+  transition:
+    opacity var(--duration) var(--ease-out),
+    transform var(--duration) var(--ease-out),
+    display var(--duration) allow-discrete,
+    overlay var(--duration) allow-discrete;
 }
 
 .menu:popover-open {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  opacity: 1;
+  transform: none;
+}
+
+/* Where it starts from when it opens. */
+@starting-style {
+  .menu:popover-open {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
 }
 
 .menuItem {
+  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -442,6 +485,7 @@
   /* Opens under the top-bar avatar instead. */
   .menu {
     inset: 68px 12px auto auto;
+    transform-origin: top right;
   }
 
   .navItem {

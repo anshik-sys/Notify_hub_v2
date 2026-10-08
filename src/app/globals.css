@@ -31,6 +31,10 @@
   --radius-card: 24px;
   --radius-frame: 32px;
   --shadow: 0 30px 80px -30px rgb(30 30 45 / 0.22);
+  --shadow-hover: 0 12px 28px -18px rgb(30 30 45 / 0.35); /* a card lifting */
+  /* Motion: short and ease-out, so a hover or press answers at once. */
+  --duration: 160ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -57,6 +61,7 @@
     --success-bg: #143222;
     --success-fg: #9be3b0;
     --shadow: 0 30px 80px -30px rgb(0 0 0 / 0.7);
+    --shadow-hover: 0 12px 28px -18px rgb(0 0 0 / 0.8);
   }
 }
 
@@ -83,6 +88,7 @@
   --success-bg: #143222;
   --success-fg: #9be3b0;
   --shadow: 0 30px 80px -30px rgb(0 0 0 / 0.7);
+  --shadow-hover: 0 12px 28px -18px rgb(0 0 0 / 0.8);
 }
 
 *,
@@ -114,4 +120,14 @@ button,
 input,
 select {
   font: inherit;
+}
+
+/* Respect the OS "reduce motion" setting: every change happens instantly. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
