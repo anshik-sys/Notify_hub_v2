@@ -2,6 +2,46 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — guided setup after onboarding (PRD 3.1)
+
+- **What's in place:** after creating a company you land on `/setup`, five
+  steps with quick forms:
+  1. **Departments:** names, one per line; existing names are reported.
+  2. **Invites:** emails, one per line, into a department; a link to the CSV
+     import for many.
+  3. **A manager for each department:** anyone active, added to the
+     department if needed.
+  4. **Connect Slack** (optional).
+  5. **First reminder** (optional).
+
+  "I'm done for now" hides it. Home shows "Finish setting up (n of 3 done)"
+  to admins until it's complete or dismissed, and Company settings links
+  back to the checklist.
+- **Progress is computed from the data**, not stored as ticks, so creating a
+  department from the Departments page also ticks step 1. Only "dismissed"
+  is stored (migration 0029).
+- **The actions reuse the normal libs** (`createDepartment`,
+  `createInvitation`, `addMember` + `setManager`), with the same permission
+  each normal page needs plus `company.edit`; setup invites are rate limited
+  (20/hour).
+- **Verified against `next start` + Mailpit, through the real sign-up flow**
+  (sign-up form → verification email link → onboarding form):
+  - landed on `/setup`, "0 of 3"; Home showed "Finish setting up (0 of 3
+    done)";
+  - "Ops / Sales / Ops" → "Created Ops, Sales."; adding Ops again →
+    skipped, "already taken";
+  - invited ana and raj into Sales → 1 email each → 2 of 3;
+  - the boss as Ops manager → still 2 of 3 (Sales has none); ana accepted
+    her invite → offered for Sales → made manager → "The essentials are
+    done", and the Home row is gone;
+  - ana (a member) → 404 on `/setup` and on a direct POST;
+  - a second fresh company: dismiss → back to Home with no row; `/setup`
+    still reachable and linked from Company settings.
+
+  137 tests pass (new: `setup.test.ts`).
+- **Script lesson:** the `mk` helper reads `$D` for the company, so set it
+  before creating users.
+
 ## 2026-10-08 — SAML SSO deferred (PRD 3.1)
 
 - **Decided with the user:** don't build SSO now. It was explained as

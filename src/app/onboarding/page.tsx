@@ -12,7 +12,7 @@ async function onboard(formData: FormData) {
   if (!session) redirect("/sign-in");
   const error = await createCompany(session.user, String(formData.get("name")), String(formData.get("timeZone")));
   if (error) redirect(errorUrl("/onboarding", error));
-  redirect("/");
+  redirect("/setup"); // PRD 3.1: the guided setup follows
 }
 
 export default async function Onboarding(props: PageProps<"/onboarding">) {

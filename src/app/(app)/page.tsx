@@ -9,6 +9,7 @@ import { requireMember } from "@/lib/session";
 import { myOpenTasks } from "@/lib/tasks";
 import { formatInZone } from "@/lib/time";
 import { getUser } from "@/lib/users";
+import { setupStatus } from "@/lib/setup";
 import { dashboardStats, dueByDate, filterUrl, upcoming } from "@/lib/views";
 
 // Server-rendered per request, so "now" is the request time.
@@ -20,17 +21,24 @@ export default async function Home() {
   const { user, companyId, access, timeZone: tz } = await requireMember();
   const viewer = { id: user.id, access };
   const seesReminders = can(access, "reminders.create") || can(access, "reminders.view_all");
-  const [me, pending, tasks, stats, next, activity] = await Promise.all([
+  const [me, pending, tasks, stats, next, activity, setup] = await Promise.all([
     getUser(companyId, user.id),
     can(access, "reminders.approve") ? mayDecide(companyId, viewer).then((d) => (d ? listPendingApprovals(companyId) : [])) : [],
     myOpenTasks(companyId, user.id, TASKS_SHOWN + 1),
     seesReminders ? dashboardStats(companyId, viewer, tz) : null,
     seesReminders ? upcoming(companyId, viewer) : [],
     listNotifications(companyId, user.id).then((n) => n.items.slice(0, 8)),
+    can(access, "company.edit") ? setupStatus(companyId, user.id) : null,
   ]);
 
   return (
     <Page title={`Hi, ${user.name.split(" ")[0]}`}>
+      {setup && !setup.complete && !setup.dismissed && (
+        <List>
+          <ListRow href="/setup" title={`Finish setting up (${setup.done} of 3 done)`} meta="Departments, people and managers" />
+        </List>
+      )}
+
       {stats && (
         <StatCards
           items={[

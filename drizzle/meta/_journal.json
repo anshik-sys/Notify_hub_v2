@@ -204,6 +204,13 @@
       "when": 1791437419418,
       "tag": "0028_privacy",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791438289632,
+      "tag": "0029_setup",
+      "breakpoints": true
     }
   ]
 }

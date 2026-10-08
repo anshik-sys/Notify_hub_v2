@@ -480,3 +480,9 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     leak into the log); only `erased_at` is recorded, against the admin.
   - **Auto-erase:** with a retention period set, people deactivated longer
     than it are erased nightly.
+- **Guided setup (`/setup`, PRD 3.1):** onboarding lands there. Each step
+  (departments, invites, a manager per department, plus optional Slack and a
+  first reminder) is **computed from the real data** (`setupStatus`), so doing
+  it anywhere in the app counts and nothing can drift. Only "dismissed" is
+  stored. Home shows "Finish setting up" to admins until it's complete or
+  dismissed.

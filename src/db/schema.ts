@@ -41,6 +41,8 @@ export const companies = pgTable(
     // PRD 9.2: set by the platform owner. Members are locked out and the
     // worker sends nothing for the company until it's cleared.
     suspendedAt: ts(),
+    // The admin closed the guided setup (PRD 3.1) before finishing it.
+    setupDismissedAt: ts(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

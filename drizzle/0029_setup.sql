@@ -1,0 +1,1 @@
+ALTER TABLE "companies" ADD COLUMN "setup_dismissed_at" timestamp with time zone;

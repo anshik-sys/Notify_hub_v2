@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { Button, Checkbox, CheckboxGroup, errorUrl, Field, firstParam, Form, Hint, Page, RadioGroup, Section, SelectField } from "@/components/form";
+import { Button, Checkbox, CheckboxGroup, errorUrl, Field, firstParam, Form, Hint, LinkButton, Page, RadioGroup, Section, SelectField } from "@/components/form";
 import {
   companySettings,
   eligibleApprovers,
@@ -60,7 +60,16 @@ export default async function CompanySettings(props: PageProps<"/settings/compan
   const { error, notice } = await props.searchParams;
 
   return (
-    <Page title="Company settings" error={firstParam(error)} notice={firstParam(notice)}>
+    <Page
+      title="Company settings"
+      error={firstParam(error)}
+      notice={firstParam(notice)}
+      actions={
+        <LinkButton href="/setup" variant="secondary">
+          Setup checklist
+        </LinkButton>
+      }
+    >
       <Section title="Sender name">
         <Form action={saveSender}>
           <Field label="Default sender name for new reminders" name="sender" maxLength={100} placeholder={`Alerts | ${company.name}`} defaultValue={settings.defaultSenderName ?? ""} />

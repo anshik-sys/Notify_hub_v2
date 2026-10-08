@@ -38,6 +38,8 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0029: `companies.setup_dismissed_at`.
+
 Migration 0028: `user.erased_at` and the `erase_person()` function (EXECUTE for
 `notifyhub_app`). **Erasing can't be undone.** With data retention on, people
 deactivated longer than the period are erased on the next nightly run.
@@ -249,6 +251,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Team → Import CSV with the template: invites arrive, and the accepted person lands in the right department and role. A file with a bad row imports nothing and lists the problems.
 - [ ] `/platform` as an owner (2FA on, from an allowed IP) lists every company with usage and queue health. From another IP, or as a company admin → 404. Suspend a test company → its people see "Account suspended" and nothing sends; unsuspend → it resumes.
 - [ ] Export a person's data (JSON with every section, no tokens). Deactivate them → Erase permanently → they can't sign in, show as "Deleted person", their comments read "Comment deleted", and the audit log no longer contains their email.
+- [ ] Sign up a new company: after onboarding you land on the setup checklist; departments, invites and managers tick off as you do them, and Home stops showing "Finish setting up" once it's done.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".
