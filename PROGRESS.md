@@ -34,6 +34,13 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   still patchy. One catch: the shell stays mounted across client navigations,
   so the menu stayed open on the new page. `ClosePopoverOnNavigate` closes it
   when the path changes.
+- **Company admin links moved into that menu** under a "Company" label:
+  Company settings, Integrations, Roles, Audit log, each still behind its own
+  permission (the label hides when none apply). The rule: rarely used,
+  company-wide setup goes in the menu; Team, Groups and Departments stay in
+  the sidebar because people use them day to day. Not done: a separate
+  company menu on the top-left brand (Slack splits it that way). Revisit if
+  the account menu gets crowded.
 - **Icons moved to `src/components/icon.tsx`.** The server layout needs them
   too, and a "use client" module can't share plain objects with it.
 - **Verified:** in Chromium at 1440 (light and dark), plus no sideways scroll

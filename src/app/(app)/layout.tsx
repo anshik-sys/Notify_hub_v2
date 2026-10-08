@@ -23,6 +23,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Fresh on every navigation; no polling (add it if people ask).
   const unread = await unreadCount(companyId, user.id);
   const seesReminders = can(access, "reminders.create") || can(access, "reminders.view_all");
+  // Company-wide setup, used now and then: in the account menu, not the sidebar.
+  const companyLinks = (
+    [
+      { href: "/settings/company", icon: "company", label: "Company settings", allowed: can(access, "company.edit") },
+      { href: "/settings/integrations", icon: "integrations", label: "Integrations", allowed: can(access, "company.manage_integrations") },
+      { href: "/settings/roles", icon: "roles", label: "Roles", allowed: can(access, "roles.manage") },
+      { href: "/settings/audit", icon: "audit", label: "Audit log", allowed: can(access, "audit.view") },
+    ] as const
+  ).filter((l) => l.allowed);
 
   return (
     <div className={styles.shell}>
@@ -118,26 +127,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 Departments
               </NavLink>
             )}
-            {can(access, "roles.manage") && (
-              <NavLink href="/settings/roles" icon="roles">
-                Roles
-              </NavLink>
-            )}
-            {can(access, "company.manage_integrations") && (
-              <NavLink href="/settings/integrations" icon="integrations">
-                Integrations
-              </NavLink>
-            )}
-            {can(access, "audit.view") && (
-              <NavLink href="/settings/audit" icon="audit">
-                Audit log
-              </NavLink>
-            )}
-            {can(access, "company.edit") && (
-              <NavLink href="/settings/company" icon="company">
-                Company
-              </NavLink>
-            )}
           </nav>
 
           <button popoverTarget="account-menu" className={styles.user}>
@@ -158,13 +147,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Profile and settings
             </Link>
             <Link href="/settings/security" className={styles.menuItem}>
-              <Icon name="roles" />
+              <Icon name="lock" />
               Security
             </Link>
             <Link href="/notifications/preferences" className={styles.menuItem}>
               <Icon name="bell" />
               Notification preferences
             </Link>
+            {companyLinks.length > 0 && (
+              <>
+                <p className={styles.menuLabel}>Company</p>
+                {companyLinks.map((l) => (
+                  <Link key={l.href} href={l.href} className={styles.menuItem}>
+                    <Icon name={l.icon} />
+                    {l.label}
+                  </Link>
+                ))}
+              </>
+            )}
             <form action={signOutAction} className={styles.menuSignOut}>
               <button className={styles.menuItem}>
                 <Icon name="logout" />
