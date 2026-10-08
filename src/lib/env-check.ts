@@ -30,6 +30,8 @@ export function problems(env: Env, db: DbFacts): string[] {
     if (!env.SLACK_SIGNING_SECRET) out.push("SLACK_SIGNING_SECRET is not set (Slack is configured).");
     if (!local && (env.SLACK_API_URL || env.SLACK_AUTHORIZE_URL)) out.push("SLACK_API_URL / SLACK_AUTHORIZE_URL point Slack elsewhere (the dev fake); unset them in production.");
   }
+  if (env.PLATFORM_OWNER_EMAILS && !env.PLATFORM_ALLOWED_IPS && !local)
+    out.push("PLATFORM_ALLOWED_IPS is not set: the platform console must be limited to known addresses.");
   if (env.GOOGLE_CLIENT_ID && !env.GOOGLE_CLIENT_SECRET) out.push("GOOGLE_CLIENT_SECRET is not set (Google sign-in is configured).");
   return out;
 }

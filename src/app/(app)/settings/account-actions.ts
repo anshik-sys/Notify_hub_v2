@@ -7,15 +7,20 @@ import { errorUrl } from "@/components/form";
 import { revokeMySession, setTimeZone } from "@/lib/account";
 import { limits } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
-import { requireMember } from "@/lib/session";
+import { requireMember, requireSignedIn } from "@/lib/session";
 
 // The signed-in person's own account: no permission beyond being signed in.
-// Security actions pass true to requireMember, so someone the company forces
+// Security actions only need a session (requireSignedIn): someone the company
+// forces to set up 2FA, or a platform owner with no company, must reach them.
+// They return to whichever security page posted them (in or outside the app).
+// (Was: security actions pass true to requireMember, so someone the company forces
 // to set up 2FA can reach them.
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "");
 const notice = (path: string, m: string): never => redirect(`${path}?notice=${encodeURIComponent(m)}`);
 const SECURITY = "/settings/security";
+const PAGES = [SECURITY, "/account/security"];
+const base = (fd: FormData) => (PAGES.includes(String(fd.get("base"))) ? String(fd.get("base")) : SECURITY);
 
 // Password-checking actions: 5 tries per person per 15 minutes (PRD 11.1).
 async function passwordLimit(userId: string, back = SECURITY) {
@@ -50,25 +55,27 @@ export async function signOutAction() {
 }
 
 export async function changePasswordAction(fd: FormData) {
-  const { user } = await requireMember(true);
-  await passwordLimit(user.id);
+  const S = base(fd);
+  const { user } = await requireSignedIn();
+  await passwordLimit(user.id, S);
   const [current, next, confirm] = [str(fd, "current"), str(fd, "password"), str(fd, "confirm")];
-  if (next !== confirm) redirect(errorUrl(SECURITY, "The new passwords don't match."));
-  await call(SECURITY, async () =>
+  if (next !== confirm) redirect(errorUrl(S, "The new passwords don't match."));
+  await call(S, async () =>
     auth.api.changePassword({ body: { currentPassword: current, newPassword: next, revokeOtherSessions: true }, headers: await headers() }),
   );
-  notice(SECURITY, "Password changed. You've been signed out everywhere else.");
+  notice(S, "Password changed. You've been signed out everywhere else.");
 }
 
 // Step 1: password -> secret + backup codes. They're shown once; 2FA is only
 // on after step 2 proves the app has the secret.
 export async function startTwoFactorAction(fd: FormData) {
-  const { user } = await requireMember(true);
-  await passwordLimit(user.id);
-  const r = await call(SECURITY, async () =>
+  const S = base(fd);
+  const { user } = await requireSignedIn();
+  await passwordLimit(user.id, S);
+  const r = await call(S, async () =>
     auth.api.enableTwoFactor({ body: { password: str(fd, "password") }, headers: await headers() }),
   );
-  if (!("totpURI" in r)) redirect(errorUrl(SECURITY, "Authenticator-app setup isn't available."));
+  if (!("totpURI" in r)) redirect(errorUrl(S, "Authenticator-app setup isn't available."));
   // ponytail: the URI + codes ride in a short-lived httpOnly cookie for the
   // next render only, rather than a table; they're already stored (encrypted)
   // by Better Auth.
@@ -77,26 +84,28 @@ export async function startTwoFactorAction(fd: FormData) {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    path: SECURITY,
+    path: S,
     maxAge: 600,
   });
-  redirect(`${SECURITY}?setup=1`);
+  redirect(`${S}?setup=1`);
 }
 
 export async function confirmTwoFactorAction(fd: FormData) {
-  await requireMember(true);
-  await call(`${SECURITY}?setup=1`, async () =>
+  const S = base(fd);
+  await requireSignedIn();
+  await call(`${S}?setup=1`, async () =>
     auth.api.verifyTOTP({ body: { code: str(fd, "code").replace(/\s+/g, "") }, headers: await headers() }),
   );
   const { cookies } = await import("next/headers");
-  (await cookies()).delete({ name: "nh_2fa_setup", path: SECURITY });
-  notice(SECURITY, "Two-factor is on.");
+  (await cookies()).delete({ name: "nh_2fa_setup", path: S });
+  notice(S, "Two-factor is on.");
 }
 
 export async function newBackupCodesAction(fd: FormData) {
-  const { user } = await requireMember(true);
-  await passwordLimit(user.id);
-  const r = await call(SECURITY, async () =>
+  const S = base(fd);
+  const { user } = await requireSignedIn();
+  await passwordLimit(user.id, S);
+  const r = await call(S, async () =>
     auth.api.generateBackupCodes({ body: { password: str(fd, "password") }, headers: await headers() }),
   );
   const { cookies } = await import("next/headers");
@@ -104,31 +113,34 @@ export async function newBackupCodesAction(fd: FormData) {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    path: SECURITY,
+    path: S,
     maxAge: 600,
   });
-  redirect(`${SECURITY}?codes=1`);
+  redirect(`${S}?codes=1`);
 }
 
 export async function disableTwoFactorAction(fd: FormData) {
-  const { user, company } = await requireMember(true);
-  await passwordLimit(user.id);
-  if (company.requireTwoFactor) redirect(errorUrl(SECURITY, "Your company requires two-factor, so it can't be turned off."));
-  await call(SECURITY, async () => auth.api.disableTwoFactor({ body: { password: str(fd, "password") }, headers: await headers() }));
-  notice(SECURITY, "Two-factor is off.");
+  const S = base(fd);
+  const { user, company } = await requireSignedIn();
+  await passwordLimit(user.id, S);
+  if (company?.requireTwoFactor) redirect(errorUrl(S, "Your company requires two-factor, so it can't be turned off."));
+  await call(S, async () => auth.api.disableTwoFactor({ body: { password: str(fd, "password") }, headers: await headers() }));
+  notice(S, "Two-factor is off.");
 }
 
 export async function revokeSessionAction(fd: FormData) {
-  const { user } = await requireMember(true);
+  const S = base(fd);
+  const { user } = await requireSignedIn();
   const id = str(fd, "sessionId");
   if (!id || id.length > 100) notFound();
   const error = await revokeMySession(user.id, id);
-  if (error) redirect(errorUrl(SECURITY, error));
-  notice(SECURITY, "Signed out that session.");
+  if (error) redirect(errorUrl(S, error));
+  notice(S, "Signed out that session.");
 }
 
-export async function revokeOtherSessionsAction() {
-  await requireMember(true);
-  await call(SECURITY, async () => auth.api.revokeOtherSessions({ headers: await headers() }));
-  notice(SECURITY, "Signed out everywhere else.");
+export async function revokeOtherSessionsAction(fd: FormData) {
+  const S = base(fd);
+  await requireSignedIn();
+  await call(S, async () => auth.api.revokeOtherSessions({ headers: await headers() }));
+  notice(S, "Signed out everywhere else.");
 }

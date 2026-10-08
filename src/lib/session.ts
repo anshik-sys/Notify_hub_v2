@@ -33,13 +33,32 @@ export const requireMember = cache(async (allowWithout2fa: boolean = false) => {
           timeZone: companies.timeZone,
           requireTwoFactor: companies.requireTwoFactor,
           defaultSenderName: companies.defaultSenderName,
+          suspendedAt: companies.suspendedAt,
         })
         .from(companies)
         .where(eq(companies.id, companyId)),
     ),
   ]);
+  // PRD 9.2: a suspended company's people see only the suspended page.
+  if (company.suspendedAt) redirect("/suspended");
   if (!allowWithout2fa && needsTwoFactorSetup(company, session.user)) redirect("/settings/security?required=1");
   // For display; reminders keep their own zone for scheduling.
   const timeZone = session.user.timeZone || company.timeZone;
   return { user: session.user, companyId, company, access, timeZone };
+});
+
+// Signed in, with or without a company: for the person's own security
+// settings (a platform owner may belong to no company).
+export const requireSignedIn = cache(async () => {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session || session.user.deactivatedAt) redirect("/sign-in");
+  const companyId = session.user.companyId;
+  let company: { requireTwoFactor: boolean; timeZone: string } | null = null;
+  if (companyId) {
+    [company] = await withTenant(companyId, (tx) =>
+      tx.select({ requireTwoFactor: companies.requireTwoFactor, timeZone: companies.timeZone }).from(companies).where(eq(companies.id, companyId)),
+    );
+    await setCurrentActor(session.user.id);
+  }
+  return { user: session.user, company, timeZone: session.user.timeZone || company?.timeZone || "UTC" };
 });

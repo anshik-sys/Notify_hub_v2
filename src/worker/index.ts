@@ -5,6 +5,7 @@ import { checkEnvironment } from "@/lib/env-check";
 import { ownerDb, ownerUrl } from "./db";
 import { claimDigests, digestOne } from "./digest";
 import { runRetention } from "./retention";
+import { volumeAlerts } from "./volume-alert";
 import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, dispatchManual, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
 // Long-running process, deployed separately from the web app.
@@ -24,6 +25,7 @@ await boss.createQueue("followup", { notify: true });
 await boss.createQueue("snooze", { notify: true });
 await boss.createQueue("digest", { notify: true });
 await boss.createQueue("retention");
+await boss.createQueue("volume");
 
 const enqueue = async (ids: string[]) => {
   for (const deliveryId of ids)
@@ -74,6 +76,10 @@ await boss.work<{ companyId: string }>("digest", async ([job]) => {
 // Data retention, nightly at 03:00 UTC (PRD 9.1).
 await boss.schedule("retention", "0 3 * * *");
 await boss.work("retention", async () => runRetention());
+
+// Platform volume alert, hourly (PRD 9.2).
+await boss.schedule("volume", "5 * * * *");
+await boss.work("volume", async () => void (await volumeAlerts()));
 
 await boss.schedule("tick", "* * * * *");
 // /api/health reports the worker down if this is older than 3 minutes.

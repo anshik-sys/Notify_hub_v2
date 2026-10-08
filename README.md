@@ -450,3 +450,20 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   - deletes older notifications and audit entries;
   - never touches upcoming or active reminders;
   - each purge writes one "System" audit row with the counts.
+- **The platform-owner console (`/platform`, PRD 9.2):**
+  - **Owners** are the accounts in `PLATFORM_OWNER_EMAILS`. They must have
+    2FA on, and must come from `PLATFORM_ALLOWED_IPS` (in dev with no list,
+    localhost only). Anything else gets a 404; an owner without 2FA is told
+    to set it up at `/account/security`, which works without a company.
+  - **Cross-company reads don't use the owner connection.** They go through
+    `SECURITY DEFINER` functions (`platform_companies`, `platform_queue`,
+    `platform_set_member_role`, migration 0027) that return aggregates only,
+    and refuse unless `app.platform = 'on'` was set in the transaction.
+    Only `src/lib/platform.ts` sets it, after the owner check.
+  - **Per-company changes** (edit, suspend, delete) go through `withTenant`
+    with the owner as actor, so they show in that company's audit log.
+  - **Suspension** sends the company's people to `/suspended` and makes every
+    worker claim skip the company. Deliveries already queued at that moment
+    may still go out.
+  - **Delete** works only when the company is empty; the foreign keys
+    enforce it.

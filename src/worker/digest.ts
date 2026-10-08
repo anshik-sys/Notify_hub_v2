@@ -15,7 +15,7 @@ export async function claimDigests(now = new Date(), onlyCompany?: string) {
     update slack_installations s
        set last_digest_on = (${now}::timestamptz at time zone c.time_zone)::date
       from companies c
-     where c.id = s.company_id and s.digest_enabled
+     where c.id = s.company_id and s.digest_enabled and c.suspended_at is null
        and (${onlyCompany ?? null}::uuid is null or s.company_id = ${onlyCompany ?? null}::uuid)
        and ${now}::timestamptz >= (((${now}::timestamptz at time zone c.time_zone)::date + s.digest_time::time) at time zone c.time_zone)
        and (s.last_digest_on is null or s.last_digest_on < (${now}::timestamptz at time zone c.time_zone)::date)

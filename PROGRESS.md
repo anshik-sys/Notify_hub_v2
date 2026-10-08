@@ -2,6 +2,55 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — platform-owner console (PRD 9.2)
+
+- **Decided with the user:**
+  - owners = `PLATFORM_OWNER_EMAILS` + 2FA + `PLATFORM_ALLOWED_IPS`;
+  - suspension locks people out **and** pauses sends.
+- **What's in place** (`/platform`, its own shell):
+  - **Companies:** every company's usage (people, scheduled, sent and failed
+    in 24 h and 30 days, admins) and the queue's health (queued, sending,
+    failed in 24 h, due but not dispatched, oldest queued, worker
+    heartbeat).
+  - **A company:** edit name, domain and time zone; suspend or unsuspend;
+    delete only when empty.
+  - **New company:** created empty, and its first admin gets an invite (the
+    owner doesn't join it).
+  - **Settings:** the volume alert threshold, and the Member system role's
+    permissions (the catalogue itself stays code).
+  - **Worker:** an hourly volume alert, once per company per day.
+  - **`/account/security`:** 2FA, password and sessions without a company;
+    the security actions now only need a session.
+  - **`/suspended`:** what a suspended company's people see.
+- **No owner database URL in the web app.** Cross-company reads are three
+  `SECURITY DEFINER` functions that return aggregates and refuse unless
+  `app.platform` is on (tested: they refuse without it).
+- **Caught while verifying:** the company page crashed ("Invalid time
+  value"). Drizzle's raw `execute()` returns timestamps as strings, so they
+  are now converted.
+- **Verified against `next start` + worker + Mailpit:**
+  - owner without 2FA → "Turn on two-factor first"; set it up at
+    `/account/security` → in;
+  - a company admin, an anonymous visitor and a disallowed IP → 404;
+  - created "Beta Ltd" (Asia/Dubai) → its admin got the invite and joined as
+    Company Admin;
+  - suspended Alpha → its admin was sent to /suspended (also from New
+    reminder); a due reminder stayed Scheduled for 6 s; unsuspended → sent;
+  - edit → "Alpha Group / Europe/London";
+  - delete: Alpha (has people) refused, an empty company deleted;
+  - Alpha's audit log shows the suspend, unsuspend and edit under "Owner";
+  - settings: removing `users.view` from Member → alice got 404 on Team;
+    threshold 1 → 2 alert emails (one per company over it), a second run →
+    0; then both restored.
+
+  131 tests pass (new: platform access and IP rules, the definer functions'
+  guard and aggregates, create/suspend/delete, settings, suspension pausing
+  dispatch, the volume alert once a day, the env check).
+- **Script lesson:** the console's shell has a sign-out form, so pick forms
+  by their fields, not by order.
+- **Not in this step:** impersonation, billing, runtime permission catalogue,
+  feature flags.
+
 ## 2026-10-08 — admin features: CSV import, approvers, sender name, retention (PRD 9.1)
 
 - **Decided with the user:**

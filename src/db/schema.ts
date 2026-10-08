@@ -38,6 +38,9 @@ export const companies = pgTable(
     approvalMode: text().$type<"any" | "named">().notNull().default("any"),
     // Finished history older than this is deleted daily (worker). Null = keep.
     retentionDays: integer(),
+    // PRD 9.2: set by the platform owner. Members are locked out and the
+    // worker sends nothing for the company until it's cleared.
+    suspendedAt: ts(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -725,3 +728,21 @@ export const companyApprovers = pgTable(
   },
   (t) => [primaryKey({ columns: [t.companyId, t.userId] }), tenantPolicy("company_id")],
 ).enableRLS();
+
+// Platform owner (PRD 9.2). Not tenant data: one settings row, and a record
+// of volume alerts so each company alerts at most once a day.
+export const platformSettings = pgTable("platform_settings", {
+  id: integer().primaryKey(),
+  dailyVolumeAlert: integer(),
+});
+
+export const platformAlerts = pgTable(
+  "platform_alerts",
+  {
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    onDate: date().notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.onDate] })],
+);

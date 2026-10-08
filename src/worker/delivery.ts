@@ -1,4 +1,4 @@
-import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
+import { type AnyColumn, and, asc, eq, lt, lte, sql } from "drizzle-orm";
 import { attachments, deliveries, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user } from "@/db/schema";
 import { emailFiles } from "@/lib/attachments";
 import { renderReminderEmail } from "@/lib/email-render";
@@ -22,6 +22,10 @@ import { ownerDb } from "./db";
 //    never resent: we can't know if the mail left, and the PRD says never twice.
 
 export const MAX_ATTEMPTS = 5;
+
+// PRD 9.2: a suspended company's sends wait until it's unsuspended. Rows
+// already queued when it was suspended may still go out.
+const notSuspended = (companyId: AnyColumn) => sql`not exists (select 1 from companies c where c.id = ${companyId} and c.suspended_at is not null)`;
 const STUCK_AFTER_MS = 10 * 60_000;
 
 type Reminder = typeof reminders.$inferSelect;
@@ -106,7 +110,7 @@ export async function dispatchManual(enqueue: (deliveryIds: string[]) => Promise
       const [r] = await tx
         .select()
         .from(reminders)
-        .where(and(sql`${reminders.sendNowAt} is not null`, onlyCompany ? eq(reminders.companyId, onlyCompany) : undefined))
+        .where(and(sql`${reminders.sendNowAt} is not null`, notSuspended(reminders.companyId), onlyCompany ? eq(reminders.companyId, onlyCompany) : undefined))
         .limit(1)
         .for("update", { skipLocked: true });
       if (!r) return null;
@@ -139,6 +143,7 @@ export async function dispatchDue(
           and(
             eq(reminders.status, "scheduled"),
             lte(reminders.sendAt, now),
+            notSuspended(reminders.companyId),
             onlyCompany ? eq(reminders.companyId, onlyCompany) : undefined,
           ),
         )
@@ -397,7 +402,7 @@ export async function claimFollowUps(now = new Date(), onlyCompany?: string) {
              (${now}::timestamptz at time zone c.time_zone)::date as local_today,
              (((${now}::timestamptz at time zone c.time_zone)::date + c.follow_up_time::time) at time zone c.time_zone) as slot
       from companies c
-      where ${onlyCompany ?? null}::uuid is null or c.id = ${onlyCompany ?? null}::uuid
+      where (${onlyCompany ?? null}::uuid is null or c.id = ${onlyCompany ?? null}::uuid) and c.suspended_at is null
     )
     update task_assignments a
        set last_followup_on = s.local_today, followups = a.followups + 1
@@ -483,6 +488,7 @@ export async function claimSnoozes(now = new Date(), onlyCompany?: string) {
       and(
         lte(taskAssignments.snoozedUntil, now),
         sql`${taskAssignments.doneAt} is null`,
+        notSuspended(taskAssignments.companyId),
         onlyCompany ? eq(taskAssignments.companyId, onlyCompany) : undefined,
       ),
     )

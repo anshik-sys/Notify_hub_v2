@@ -31,3 +31,8 @@ test("localhost may use http and the fake Slack", () => {
   assert.deepEqual(problems({ ...good, BETTER_AUTH_URL: "http://localhost:3000", SLACK_API_URL: "http://localhost:4999/api" }, role), []);
   assert.match(problems(good, { superuser: false, bypassRls: true }).join(), /BYPASSRLS/);
 });
+
+test("platform owners need an IP allowlist outside localhost", () => {
+  assert.match(problems({ ...good, PLATFORM_OWNER_EMAILS: "o@x.test" }, role).join(), /PLATFORM_ALLOWED_IPS/);
+  assert.deepEqual(problems({ ...good, PLATFORM_OWNER_EMAILS: "o@x.test", PLATFORM_ALLOWED_IPS: "203.0.113.5" }, role), []);
+});

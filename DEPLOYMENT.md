@@ -38,6 +38,18 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0027: `companies.suspended_at`, `platform_settings`, `platform_alerts`, and the
+`platform_*` SECURITY DEFINER functions (EXECUTE for `notifyhub_app` only).
+
+Platform owners:
+- **`PLATFORM_OWNER_EMAILS`**: comma-separated owner accounts. Sign up as a normal
+  user (no company needed), verify, then turn on 2FA at `/account/security`.
+- **`PLATFORM_ALLOWED_IPS`**: exact IPs or IPv4 CIDRs. **Required in production**
+  when owners are set; the startup check refuses otherwise. It relies on
+  `CLIENT_IP_HEADER` being set by your proxy.
+- **Set both variables on the worker too**: the hourly volume alert emails
+  `PLATFORM_OWNER_EMAILS`.
+
 Migration 0026: company settings (`default_sender_name`, `approval_mode`,
 `retention_days`) and `company_approvers` (with an audit trigger). **Data
 retention** runs nightly at 03:00 UTC in the worker. It's off until a company
@@ -234,6 +246,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] 6 wrong passwords for one account → "Too many attempts". `/api/health` → 200; stop the worker → 503 within 3 minutes.
 - [ ] Company settings: a sender name shows in new emails' From. Named approvers: only they get approval emails, and an admin who isn't named can't decide.
 - [ ] Team → Import CSV with the template: invites arrive, and the accepted person lands in the right department and role. A file with a bad row imports nothing and lists the problems.
+- [ ] `/platform` as an owner (2FA on, from an allowed IP) lists every company with usage and queue health. From another IP, or as a company admin → 404. Suspend a test company → its people see "Account suspended" and nothing sends; unsuspend → it resumes.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".
