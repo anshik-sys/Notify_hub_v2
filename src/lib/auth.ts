@@ -1,6 +1,7 @@
 import { APIError, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { twoFactor } from "better-auth/plugins";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "@/db/schema";
@@ -17,7 +18,24 @@ export const googleEnabled = Boolean(process.env.GOOGLE_CLIENT_ID && process.env
 
 export const auth = betterAuth({
   database: drizzleAdapter(authDb, { provider: "pg", schema }),
-  emailAndPassword: { enabled: true, requireEmailVerification: true },
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: true,
+    // PRD 3.2: single use (Better Auth deletes the token), 1 hour, and a reset
+    // signs out every session.
+    resetPasswordTokenExpiresIn: 3600,
+    revokeSessionsOnPasswordReset: true,
+    // Not awaited, like verification: the response must not reveal by timing
+    // whether the account exists.
+    sendResetPassword: async ({ user, url }) => {
+      sendMail({
+        to: user.email,
+        subject: "Reset your NotifyHub password",
+        text: `Hi ${user.name},\n\nSomeone asked to reset your password. If it was you, use the link below within 1 hour. If not, ignore this email.`,
+        links: [{ label: "Reset password", url }],
+      }).catch((e) => console.error("reset email failed", e));
+    },
+  },
   emailVerification: {
     // Off: /sign-up sends it explicitly, so accepting an invite (which proves the
     // mailbox by itself) doesn't also send a verification email.
@@ -51,6 +69,8 @@ export const auth = betterAuth({
       // Set once, by onboarding or invite acceptance. Never from client input.
       companyId: { type: "string", required: false, input: false },
       deactivatedAt: { type: "date", required: false, input: false },
+      // Set by our profile action only (src/lib/account.ts).
+      timeZone: { type: "string", required: false, input: false },
     },
   },
   databaseHooks: {
@@ -67,5 +87,8 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [nextCookies()],
+  // twoFactor: TOTP + backup codes (PRD 3.1). It challenges email/password
+  // sign-ins only; Google sign-in relies on Google's own 2-step.
+  // nextCookies must stay last.
+  plugins: [twoFactor({ issuer: "NotifyHub" }), nextCookies()],
 });

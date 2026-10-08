@@ -98,7 +98,7 @@ test("slack installations and task assignments are tenant-isolated", async () =>
 });
 
 test("app role cannot read auth secrets", async () => {
-  for (const table of ["session", "account", "verification"]) {
+  for (const table of ["session", "account", "verification", "two_factor"]) {
     await assert.rejects(db.$client.query(`select 1 from ${table}`), /permission denied/);
   }
 });

@@ -7,7 +7,7 @@ import { requireMember } from "@/lib/session";
 import { formatInZone } from "@/lib/time";
 
 export default async function Approvals() {
-  const { companyId, company, access } = await requireMember();
+  const { companyId, access, timeZone } = await requireMember();
   if (!can(access, "reminders.approve")) notFound();
   const pending = await listPendingApprovals(companyId);
 
@@ -19,7 +19,7 @@ export default async function Approvals() {
         rows={pending.map((r) => ({
           key: r.id,
           href: `/reminders/${r.id}`,
-          cells: [r.title, r.creatorName, formatInZone(r.sendAt, company.timeZone)],
+          cells: [r.title, r.creatorName, formatInZone(r.sendAt, timeZone)],
         }))}
       />
     </Page>

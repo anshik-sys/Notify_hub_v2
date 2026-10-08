@@ -345,3 +345,24 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     goes back to "Needs approval", and approvers are told.
   - **A group can't be deleted while an upcoming reminder uses it**, so a
     schedule never silently loses its recipients.
+- **2FA (PRD 3.1) is Better Auth's twoFactor plugin.** Its `two_factor` table
+  holds encrypted TOTP secrets and backup codes, so, like `session` and
+  `account`, only `notifyhub_auth` is granted it (migration 0022). The
+  default privileges from 0001 would otherwise give it to the app role.
+  - **It only challenges email/password sign-ins.** Google sign-in relies on
+    Google's own 2-step. "Require 2FA" still makes Google users set up TOTP
+    before using the app.
+  - **The require-2FA gate is in `requireMember()`.** Every page and server
+    action redirects to `/settings/security?required=1` until 2FA is on. Only
+    the security page and its actions (and the app shell) pass
+    `requireMember(true)`.
+  - **Setup shows the secret and backup codes once,** passed to the next render
+    in a 10-minute httpOnly cookie scoped to `/settings/security` and deleted
+    on confirm. The QR is an SVG rendered on the server (`qrcode`).
+- **Password reset** (`/forgot-password`) answers the same for unknown emails
+  and sends the email without waiting (timing). Links are single use, last
+  1 hour, and a reset signs out every session.
+- **A personal time zone (`user.time_zone`) is for display only:** the
+  dashboard, lists, notifications, calendar and approvals. Reminders keep
+  their own zone for scheduling, and the form still defaults to the
+  company's.

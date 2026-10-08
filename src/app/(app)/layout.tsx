@@ -8,7 +8,9 @@ import { NavLink } from "./nav-link";
 // page beside it. Below 768px the sidebar becomes a top bar.
 // Links are hidden by permission for tidiness only; every page checks again.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, companyId, company, access } = await requireMember();
+  // true: the shell renders on the security page too (where 2FA is set up);
+  // every page enforces the require-2FA gate with its own requireMember().
+  const { user, companyId, company, access } = await requireMember(true);
   // Fresh on every navigation; no polling (add it if people ask).
   const unread = await unreadCount(companyId, user.id);
 
@@ -70,10 +72,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </NavLink>
           )}
           {can(access, "company.edit") && (
-            <NavLink href="/settings/company" icon="settings">
-              Settings
+            <NavLink href="/settings/company" icon="company">
+              Company
             </NavLink>
           )}
+          <NavLink href="/settings/profile" icon="settings">
+            Settings
+          </NavLink>
         </nav>
       </aside>
       <div className={styles.content}>{children}</div>

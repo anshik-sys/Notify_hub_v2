@@ -2,6 +2,71 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — settings: profile, password reset, 2FA, sessions (PRD 3, 8, 9.1)
+
+- **Decided with the user:** the full scope (profile, password change and
+  reset, 2FA with QR and backup codes, sessions, admin 2FA reset, require
+  2FA), and adding the `qrcode` package. Profile picture, email change and
+  SSO come later.
+- **What's in place:**
+  - **Settings → Profile:** name and your own time zone; your departments
+    (with their managers), groups and roles; appearance; sign out.
+    Groups, roles, appearance and sign out moved off Home. "Your
+    departments" stays on Home, since you asked for it there.
+  - **Settings → Security:**
+    - two-factor: set up with the QR or the key, 10 backup codes, confirm
+      with a code; new backup codes, turn off (password needed for each);
+    - change password (signs you out elsewhere);
+    - where you're signed in, with Sign out per device and "everywhere
+      else".
+  - **Sign-in:** a second step for 2FA (code or backup code, "trust this
+    browser for 30 days"), and "Forgot your password?" with the reset pages.
+  - **Admins:**
+    - "Reset two-factor" on a person's page: turns it off and signs them
+      out; it has the same "not above yourself" guard as deactivation;
+    - Company → "Require two-factor": refused until you have it yourself, so
+      you can't lock yourself out.
+  - **The sidebar:** personal Settings for everyone; the old admin
+    Settings is now "Company".
+- **Why `two_factor` is auth-role only:** it holds the secrets, like
+  `session`/`account`. Migration 0022 revokes it from the app role, since
+  the default privileges would otherwise grant it; there's an RLS test for
+  that.
+- **Security note:** Better Auth's 2FA only challenges password sign-ins.
+  Google sign-in skips it and relies on Google's 2-step. With "require
+  2FA" on, Google users still have to set up TOTP before using the app.
+- **A personal time zone changes display only,** never when things send.
+- **Verified against `next start` + Mailpit** (TOTP codes generated in the
+  script, RFC 6238):
+  - profile: the name and time zone saved; a bogus zone was refused;
+  - 2FA setup: QR SVG, 52-character key, 10 backup codes, still off until
+    confirmed; a wrong code was refused; the right one turned it on; the
+    setup cookie was deleted;
+  - sign-in with 2FA → `/sign-in/two-factor`, with no session yet; a wrong
+    code was refused; the right one got in; a backup code worked once, and
+    the second time → "Invalid backup code";
+  - sessions: two devices → "Sign out everywhere else" → the other was
+    bounced;
+  - change password: a mismatch and a wrong current password were refused;
+    a success ended the other session; the old password → 401;
+  - forgot password: an unknown email got the same notice and no email; the
+    known one got 1 email → the link → reset → the old session ended; the
+    link again → "expired or already used"; the new password works;
+  - require 2FA: refused for an admin without it; saved once they had it;
+    bob → redirected to security on pages and on a direct server-action POST
+    (no group created); the admin can't turn theirs off while it's required;
+  - admin reset of alice: her flag and row cleared, her sessions ended; she
+    signs in without a code and is sent to set it up again.
+
+  102 tests pass (new: `account.test.ts`; 2FA reset, the gate, and an RLS
+  check on `two_factor`).
+- **Script lessons:**
+  - zsh globs an unquoted `?` in a URL argument (quote paths with queries);
+  - turning on 2FA re-issues the session, so the old cookie jar is signed
+    out.
+- **Not in this step:** profile picture, email change, SAML SSO, an admin
+  view of everyone's sessions, the audit log.
+
 ## 2026-10-07 — groups and the Team directory (PRD 4, PRD 8 "Team")
 
 - **Decided with the user:** everyone can create groups. The new permission

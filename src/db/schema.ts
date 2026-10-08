@@ -29,6 +29,8 @@ export const companies = pgTable(
     timeZone: text().notNull(),
     // Local time of day for daily task follow-ups (PRD 5.8), in timeZone.
     followUpTime: text().notNull().default("09:00"),
+    // PRD 9.1: everyone must set up 2FA before using the app (requireMember).
+    requireTwoFactor: boolean().notNull().default(false),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -71,6 +73,10 @@ export const user = pgTable(
     companyId: uuid().references(() => companies.id),
     // Set = deactivated: no sign-in (Better Auth session hook), sessions deleted.
     deactivatedAt: ts(),
+    // Better Auth twoFactor plugin.
+    twoFactorEnabled: boolean().default(false),
+    // The person's own zone for display; null = the company's.
+    timeZone: text(),
   },
   (t) => [index().on(t.companyId), tenantPolicy("company_id"), authPolicy],
 ).enableRLS();
@@ -118,6 +124,25 @@ export const account = pgTable(
       .notNull(),
   },
   (t) => [index().on(t.userId)],
+);
+
+// Better Auth twoFactor plugin (field names must match it). The secret and
+// backup codes are encrypted by Better Auth. Like session/account, only
+// notifyhub_auth is granted this table (migration 0022).
+export const twoFactor = pgTable(
+  "two_factor",
+  {
+    id: text().primaryKey(),
+    secret: text().notNull(),
+    backupCodes: text().notNull(),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    verified: boolean().default(true),
+    failedVerificationCount: integer().default(0),
+    lockedUntil: ts(),
+  },
+  (t) => [index().on(t.secret), index().on(t.userId)],
 );
 
 export const verification = pgTable(

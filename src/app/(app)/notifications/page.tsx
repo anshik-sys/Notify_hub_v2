@@ -7,7 +7,7 @@ import { markAllReadAction } from "./actions";
 import styles from "./page.module.css";
 
 export default async function Notifications(props: PageProps<"/notifications">) {
-  const { user, companyId, company } = await requireMember();
+  const { user, companyId, timeZone } = await requireMember();
   const before = (await props.searchParams).before;
   const at = typeof before === "string" ? new Date(before) : undefined;
   const { items, more } = await listNotifications(companyId, user.id, at && !isNaN(at.getTime()) ? at : undefined);
@@ -41,7 +41,7 @@ export default async function Notifications(props: PageProps<"/notifications">) 
               {n.text}
             </span>,
             n.reminderTitle ?? <Muted key="r">Deleted</Muted>,
-            <Muted key="w">{formatInZone(n.createdAt, company.timeZone)}</Muted>,
+            <Muted key="w">{formatInZone(n.createdAt, timeZone)}</Muted>,
             n.readAt ? "" : <Badge key="u">New</Badge>,
           ],
         }))}

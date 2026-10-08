@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { authDb } from "./auth";
 import { type Access, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "./permissions";
 import { seeder } from "./test-helpers";
-import { listUsers, setActive, setUserRoles } from "./users";
+import { adminResetTwoFactor, listUsers, setActive, setUserRoles } from "./users";
 
 const s = seeder();
 let admin: { id: string; access: Access };
@@ -76,4 +76,23 @@ test("directory: departments listed; search by name, email or department", async
   assert.deepEqual(await ids("pat sm"), [pat]);
   assert.deepEqual(await ids("%"), []); // literal
   assert.deepEqual((await listUsers(s.companyId)).users.find((u) => u.id === pat)!.departments, [{ name: "Field Ops", isManager: true }]);
+});
+
+test("admin 2FA reset: clears it, ends sessions; guarded like deactivation", async () => {
+  const lost = await s.user({ roles: [MEMBER_ROLE_ID] });
+  await s.owner.query(`update "user" set two_factor_enabled = true where id = $1`, [lost]);
+  await s.owner.query("insert into two_factor (id, secret, backup_codes, user_id) values ($1, 'enc', 'enc', $2)", [`tf-${lost}`, lost]);
+  await s.owner.query("insert into session (id, expires_at, token, user_id, updated_at) values ($1, now() + interval '1 day', $1, $2, now())", [`s-${lost}`, lost]);
+
+  // A plain member can't reset an admin's.
+  const member = await s.user({ roles: [MEMBER_ROLE_ID] });
+  const memberActor = { id: member, access: await loadAccess(s.companyId, member) };
+  assert.match((await adminResetTwoFactor(memberActor, s.companyId, admin.id))!, /can't manage/);
+  assert.match((await adminResetTwoFactor(admin, s.companyId, admin.id))!, /your own/);
+
+  assert.equal(await adminResetTwoFactor(admin, s.companyId, lost), null);
+  const { rows } = await s.owner.query(`select two_factor_enabled from "user" where id = $1`, [lost]);
+  assert.equal(rows[0].two_factor_enabled, false);
+  assert.equal((await s.owner.query("select 1 from two_factor where user_id = $1", [lost])).rowCount, 0);
+  assert.equal((await s.owner.query("select 1 from session where user_id = $1", [lost])).rowCount, 0);
 });

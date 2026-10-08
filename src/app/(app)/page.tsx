@@ -1,25 +1,15 @@
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { Button, Hint, Page, Section } from "@/components/form";
+import Link from "next/link";
+import { Hint, Page, Section } from "@/components/form";
 import { List, ListRow } from "@/components/list";
-import { ThemeSwitcher } from "@/components/theme-switcher";
-import { auth } from "@/lib/auth";
 import { StatCards } from "@/components/stats";
 import { listNotifications } from "@/lib/notifications";
-import { can, visibleRoles } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
 import { listPendingApprovals } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { myOpenTasks } from "@/lib/tasks";
 import { formatInZone } from "@/lib/time";
-import { groupsOf } from "@/lib/groups";
 import { getUser } from "@/lib/users";
 import { dashboardStats, dueByDate, filterUrl, upcoming } from "@/lib/views";
-
-async function signOut() {
-  "use server";
-  await auth.api.signOut({ headers: await headers() });
-  redirect("/sign-in");
-}
 
 // Server-rendered per request, so "now" is the request time.
 const isOverdue = (d: Date | null) => Boolean(d && d.getTime() < Date.now());
@@ -27,21 +17,17 @@ const isOverdue = (d: Date | null) => Boolean(d && d.getTime() < Date.now());
 const TASKS_SHOWN = 5;
 
 export default async function Home() {
-  const { user, companyId, company, access } = await requireMember();
+  const { user, companyId, access, timeZone: tz } = await requireMember();
   const viewer = { id: user.id, access };
   const seesReminders = can(access, "reminders.create") || can(access, "reminders.view_all");
-  const tz = company.timeZone;
-  const [me, roles, pending, tasks, stats, next, activity, myGroups] = await Promise.all([
+  const [me, pending, tasks, stats, next, activity] = await Promise.all([
     getUser(companyId, user.id),
-    visibleRoles(companyId),
     can(access, "reminders.approve") ? listPendingApprovals(companyId) : [],
     myOpenTasks(companyId, user.id, TASKS_SHOWN + 1),
     seesReminders ? dashboardStats(companyId, viewer, tz) : null,
     seesReminders ? upcoming(companyId, viewer) : [],
     listNotifications(companyId, user.id).then((n) => n.items.slice(0, 8)),
-    groupsOf(companyId, user.id),
   ]);
-  const roleNames = roles.filter((r) => me?.roleIds.includes(r.id)).map((r) => r.name);
 
   return (
     <Page title={`Hi, ${user.name.split(" ")[0]}`}>
@@ -143,30 +129,9 @@ export default async function Home() {
         )}
       </Section>
 
-      {myGroups.length > 0 && (
-        <Section title="Your groups">
-          <List>
-            {myGroups.map((g) => (
-              <ListRow key={g.id} href={`/groups/${g.id}`} title={g.name} />
-            ))}
-          </List>
-        </Section>
-      )}
-
-      <Section title="Your roles">
-        <Hint>{roleNames.join(", ")}</Hint>
-      </Section>
-
-      <Section title="Appearance">
-        <ThemeSwitcher />
-      </Section>
-
-      <Section title="Account">
-        <Hint>Signed in as {user.email}</Hint>
-        <form action={signOut}>
-          <Button variant="secondary">Sign out</Button>
-        </form>
-      </Section>
+      <Hint>
+        Your groups, roles, appearance and sign out are in <Link href="/settings/profile">Settings</Link>.
+      </Hint>
     </Page>
   );
 }

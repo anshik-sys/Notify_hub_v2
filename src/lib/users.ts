@@ -1,6 +1,7 @@
 import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { departmentMembers, departments, invitations, roles, session, user, userRoles } from "@/db/schema";
+import { resetTwoFactor } from "./account";
 import { authDb } from "./auth";
 import { type Access, canGrant, COMPANY_ADMIN_ROLE_ID, MEMBER_ROLE_ID } from "./permissions";
 
@@ -51,7 +52,7 @@ export async function listUsers(companyId: string, q = "") {
 export async function getUser(companyId: string, userId: string) {
   return withTenant(companyId, async (tx) => {
     const [u] = await tx
-      .select({ id: user.id, name: user.name, email: user.email, deactivatedAt: user.deactivatedAt })
+      .select({ id: user.id, name: user.name, email: user.email, deactivatedAt: user.deactivatedAt, twoFactorEnabled: user.twoFactorEnabled })
       .from(user)
       .where(eq(user.id, userId));
     if (!u) return null;
@@ -126,6 +127,24 @@ export async function setUserRoles(actor: Actor, companyId: string, userId: stri
     if (e instanceof Refused) return e.message;
     throw e;
   }
+  return null;
+}
+
+// PRD 9.1: an admin resets someone's 2FA (lost phone). The caller has
+// checked users.edit; like deactivation, nobody can do it to someone above them.
+export async function adminResetTwoFactor(actor: Actor, companyId: string, userId: string) {
+  if (userId === actor.id) return "Turn your own 2FA off under Settings → Security.";
+  try {
+    await withTenant(companyId, async (tx) => {
+      const [target] = await tx.select({ id: user.id }).from(user).where(eq(user.id, userId));
+      if (!target) throw new Refused("User not found.");
+      await assertCanManage(tx, actor, userId);
+    });
+  } catch (e) {
+    if (e instanceof Refused) return e.message;
+    throw e;
+  }
+  await resetTwoFactor(userId);
   return null;
 }
 

@@ -1,4 +1,4 @@
-import { and, eq, isNull, notInArray, sql } from "drizzle-orm";
+import { aliasedTable, and, eq, isNull, notInArray, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { departmentMembers, departments, user } from "@/db/schema";
 
@@ -117,3 +117,17 @@ export const setManager = (companyId: string, departmentId: string, userId: stri
       if (!updated.length) throw new Refused("Only members can be managers.");
     }),
   );
+
+// The managers of each department a person is in (their profile, PRD 3.3).
+export function managersOfMyDepartments(companyId: string, userId: string) {
+  const mine = aliasedTable(departmentMembers, "mine");
+  return withTenant(companyId, (tx) =>
+    tx
+      .select({ departmentId: departmentMembers.departmentId, name: user.name })
+      .from(departmentMembers)
+      .innerJoin(mine, and(eq(mine.departmentId, departmentMembers.departmentId), eq(mine.userId, userId)))
+      .innerJoin(user, eq(user.id, departmentMembers.userId))
+      .where(eq(departmentMembers.isManager, true))
+      .orderBy(user.name),
+  );
+}

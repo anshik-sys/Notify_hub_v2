@@ -16,9 +16,9 @@ const monthName = (month: string) =>
 
 // PRD 8: upcoming occurrences by month, in the company's time zone.
 export default async function Calendar(props: PageProps<"/calendar">) {
-  const { user, companyId, company, access } = await requireMember();
+  const { user, companyId, access, timeZone } = await requireMember();
   if (!can(access, "reminders.create") && !can(access, "reminders.view_all")) notFound();
-  const tz = company.timeZone;
+  const tz = timeZone; // the viewer's zone: days are their days
   const today = todayIn(tz);
   const month = firstParam((await props.searchParams).month) ?? today.slice(0, 7);
   const cal = await calendarMonth(companyId, { id: user.id, access }, tz, month);

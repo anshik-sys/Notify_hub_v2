@@ -38,6 +38,11 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0022: `two_factor` (2FA secrets, encrypted by Better Auth; **granted to
+`notifyhub_auth` only, revoked from `notifyhub_app`**), `user.two_factor_enabled`,
+`user.time_zone`, `companies.require_two_factor`. New dependency: `qrcode`.
+Password-reset emails go through the same SMTP as verification.
+
 Migration 0021: `groups` + `group_members`, and `'group'` as a reminder target
 kind. It also adds `groups.create` to the Member system role (everyone can make
 groups, decided with the user).
@@ -188,6 +193,10 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] My tasks: Mark done moves it to Done and stays on the page; Calendar shows a daily reminder on each remaining day, not on a skipped one.
 - [ ] Groups: a member creates a group of teammates and sends to it (no approval needed); adding someone from another department sends their upcoming reminder back to "Needs approval" and the admin is notified. Only the creator or an admin can edit it.
 - [ ] Team: searching a department's name lists its members, with their departments shown.
+- [ ] Settings → Security: set up two-factor with a real authenticator app (scan the QR), sign out, sign in → asked for a code; a backup code works once.
+- [ ] Forgot password → the email arrives → the link resets the password, and works only once; other sessions are signed out.
+- [ ] Company → Require two-factor: refused until you have it yourself; then someone without it is sent to set it up.
+- [ ] `select has_table_privilege('notifyhub_app', 'two_factor', 'select')` is `f`.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

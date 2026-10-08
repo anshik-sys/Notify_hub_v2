@@ -17,6 +17,7 @@
   --primary-fg: #ffffff;
   --danger-bg: #fef2f2;
   --danger-fg: #991b1b;
+  --paper: #ffffff; /* always light: QR codes must be dark on light */
   --success-bg: #ecfdf5;
   --success-fg: #065f46;
   --radius: 6px;
@@ -35,6 +36,7 @@
     --primary-fg: #18181b;
     --danger-bg: #450a0a;
     --danger-fg: #fecaca;
+    --paper: #ffffff;
     --success-bg: #052e1f;
     --success-fg: #a7f3d0;
   }
@@ -52,6 +54,7 @@
   --primary-fg: #18181b;
   --danger-bg: #450a0a;
   --danger-fg: #fecaca;
+  --paper: #ffffff;
   --success-bg: #052e1f;
   --success-fg: #a7f3d0;
 }

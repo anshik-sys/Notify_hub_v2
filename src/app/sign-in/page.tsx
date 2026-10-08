@@ -11,18 +11,21 @@ async function signIn(formData: FormData) {
   const next = safeNext(formData.get("next"));
   const back = (message: string) =>
     errorUrl("/sign-in", message) + (next === "/" ? "" : `&next=${encodeURIComponent(next)}`);
+  let twoFactor = false;
   try {
-    await auth.api.signInEmail({
+    const res = await auth.api.signInEmail({
       body: { email: String(formData.get("email")), password: String(formData.get("password")), callbackURL: "/" },
       headers: await headers(),
     });
+    // 2FA on: no session yet; a signed cookie carries the pending sign-in.
+    twoFactor = "twoFactorRedirect" in res && Boolean(res.twoFactorRedirect);
   } catch (e) {
     if (e instanceof APIError && e.body?.code === "EMAIL_NOT_VERIFIED")
       redirect(back("Verify your email first. We sent you a new link."));
     if (e instanceof APIError) redirect(back(e.message));
     throw e;
   }
-  redirect(next);
+  redirect(twoFactor ? `/sign-in/two-factor${next === "/" ? "" : `?next=${encodeURIComponent(next)}`}` : next);
 }
 
 async function signInWithGoogle() {
@@ -47,6 +50,9 @@ export default async function SignIn(props: PageProps<"/sign-in">) {
           <Button variant="secondary">Continue with Google</Button>
         </Form>
       )}
+      <Hint>
+        <Link href="/forgot-password">Forgot your password?</Link>
+      </Hint>
       <Hint>
         New company? <Link href="/sign-up">Create an account</Link>
       </Hint>

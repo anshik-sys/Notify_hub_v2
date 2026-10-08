@@ -14,12 +14,12 @@ import styles from "./page.module.css";
 const any = { value: "", label: "Any" };
 
 export default async function Reminders(props: PageProps<"/reminders">) {
-  const { user, companyId, company, access } = await requireMember();
+  const { user, companyId, access, timeZone } = await requireMember();
   if (!can(access, "reminders.create") && !can(access, "reminders.view_all")) notFound();
   const viewer = { id: user.id, access };
   const f = parseFilters(await props.searchParams);
   const [{ rows, total }, creators] = await Promise.all([
-    searchReminders(companyId, viewer, company.timeZone, f),
+    searchReminders(companyId, viewer, timeZone, f),
     visibleCreators(companyId, viewer),
   ]);
   const filtered = filterUrl({ ...f, page: 1 }) !== "/reminders";

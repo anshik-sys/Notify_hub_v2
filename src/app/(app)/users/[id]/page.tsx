@@ -4,7 +4,7 @@ import { List, ListRow } from "@/components/list";
 import { can, canGrant, MEMBER_ROLE_ID, visibleRoles } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { getUser } from "@/lib/users";
-import { saveUserRoles, toggleActive } from "../actions";
+import { resetTwoFactorAction, saveUserRoles, toggleActive } from "../actions";
 
 export default async function UserDetail(props: PageProps<"/users/[id]">) {
   const { user: me, companyId, access } = await requireMember();
@@ -20,6 +20,7 @@ export default async function UserDetail(props: PageProps<"/users/[id]">) {
       <Hint>
         {person.email}
         {person.deactivatedAt && " · Deactivated"}
+        {` · Two-factor ${person.twoFactorEnabled ? "on" : "off"}`}
       </Hint>
 
       <Section title="Departments">
@@ -49,6 +50,14 @@ export default async function UserDetail(props: PageProps<"/users/[id]">) {
             }))}
           />
           <Button>Save roles</Button>
+        </Form>
+      )}
+
+      {can(access, "users.edit") && person.twoFactorEnabled && person.id !== me.id && (
+        <Form action={resetTwoFactorAction}>
+          <input type="hidden" name="userId" value={person.id} />
+          <Hint>For a lost phone: turns their two-factor off and signs them out everywhere.</Hint>
+          <Button variant="secondary">Reset two-factor</Button>
         </Form>
       )}
 

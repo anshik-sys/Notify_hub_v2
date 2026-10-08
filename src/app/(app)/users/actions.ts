@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { createInvitation, revokeInvitation } from "@/lib/invitations";
 import { can, type Permission } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
-import { setActive, setUserRoles } from "@/lib/users";
+import { adminResetTwoFactor, setActive, setUserRoles } from "@/lib/users";
 import { isUuid } from "@/lib/validate";
 import { errorUrl } from "@/components/form";
 
@@ -48,4 +48,11 @@ export async function toggleActive(formData: FormData) {
   const active = formData.get("active") === "true";
   const error = await setActive({ id: user.id, access }, companyId, userId, active);
   redirect(error ? errorUrl(`/users/${userId}`, error) : `/users/${userId}`);
+}
+
+export async function resetTwoFactorAction(formData: FormData) {
+  const { user, companyId, access } = await requirePermission("users.edit");
+  const userId = String(formData.get("userId"));
+  const error = await adminResetTwoFactor({ id: user.id, access }, companyId, userId);
+  redirect(error ? errorUrl(`/users/${userId}`, error) : `/users/${userId}?notice=${encodeURIComponent("Two-factor reset. They've been signed out and can set it up again.")}`);
 }
