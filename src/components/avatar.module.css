@@ -6,9 +6,14 @@
   width: 28px;
   height: 28px;
   border-radius: 999px;
-  background: var(--surface);
-  box-shadow: 0 0 0 1px var(--border);
-  color: var(--muted);
+  background: var(--accent-bg);
+  color: var(--accent-fg);
   font-size: 0.6875rem;
   font-weight: 600;
+}
+
+.large {
+  width: 44px;
+  height: 44px;
+  font-size: 0.875rem;
 }

@@ -9,9 +9,9 @@ const initials = (name: string) =>
     .map((w) => w[0]!.toUpperCase())
     .join("");
 
-export function Avatar({ name }: { name: string }) {
+export function Avatar({ name, size }: { name: string; size?: "large" }) {
   return (
-    <span className={styles.avatar} aria-hidden="true">
+    <span className={size === "large" ? `${styles.avatar} ${styles.large}` : styles.avatar} aria-hidden="true">
       {initials(name)}
     </span>
   );

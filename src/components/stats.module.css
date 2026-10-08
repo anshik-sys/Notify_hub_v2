@@ -1,42 +1,69 @@
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 12px;
-  margin: 0 0 28px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* Label top-left, a round arrow top-right, the number below. */
 .card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 16px 8px;
+  height: 100%;
+  padding: 18px 18px 20px 20px;
+  border-radius: var(--radius-card);
+  background: var(--bg);
   color: var(--fg);
   text-decoration: none;
 }
 
-.card:hover {
-  background: var(--surface);
-}
-
-.value {
-  font-size: 1.75rem;
-  font-weight: 600;
-  line-height: 1.1;
+.card:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
 }
 
 .label {
+  grid-row: 1;
   color: var(--muted);
   font-size: 0.875rem;
+  font-weight: 500;
 }
 
-.danger {
-  border-color: var(--danger-fg);
+.arrow {
+  display: inline-flex;
+  grid-row: 1;
+  grid-column: 2;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--fg);
+}
+
+.card:hover .arrow {
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+}
+
+.value {
+  grid-column: 1 / -1;
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
 }
 
 .danger .value {
+  color: var(--danger-fg);
+}
+
+.danger .arrow {
+  background: var(--danger-bg);
   color: var(--danger-fg);
 }

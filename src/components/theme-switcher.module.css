@@ -4,16 +4,16 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 999px;
+  background: var(--panel);
 }
 
 /* The chosen one looks pressed. */
 .option {
-  min-height: 34px;
-  padding: 0 14px;
+  min-height: 36px;
+  padding: 0 16px;
   border: 0;
-  border-radius: calc(var(--radius) - 2px);
+  border-radius: 999px;
   background: transparent;
   color: var(--muted);
   font-size: 0.9375rem;
@@ -21,7 +21,24 @@
   cursor: pointer;
 }
 
+.option:hover {
+  color: var(--fg);
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 1px;
+}
+
 .option[aria-pressed="true"] {
   background: var(--primary-bg);
   color: var(--primary-fg);
+}
+
+.compact .option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  padding: 0;
 }

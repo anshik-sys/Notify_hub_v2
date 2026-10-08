@@ -7,17 +7,28 @@
   flex-direction: column;
   gap: 24px;
   width: 100%;
-  max-width: 1040px;
+  max-width: 1120px;
 }
 
-/* Sign-in style screens, outside the app shell: a centred card. */
+/* Sign-in style screens, outside the app shell: a card centred on the canvas. */
 .center {
-  flex: 1;
   justify-content: center;
   align-self: center;
-  max-width: 400px;
-  margin: 0 auto;
-  padding: 48px 16px;
+  max-width: 440px;
+  margin: auto;
+  padding: 40px 32px;
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+@media (max-width: 479px) {
+  .center {
+    margin: 0;
+    flex: 1;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
 
 .center .button {
@@ -59,9 +70,10 @@
 
 .title {
   margin: 0;
-  font-size: 1.625rem;
-  font-weight: 650;
-  line-height: 1.25;
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
@@ -80,19 +92,24 @@
 }
 
 .notice {
-  background: var(--surface);
+  background: var(--bg);
 }
 
+/* A white card on the page panel. */
 .section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  padding: 20px 24px 24px;
+  border-radius: var(--radius-card);
+  background: var(--bg);
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: 1.0625rem;
+  font-size: 1.1875rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .form {
@@ -102,6 +119,20 @@
   gap: 16px;
   width: 100%;
   max-width: 640px;
+}
+
+/* A form straight on the app page is a card; sections inside it flatten into
+   groups so cards don't nest. Inside the sign-in card it stays plain. */
+.page:not(.center) > .form {
+  padding: 24px;
+  border-radius: var(--radius-card);
+  background: var(--bg);
+}
+
+.form .section {
+  padding: 0;
+  border-radius: 0;
+  background: none;
 }
 
 /* Fields fill the form's width; buttons size to their label. */
@@ -143,9 +174,9 @@
   align-items: center;
   justify-content: center;
   min-height: 40px;
-  padding: 8px 16px;
+  padding: 8px 20px;
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: 999px;
   font-size: 0.9375rem;
   font-weight: 600;
   white-space: nowrap;
@@ -184,7 +215,7 @@
 /* For actions inside table rows. */
 .small {
   min-height: 32px;
-  padding: 4px 10px;
+  padding: 4px 12px;
   font-size: 0.8125rem;
 }
 

@@ -7,56 +7,79 @@
 
 :root {
   color-scheme: light;
-  --bg: #ffffff;
-  --fg: #171717;
-  --muted: #52525b;
-  --border: #d4d4d8;
-  --surface: #f4f4f5;
+  --canvas: linear-gradient(135deg, #fbe7df 0%, #f3f1ef 45%, #dff0e4 100%);
+  --bg: #ffffff; /* the frame and cards */
+  --panel: #f4f4f6; /* the page area inside the frame, round buttons */
+  --fg: #111113;
+  --muted: #62626b;
+  --border: #e7e7eb;
+  --surface: #ececf0; /* hover, neutral pills */
   --input-bg: #ffffff;
-  --primary-bg: #18181b;
+  --primary-bg: #111113;
   --primary-fg: #ffffff;
-  --danger-bg: #fef2f2;
-  --danger-fg: #991b1b;
+  --accent-bg: #e3f4e7; /* avatars, icon circles */
+  --accent-fg: #1d6b34;
+  --count-bg: #e0531f; /* unread counts */
+  --count-fg: #ffffff;
+  --danger-bg: #fdebe4;
+  --danger-fg: #b3361a;
   --paper: #ffffff; /* always light: QR codes must be dark on light */
-  --success-bg: #ecfdf5;
-  --success-fg: #065f46;
-  --radius: 6px;
+  --success-bg: #e3f4e7;
+  --success-fg: #1d6b34;
+  --radius: 12px; /* inputs, small boxes */
+  --radius-card: 24px;
+  --radius-frame: 32px;
+  --shadow: 0 30px 80px -30px rgb(30 30 45 / 0.22);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0a0a0a;
-    --fg: #ededed;
+    --canvas: linear-gradient(135deg, #22160f 0%, #0e0e10 45%, #0d1a12 100%);
+    --bg: #18181b;
+    --panel: #111113;
+    --fg: #ededef;
     --muted: #a1a1aa;
-    --border: #3f3f46;
-    --surface: #27272a;
-    --input-bg: #18181b;
+    --border: #2c2c31;
+    --surface: #26262b;
+    --input-bg: #111113;
     --primary-bg: #f4f4f5;
-    --primary-fg: #18181b;
-    --danger-bg: #450a0a;
-    --danger-fg: #fecaca;
+    --primary-fg: #111113;
+    --accent-bg: #143222;
+    --accent-fg: #9be3b0;
+    --count-bg: #fb8a4f;
+    --count-fg: #111113;
+    --danger-bg: #3a170c;
+    --danger-fg: #fdbb9e;
     --paper: #ffffff;
-    --success-bg: #052e1f;
-    --success-fg: #a7f3d0;
+    --success-bg: #143222;
+    --success-fg: #9be3b0;
+    --shadow: 0 30px 80px -30px rgb(0 0 0 / 0.7);
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0a0a0a;
-  --fg: #ededed;
+  --canvas: linear-gradient(135deg, #22160f 0%, #0e0e10 45%, #0d1a12 100%);
+  --bg: #18181b;
+  --panel: #111113;
+  --fg: #ededef;
   --muted: #a1a1aa;
-  --border: #3f3f46;
-  --surface: #27272a;
-  --input-bg: #18181b;
+  --border: #2c2c31;
+  --surface: #26262b;
+  --input-bg: #111113;
   --primary-bg: #f4f4f5;
-  --primary-fg: #18181b;
-  --danger-bg: #450a0a;
-  --danger-fg: #fecaca;
+  --primary-fg: #111113;
+  --accent-bg: #143222;
+  --accent-fg: #9be3b0;
+  --count-bg: #fb8a4f;
+  --count-fg: #111113;
+  --danger-bg: #3a170c;
+  --danger-fg: #fdbb9e;
   --paper: #ffffff;
-  --success-bg: #052e1f;
-  --success-fg: #a7f3d0;
+  --success-bg: #143222;
+  --success-fg: #9be3b0;
+  --shadow: 0 30px 80px -30px rgb(0 0 0 / 0.7);
 }
 
 *,
@@ -74,7 +97,7 @@ body {
 body {
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: var(--canvas) fixed;
   color: var(--fg);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;

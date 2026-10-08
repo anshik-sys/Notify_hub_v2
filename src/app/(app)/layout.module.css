@@ -1,41 +1,179 @@
-/* Desktop-first shell: fixed-width sidebar + page. */
+/* Desktop-first shell: a rounded frame floating on the canvas. Top bar across,
+   sidebar left, the page in a tinted panel. */
 .shell {
-  display: grid;
-  grid-template-columns: 232px 1fr;
   flex: 1;
-  min-height: 100vh;
+  padding: 24px;
 }
 
-.sidebar {
-  position: sticky;
-  top: 0;
+.frame {
+  display: grid;
+  grid-template-columns: 248px 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 0 20px;
+  min-height: calc(100vh - 48px);
+  padding: 16px 20px 20px;
+  border-radius: var(--radius-frame);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+/* Top bar */
+.topbar {
   display: flex;
-  flex-direction: column;
-  gap: 24px;
-  height: 100vh;
-  padding: 20px 12px;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 0 16px;
 }
 
 .brand {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 8px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  width: 248px;
+  color: inherit;
+  text-decoration: none;
 }
 
-.product {
-  font-size: 1.0625rem;
+.logo {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  font-size: 1.125rem;
   font-weight: 700;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .company {
   overflow: hidden;
-  color: var(--muted);
-  font-size: 0.8125rem;
+  font-size: 1rem;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.product {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  max-width: 480px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.search:focus-within {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: 0.9375rem;
+  outline: none;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+/* Round icon buttons (bell, sign out). */
+.round {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.round:hover {
+  background: var(--surface);
+}
+
+.round:focus-visible,
+.me:focus-visible,
+.invite:focus-visible,
+.brand:focus-visible,
+.navItem:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.dot {
+  position: absolute;
+  top: 10px;
+  right: 11px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--panel);
+  border-radius: 999px;
+  background: var(--count-bg);
+}
+
+.me {
+  display: inline-flex;
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.invite {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px 0 16px;
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.invite:hover {
+  opacity: 0.9;
+}
+
+/* Sidebar */
+/* Stretches with the frame, so the user card sits at the bottom. */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .nav {
@@ -44,27 +182,39 @@
   gap: 2px;
 }
 
+.navLabel {
+  margin: 16px 12px 6px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.navLabel:first-child {
+  margin-top: 4px;
+}
+
 .navItem {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px;
-  border-radius: var(--radius);
-  color: var(--muted);
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  color: var(--fg);
   font-size: 0.9375rem;
   font-weight: 500;
   text-decoration: none;
 }
 
 .navItem:hover {
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--panel);
 }
 
 .navItem[aria-current="page"] {
-  background: var(--bg);
-  color: var(--fg);
-  box-shadow: 0 0 0 1px var(--border);
+  background: var(--primary-bg);
+  color: var(--primary-fg);
 }
 
 .count {
@@ -72,44 +222,111 @@
   min-width: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  background: var(--primary-bg);
-  color: var(--primary-fg);
+  background: var(--count-bg);
+  color: var(--count-fg);
   font-size: 0.75rem;
+  font-weight: 600;
   line-height: 20px;
   text-align: center;
 }
 
-.content {
-  min-width: 0;
-  padding: 32px 40px 48px;
+.user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+  padding: 16px 4px 0;
+  border-top: 1px solid var(--border);
 }
 
-/* Narrow windows: the sidebar becomes a top bar with a scrollable nav row. */
+.userText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.userName,
+.userEmail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userName {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.userEmail {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/* The page panel */
+.content {
+  min-width: 0;
+  padding: 28px 32px 40px;
+  border-radius: var(--radius-card);
+  background: var(--panel);
+}
+
+@media (max-width: 1100px) {
+  .brand {
+    width: auto;
+  }
+}
+
+/* Narrow windows: edge to edge, the sidebar becomes a scrollable row. */
 @media (max-width: 767px) {
   .shell {
-    grid-template-columns: 1fr;
+    padding: 0;
+  }
+
+  .frame {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    min-height: 100vh;
+    padding: 12px 12px 16px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-bottom: 8px;
+  }
+
+  .search {
+    order: 1;
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  /* The theme stays in Settings > Appearance. */
+  .brandText,
+  .inviteLabel,
+  .tools > form {
+    display: none;
+  }
+
+  .invite {
+    padding: 0 12px;
   }
 
   .sidebar {
-    position: sticky;
-    z-index: 10;
-    height: auto;
-    gap: 8px;
-    padding: 12px 16px 8px;
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .brand {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 8px;
-    padding: 0;
+    padding-bottom: 12px;
   }
 
   .nav {
     flex-direction: row;
     overflow-x: auto;
+  }
+
+  .navLabel,
+  .user {
+    display: none;
   }
 
   .navItem {

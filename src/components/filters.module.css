@@ -1,13 +1,12 @@
 .bar {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
   align-items: end;
   margin-bottom: 20px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  padding: 16px 20px;
+  border-radius: var(--radius-card);
+  background: var(--bg);
 }
 
 /* The search box takes a whole row's start. */
@@ -23,9 +22,9 @@
 
 .apply {
   min-height: 40px;
-  padding: 8px 16px;
+  padding: 8px 20px;
   border: 0;
-  border-radius: var(--radius);
+  border-radius: 999px;
   background: var(--primary-bg);
   color: var(--primary-fg);
   font: inherit;
