@@ -106,6 +106,10 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   the sidebar because people use them day to day. Not done: a separate
   company menu on the top-left brand (Slack splits it that way). Revisit if
   the account menu gets crowded.
+- **Sidebar narrowed from 248px to 216px** once Settings and the admin links
+  moved into the menu: the longest link ("Departments") needs about 150px.
+  The account menu stays 248px; it floats, and "Notification preferences"
+  needs the width.
 - **Icons moved to `src/components/icon.tsx`.** The server layout needs them
   too, and a "use client" module can't share plain objects with it.
 - **Verified:** in Chromium at 1440 (light and dark), plus no sideways scroll
