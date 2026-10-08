@@ -50,6 +50,8 @@ export async function handleTaskAction(c: Click, f?: typeof fetch, now = new Dat
       .where(and(eq(taskAssignments.occurrenceId, c.occurrenceId), eq(sql`lower(${user.email})`, email)))
       .for("update", { of: taskAssignments });
     if (!row) return null;
+    // No session here: the clicker (matched by email) is the actor for the audit log.
+    await tx.execute(sql`select set_config('app.actor_id', ${row.a.userId}, true)`);
     if (c.actionId === "task_done") {
       if (!row.a.doneAt) {
         await tx.update(taskAssignments).set({ doneAt: now, snoozedUntil: null }).where(eq(taskAssignments.id, row.a.id));

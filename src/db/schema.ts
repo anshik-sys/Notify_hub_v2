@@ -1,5 +1,5 @@
 import { isNull, sql } from "drizzle-orm";
-import { boolean, check, customType, date, index, integer, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigserial, boolean, check, customType, date, index, integer, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // Tenant isolation: every tenant table carries company_id and a policy that
 // only matches rows of the company set by withTenant(). Unset => no rows.
@@ -650,6 +650,32 @@ export const reminderShares = pgTable(
     uniqueIndex("reminder_shares_unique_idx").on(t.reminderId, t.kind, sql`coalesce(${t.ref}, '')`),
     index().on(t.kind, t.ref),
     check("reminder_shares_kind_valid", sql`${t.kind} in ('department','group','company')`),
+    tenantPolicy("company_id"),
+  ],
+).enableRLS();
+
+// PRD 9.1. Written only by the audit_row() trigger (migration 0024) for writes
+// made by a person (app.actor_id set in withTenant). Append-only: the app role
+// may insert and read, never update or delete. actor_id has no FK so history
+// outlives the person.
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: bigserial({ mode: "number" }).primaryKey(),
+    companyId: uuid().notNull(),
+    actorId: text(),
+    actorName: text(),
+    action: text().$type<"create" | "update" | "delete">().notNull(),
+    objectType: text().notNull(),
+    objectId: text(),
+    objectLabel: text(),
+    changes: jsonb().$type<Record<string, unknown>>().notNull(),
+    at: ts().notNull().defaultNow(),
+  },
+  (t) => [
+    index().on(t.companyId, t.at.desc()),
+    index().on(t.companyId, t.objectType, t.objectId),
+    index().on(t.companyId, t.actorId),
     tenantPolicy("company_id"),
   ],
 ).enableRLS();

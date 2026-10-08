@@ -1,0 +1,12 @@
+.details summary {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.details ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}

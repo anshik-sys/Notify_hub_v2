@@ -44,6 +44,7 @@ export const PERMISSION_GROUPS = {
   },
   Settings: {
     "roles.manage": "Manage roles and permissions",
+    "audit.view": "View the audit log",
   },
 } as const;
 

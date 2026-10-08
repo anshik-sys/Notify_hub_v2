@@ -2,6 +2,53 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — audit log (PRD 9.1)
+
+- **What's in place:**
+  - **Audit log** in the sidebar (new permission `audit.view`; Company
+    Admin has it): when, who, created / changed / deleted, what (linked),
+    and the field changes ("title: A → B");
+  - filters: who, what, action, dates, search;
+  - **Export CSV** with the same filters.
+- **Triggers rather than calls in app code.** One generic `audit_row()`
+  trigger on 16 tables, so the next feature can't forget to log. The actor
+  travels in the transaction (`app.actor_id`), set by `withTenant` from
+  the signed-in person.
+- **Only people's actions.** The worker's sends, status flips and
+  follow-ups have no actor and aren't logged (deliveries already have their
+  own log). Slack "Mark done" is logged under the person who clicked.
+- **Secrets never recorded:** they're excluded per table in the trigger
+  arguments (the Slack token, the invitation token hash); the auth tables
+  aren't audited at all. Tests check that a token-only update writes
+  nothing, and that a mixed update records only the safe column.
+- **Append-only:** the app role can only read `audit_log`; insert, update
+  and delete → permission denied (tested in the unit tests and with psql).
+- **Caught while verifying:** the first version carried the actor in a
+  React `cache()` box. In the real server, server actions recorded nothing:
+  `cache()` isn't request-scoped there. Only the Slack route (with an
+  explicit actor) was logged. Now it's keyed on the request's `headers()`
+  object, which Next keeps the same for a whole request. Re-verified.
+- **CSV export:** quoted per RFC 4180. A cell starting with = + - @ tab or
+  CR gets a leading `'`, so `=HYPERLINK("…")` in a title doesn't run as a
+  formula in a spreadsheet (seen in the export).
+- **Verified against `next start` + worker + fake Slack:**
+  - the admin creating a department, adding bob, making him manager,
+    deactivating and reactivating him, and making alice an admin all
+    appear with diffs;
+  - alice's reminder create, title edit and company share appear;
+  - her "now" reminder sending produced no system rows;
+  - a Slack "Mark done" was logged as alice (`done_at: null → …`);
+  - filters: by actor+type → 3, delete → 1;
+  - the CSV has an attachment header, nosniff, and the escaped formula;
+  - bob (member) → 404 for the page and the export, with no sidebar link.
+
+  108 tests pass (new: `audit.test.ts`, plus RLS).
+- **Known noise:** editing a reminder re-creates its recipients and shares,
+  so they show as delete + create pairs. Diffing them in the app would
+  remove that if it bothers anyone.
+- **Not in this step:** retention (the PRD's data-retention setting), sign-in
+  and sign-out events, a platform-wide view.
+
 ## 2026-10-08 — visibility sharing (PRD 5.4)
 
 - **Decided with the user:**

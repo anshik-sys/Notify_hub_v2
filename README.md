@@ -374,3 +374,20 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   dashboard, lists, notifications, calendar and approvals. Reminders keep
   their own zone for scheduling, and the form still defaults to the
   company's.
+- **The audit log (PRD 9.1) is written by a Postgres trigger, `audit_row()`
+  (migration 0024), on each audited table,** so a new write path can't forget
+  it.
+  - **The actor flows:** `requireMember()` → `setCurrentActor()` (keyed on the
+    request's `headers()` object; React `cache()` isn't request-scoped in
+    server actions) → `withTenant()` → transaction-local `app.actor_id`.
+  - **Only people's actions are logged.** With no actor (the worker, tests,
+    Better Auth internals) the trigger records nothing. Slack button clicks
+    set the clicker as the actor in `handleTaskAction`.
+  - **Secrets are kept out by the trigger's excluded-column arguments**
+    (`bot_token_enc`, `token_hash`, …). **A new secret column on an audited
+    table must be added there.** `session`/`account`/`two_factor` aren't
+    audited at all.
+  - **Append-only and unforgeable:** the app role can only `SELECT`
+    `audit_log` (through RLS). The trigger is `SECURITY DEFINER`.
+  - **Known noise:** editing a reminder re-creates its recipients and shares,
+    so they show as delete + create pairs.

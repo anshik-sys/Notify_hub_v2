@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import { db, withTenant } from "./index";
-import { attachmentBlobs, attachments, departments, groupMembers, groups, notificationMutes, reminderShares, notifications, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
+import { attachmentBlobs, attachments, auditLog, departments, groupMembers, groups, notificationMutes, reminderShares, notifications, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
 import { ALL_PERMISSIONS, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "@/lib/permissions";
 
 // Seeds as the owner (bypasses RLS), then reads through the app role.
@@ -13,7 +13,7 @@ const a = randomUUID();
 const b = randomUUID();
 
 after(async () => {
-  for (const table of ["groups", "notifications", "notification_mutes", "slack_installations", "reminders", "department_members", "user_roles", "roles", "departments"]) {
+  for (const table of ["audit_log", "groups", "notifications", "notification_mutes", "slack_installations", "reminders", "department_members", "user_roles", "roles", "departments"]) {
     await owner.query(`delete from ${table} where company_id = any($1)`, [[a, b]]);
   }
   await owner.query(`delete from "user" where company_id = any($1)`, [[a, b]]);
@@ -90,6 +90,8 @@ test("slack installations and task assignments are tenant-isolated", async () =>
   const [{ id: rb }] = (await owner.query("select id from reminders where company_id = $1 limit 1", [b])).rows;
   await owner.query("insert into reminder_shares (reminder_id, company_id, kind) values ($1, $2, 'company')", [rb, b]);
   assert.equal((await withTenant(a, (tx) => tx.select().from(reminderShares))).length, 0);
+  await owner.query("insert into audit_log (company_id, action, object_type, changes) values ($1, 'create', 'x', '{}')", [b]);
+  assert.equal((await withTenant(a, (tx) => tx.select().from(auditLog))).length, 0);
   await assert.rejects(withTenant(a, (tx) => tx.insert(reminderShares).values({ reminderId: rb, companyId: b, kind: "company" })));
   assert.equal((await withTenant(a, (tx) => tx.select().from(groupMembers))).length, 0);
   await assert.rejects(withTenant(a, (tx) => tx.insert(groupMembers).values({ groupId: gb, companyId: b, userId: `u-${b}` })));

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { withTenant } from "@/db";
+import { setCurrentActor, withTenant } from "@/db";
 import { companies } from "@/db/schema";
 import { auth } from "./auth";
 import { loadAccess } from "./permissions";
@@ -23,6 +23,7 @@ export const requireMember = cache(async (allowWithout2fa: boolean = false) => {
   if (!session || session.user.deactivatedAt) redirect("/sign-in");
   const companyId = session.user.companyId;
   if (!companyId) redirect("/onboarding");
+  await setCurrentActor(session.user.id); // attributes this request's writes in the audit log
   const [access, [company]] = await Promise.all([
     loadAccess(companyId, session.user.id),
     withTenant(companyId, (tx) =>

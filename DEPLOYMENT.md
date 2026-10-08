@@ -38,6 +38,11 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0024: `audit_log`, the `audit_row()` trigger function (SECURITY DEFINER,
+owned by the migration role) and an `audit` trigger on 16 tables. The app role
+gets only SELECT on `audit_log`. There's no retention yet: it grows forever (to
+be handled with PRD 9.1's retention setting).
+
 Migration 0023: `reminder_shares` (who else can see a reminder) and an index on
 `deliveries.user_id` (for "Sent to me" in lists).
 
@@ -201,6 +206,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Company → Require two-factor: refused until you have it yourself; then someone without it is sent to set it up.
 - [ ] `select has_table_privilege('notifyhub_app', 'two_factor', 'select')` is `f`.
 - [ ] Share a reminder with another department: its members can open it and comment, but see no delivery log; others get "not found". Reminders → Show "Shared with me" lists it for them.
+- [ ] Audit log: rename a department → it appears with your name and "name: old → new"; Export CSV downloads it; a member gets 404. `delete from audit_log` as the app role → permission denied.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".
