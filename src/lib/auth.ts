@@ -78,6 +78,7 @@ export const auth = betterAuth({
       deactivatedAt: { type: "date", required: false, input: false },
       // Set by our profile action only (src/lib/account.ts).
       timeZone: { type: "string", required: false, input: false },
+      erasedAt: { type: "date", required: false, input: false },
     },
   },
   databaseHooks: {

@@ -2,6 +2,54 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — privacy: export and erase (PRD 11.5, 3.2)
+
+- **Decided with the user:**
+  - erase anonymises and keeps company records;
+  - people deactivated longer than the retention period are erased
+    automatically.
+- **What's in place:**
+  - **Export their data** on a person (admin, `users.edit`, not above you)
+    and **Download my data** in Profile: JSON with the profile, roles,
+    departments, groups, reminders created, tasks, comments, deliveries,
+    files uploaded, notifications, audit entries as actor and sessions (no
+    tokens).
+  - **Erase permanently** on a deactivated person (`users.delete`, not above
+    you, not yourself, with a confirm box).
+  - **Retention:** the nightly job erases long-deactivated people and counts
+    them in its System audit row.
+- **One function for both paths:** `erase_person()` (SECURITY DEFINER) runs
+  from the admin action and the worker, refusing anyone not in the current
+  company, not deactivated, or already erased.
+  - **What it removes:** sign-in, 2FA, sessions, memberships, notifications,
+    mentions and comment texts; addresses on deliveries; typed-email
+    targets and pending invitations.
+  - **The audit log:** the person's name and email, and their comments'
+    text and labels, are scrubbed.
+  - **No old values leak into the log:** it scrubs with the audit actor
+    cleared, then records only `erased_at` under the admin.
+- **Caught by the tests:** the audit log labels comments with their text, so
+  an erased person's words survived in labels. The labels are now scrubbed
+  too. Tests check that the log contains neither their email nor their
+  name afterwards.
+- **Verified against `next start` + worker + Mailpit:**
+  - bob's export had all sections, his reminder, comment, delivery and 1
+    session, and 0 secret fields; a member → 404; alice's own export is
+    hers;
+  - erase: not offered while he was active; a member's direct POST → 404;
+    after deactivating, the admin erased him → "Deleted person",
+    `@erased.invalid`; his old session bounced; sign-in → 401; his comment
+    reads "Comment deleted"; his scheduled reminder still sent to alice,
+    showing "Deleted person" as its creator; he's gone from Team; no audit
+    row contains his email or name; the erase row is `Admin
+    {erased_at: …}`;
+  - auto-erase: carol, deactivated 200 days ago with 90-day retention →
+    erased, `people_erased: 1`.
+
+  135 tests pass (new: privacy, auto-erase).
+- **Not in this step:** a ZIP export with attachment files, self-service
+  account deletion.
+
 ## 2026-10-08 — platform-owner console (PRD 9.2)
 
 - **Decided with the user:**

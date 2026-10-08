@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
-import { Button, CheckboxGroup, firstParam, Form, Hint, Page, Section } from "@/components/form";
+import { Button, Checkbox, CheckboxGroup, firstParam, Form, Hint, Page, Section } from "@/components/form";
 import { List, ListRow } from "@/components/list";
 import { can, canGrant, MEMBER_ROLE_ID, visibleRoles } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { getUser } from "@/lib/users";
-import { resetTwoFactorAction, saveUserRoles, toggleActive } from "../actions";
+import { erasePersonAction, resetTwoFactorAction, saveUserRoles, toggleActive } from "../actions";
 
 export default async function UserDetail(props: PageProps<"/users/[id]">) {
   const { user: me, companyId, access } = await requireMember();
@@ -61,7 +61,30 @@ export default async function UserDetail(props: PageProps<"/users/[id]">) {
         </Form>
       )}
 
-      {can(access, "users.activate") && person.id !== me.id && (
+      {person.erasedAt && <Hint>This person’s data was erased. Company records show them as “Deleted person”.</Hint>}
+
+      {can(access, "users.edit") && !person.erasedAt && (
+        <Hint>
+          {/* A plain link: a prefetching <Link> could fetch the download. */}
+          <a href={`/users/${person.id}/export`}>Export their data</a> (everything NotifyHub holds about them, as JSON)
+        </Hint>
+      )}
+
+      {can(access, "users.delete") && person.deactivatedAt && !person.erasedAt && person.id !== me.id && (
+        <Section title="Erase permanently">
+          <Form action={erasePersonAction}>
+            <input type="hidden" name="userId" value={person.id} />
+            <Hint>
+              Removes their name, email, password, two-factor, sessions and memberships, and the text of their comments. Reminders they
+              created stay (scheduled ones keep sending) and show “Deleted person”. Audit entries lose their name and email.
+            </Hint>
+            <Checkbox label="I understand this can’t be undone" required />
+            <Button variant="danger">Erase {person.name}</Button>
+          </Form>
+        </Section>
+      )}
+
+      {can(access, "users.activate") && person.id !== me.id && !person.erasedAt && (
         <Form action={toggleActive}>
           <input type="hidden" name="userId" value={person.id} />
           <input type="hidden" name="active" value={person.deactivatedAt ? "true" : "false"} />

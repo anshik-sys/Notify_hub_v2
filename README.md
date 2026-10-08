@@ -467,3 +467,16 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     may still go out.
   - **Delete** works only when the company is empty; the foreign keys
     enforce it.
+- **Privacy (PRD 11.5):**
+  - **Export:** "Export their data" on a person (admin, same "not above you"
+    rule) and "Download my data" in Profile give a JSON of everything held
+    about them, never tokens or secrets.
+  - **Erase:** "Erase permanently" on a deactivated person runs
+    `erase_person()` (migration 0028), a `SECURITY DEFINER` function shared
+    by the web and the nightly retention job. It removes their name, email,
+    login, 2FA, sessions, memberships and comment texts, and scrubs them from
+    the audit log; the row stays as "Deleted person", so reminders they
+    created keep working. The scrubbing writes no audit rows (no old values
+    leak into the log); only `erased_at` is recorded, against the admin.
+  - **Auto-erase:** with a retention period set, people deactivated longer
+    than it are erased nightly.

@@ -80,6 +80,7 @@ export default async function Profile(props: PageProps<"/settings/profile">) {
         <List>
           <ListRow href="/settings/security" title="Security" meta="Password, two-factor, signed-in devices" />
           <ListRow href="/notifications/preferences" title="Notification preferences" />
+          <ListRow href="/settings/profile/export" plain title="Download my data" meta="Everything NotifyHub holds about you, as JSON" />
         </List>
       </Section>
 

@@ -89,6 +89,9 @@ export const user = pgTable(
     twoFactorEnabled: boolean().default(false),
     // The person's own zone for display; null = the company's.
     timeZone: text(),
+    // PRD 11.5: personal data erased (erase_person, migration 0028). The row
+    // stays, as "Deleted person", so company records keep their links.
+    erasedAt: ts(),
   },
   (t) => [index().on(t.companyId), tenantPolicy("company_id"), authPolicy],
 ).enableRLS();

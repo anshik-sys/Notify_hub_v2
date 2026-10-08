@@ -41,13 +41,25 @@ test("purges finished history past the period, keeps the rest, records itself", 
   await q("insert into notifications (company_id, user_id, kind, text, created_at) values ($1, $2, 'reminder', 'old', now() - interval '200 days'), ($1, $2, 'reminder', 'new', now())", [s.companyId, alice]);
   await q("insert into audit_log (company_id, action, object_type, changes, at) values ($1, 'create', 'x', '{}', now() - interval '200 days'), ($1, 'create', 'x', '{}', now())", [s.companyId]);
 
-  assert.deepEqual(await purgeCompany(s.companyId, 90), { reminders: 3, notifications: 1, audit: 1 });
+  assert.deepEqual(await purgeCompany(s.companyId, 90), { reminders: 3, notifications: 1, audit: 1, people: 0 });
   const left = (await q("select title from reminders where company_id = $1 order by title", [s.companyId])).map((r) => r.title);
   assert.deepEqual(left, ["paused-400", "scheduled-400", "sent-10"]);
   assert.equal((await q("select 1 from deliveries where reminder_id = $1", [oldSent])).length, 0); // cascaded
   assert.deepEqual((await q("select text from notifications where company_id = $1", [s.companyId])).map((r) => r.text), ["new"]);
   const audit = await q("select actor_name, object_type, changes from audit_log where company_id = $1 and object_type = 'retention'", [s.companyId]);
-  assert.deepEqual(audit, [{ actor_name: "System", object_type: "retention", changes: { reminders: 3, notifications: 1, audit_entries: 1 } }]);
+  assert.deepEqual(audit, [{ actor_name: "System", object_type: "retention", changes: { reminders: 3, notifications: 1, audit_entries: 1, people_erased: 0 } }]);
   assert.equal((await q("select 1 from reminders where id = $1", [theirs])).length, 1);
-  assert.deepEqual(await purgeCompany(s.companyId, 90), { reminders: 0, notifications: 0, audit: 0 }); // nothing left: no new audit row
+  assert.deepEqual(await purgeCompany(s.companyId, 90), { reminders: 0, notifications: 0, audit: 0, people: 0 }); // nothing left: no new audit row
+});
+
+test("people deactivated longer than the period are erased", async () => {
+  const [oldGone, recentGone] = [await s.user(), await s.user()];
+  await q(`update "user" set name = 'Old Gone', deactivated_at = now() - interval '200 days' where id = $1`, [oldGone]);
+  await q(`update "user" set name = 'Recent Gone', deactivated_at = now() - interval '10 days' where id = $1`, [recentGone]);
+  const r = await purgeCompany(s.companyId, 90);
+  assert.equal(r.people, 1);
+  const rows = await q(`select id, name, erased_at is not null as erased from "user" where id = any($1) order by name`, [[oldGone, recentGone]]);
+  assert.deepEqual(rows.map((x) => [x.name, x.erased]), [["Deleted person", true], ["Recent Gone", false]]);
+  const [row] = await q("select changes from audit_log where company_id = $1 and object_type = 'retention' order by id desc limit 1", [s.companyId]);
+  assert.equal(row.changes.people_erased, 1);
 });

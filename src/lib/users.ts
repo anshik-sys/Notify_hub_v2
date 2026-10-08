@@ -3,7 +3,7 @@ import { withTenant } from "@/db";
 import { departmentMembers, departments, invitations, roles, session, user, userRoles } from "@/db/schema";
 import { resetTwoFactor } from "./account";
 import { authDb } from "./auth";
-import { type Access, canGrant, COMPANY_ADMIN_ROLE_ID, MEMBER_ROLE_ID } from "./permissions";
+import { type Access, can, canGrant, COMPANY_ADMIN_ROLE_ID, MEMBER_ROLE_ID } from "./permissions";
 
 type Tx = Parameters<Parameters<typeof withTenant>[1]>[0];
 type Actor = { id: string; access: Access };
@@ -17,10 +17,13 @@ export async function listUsers(companyId: string, q = "") {
       .select({ id: user.id, name: user.name, email: user.email, deactivatedAt: user.deactivatedAt })
       .from(user)
       .where(
-        q.trim()
+        and(
+          isNull(user.erasedAt),
+          q.trim()
           ? sql`${user.name} ilike ${like} or ${user.email} ilike ${like} or exists (select 1 from department_members m
               join departments d on d.id = m.department_id where m.user_id = ${user.id} and d.name ilike ${like})`
-          : undefined,
+            : undefined,
+        ),
       )
       .orderBy(user.name);
     const memberOf = await tx
@@ -52,7 +55,14 @@ export async function listUsers(companyId: string, q = "") {
 export async function getUser(companyId: string, userId: string) {
   return withTenant(companyId, async (tx) => {
     const [u] = await tx
-      .select({ id: user.id, name: user.name, email: user.email, deactivatedAt: user.deactivatedAt, twoFactorEnabled: user.twoFactorEnabled })
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        deactivatedAt: user.deactivatedAt,
+        twoFactorEnabled: user.twoFactorEnabled,
+        erasedAt: user.erasedAt,
+      })
       .from(user)
       .where(eq(user.id, userId));
     if (!u) return null;
@@ -145,6 +155,43 @@ export async function adminResetTwoFactor(actor: Actor, companyId: string, userI
     throw e;
   }
   await resetTwoFactor(userId);
+  return null;
+}
+
+// For reads about one person (data export): the same "not above you" rule.
+export async function canManagePerson(actor: Actor, companyId: string, userId: string) {
+  try {
+    return await withTenant(companyId, async (tx) => {
+      const [target] = await tx.select({ id: user.id }).from(user).where(eq(user.id, userId));
+      if (!target) return false;
+      await assertCanManage(tx, actor, userId);
+      return true;
+    });
+  } catch (e) {
+    if (e instanceof Refused) return false;
+    throw e;
+  }
+}
+
+// PRD 11.5: permanently erase a deactivated person's personal data. The
+// work is the erase_person SQL function (migration 0028), shared with the
+// nightly retention job. Same guard as deactivation: nobody above you.
+export async function erasePerson(actor: Actor, companyId: string, userId: string) {
+  if (!can(actor.access, "users.delete")) return "You can't erase people.";
+  if (userId === actor.id) return "You can't erase yourself.";
+  try {
+    await withTenant(companyId, async (tx) => {
+      const [target] = await tx.select({ deactivatedAt: user.deactivatedAt, erasedAt: user.erasedAt }).from(user).where(eq(user.id, userId));
+      if (!target) throw new Refused("User not found.");
+      if (target.erasedAt) throw new Refused("Already erased.");
+      if (!target.deactivatedAt) throw new Refused("Deactivate them first. Erasing can't be undone.");
+      await assertCanManage(tx, actor, userId);
+      await tx.execute(sql`select erase_person(${userId})`);
+    }, actor.id); // attributed explicitly: the audit row for erased_at names the admin
+  } catch (e) {
+    if (e instanceof Refused) return e.message;
+    throw e;
+  }
   return null;
 }
 
