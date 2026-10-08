@@ -2,6 +2,29 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — SAML SSO deferred (PRD 3.1)
+
+- **Decided with the user:** don't build SSO now. It was explained as
+  signing in through the company's own login system (Okta, Microsoft Entra,
+  Google Workspace…) instead of a NotifyHub password. It's mainly what
+  larger customers ask for, nothing else depends on it, and it's the
+  biggest remaining item. Build it when a customer needs it, against their
+  real login system.
+- **When it's picked up, the plan is:**
+  - Better Auth's SSO plugin, `@better-auth/sso`, at the same version as
+    Better Auth. It handles the XML signatures; we don't hand-roll SAML.
+  - The provider's domain is fixed to the company's domain (already proven
+    by a verified email at onboarding), so there's no DNS verification.
+  - `provisionUser` attaches first-time people to that company as Member.
+  - Integrations shows the SP metadata and ACS URLs for the customer's IT.
+  - "Sign in with SSO" (by email) on the sign-in page; single logout through
+    the plugin.
+  - SSO sign-ins skip our TOTP like Google; "require 2FA" still applies.
+  - Test locally against `kristophjunge/test-saml-idp` (Docker).
+- **Also cleaned up DEPLOYMENT's "Known gaps":** the health check, startup
+  config check, password reset and shared rate limiting are done (earlier
+  entries), so they no longer appear there.
+
 ## 2026-10-08 — privacy: export and erase (PRD 11.5, 3.2)
 
 - **Decided with the user:**

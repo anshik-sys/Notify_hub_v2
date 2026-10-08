@@ -196,22 +196,19 @@ ids, and makes the earliest user of each existing company its Company Admin.
 
 ## Known gaps
 
-- No health-check endpoint yet (PRD 11.2).
 - The worker runs via `tsx`, with no compiled build.
-- No env validation beyond "is it set". The PRD's "refuse to start with insecure
-  config" is not implemented.
 - No deploy target chosen.
 - No virus scanning of uploads (not in the PRD). Files are content-checked and only ever served as downloads.
 - Slack has only been tested against the fake (`scripts/fake-slack.ts`). A real workspace test waits on a real Slack app (steps above).
 - Slack: private channels aren't offered (they'd need the bot invited and `groups:read`); channel scope isn't member-based.
-- No password reset yet. Email sending now exists, so it's unblocked.
 - No bounce or complaint handling (SES → SNS). Bounced addresses aren't suppressed (PRD 7.1).
 - A failed verification email is only logged. The user gets a new link by signing in again.
-- Rate limiting is Better Auth's built-in in-memory limiter: per instance,
-  reset on restart. The PRD wants a shared store that fails closed.
 - Google sign-in can't be used to accept an invite (password only).
 - Reminder form errors redirect back with the message, and **what was typed is lost** (no client JS). Native `required` catches the common case.
 - Tests need Mailpit running: `createInvitation` sends real mail.
+- **SAML SSO (PRD 3.1) isn't built.** It's deferred until a customer needs it (decided
+  2026-10-08). Email/password, Google, 2FA and invites cover sign-in meanwhile.
+- No captcha on sign-up yet (PRD 3.1); sign-up is rate limited per IP.
 
 ## Verification checklist
 
