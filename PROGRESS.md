@@ -2,6 +2,33 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — second design: teknova-style shell (branch 2nddesign/reference-style)
+
+- **Why a second branch:** the user wanted to try another reference without
+  losing the first (SalesIQ-style, on `design/reference-style`). This one
+  branches from main, not from the first design.
+- **Everything is tokens** in `globals.css` (`--canvas`, `--panel`,
+  `--count-*`, `--accent-*`, `--radius-card`, `--radius-frame`, `--shadow`),
+  so a third look is mostly one file. Pages weren't touched; only the shell
+  and the kit.
+- **Cards without nesting:** `Section` is a white card, and so is a `Form`
+  placed directly on a page (`.page > .form`). Sections inside a form flatten.
+  Carding every `Form` was rejected: button-only forms (approve, sign out)
+  would turn into empty cards.
+- **The frame is fixed to the window height and only the page panel scrolls**,
+  so the sidebar never grows with the content (user request). Tried first: a
+  sticky sidebar. Rejected because it starts below the top bar, so a
+  viewport-tall sticky sidebar overflows the window until you scroll. Below
+  768px the page scrolls normally again.
+- **Icons moved to `src/components/icon.tsx`.** The server layout needs them
+  too, and a "use client" module can't share plain objects with it.
+- **Verified:** in Chromium at 1440 (light and dark), plus no sideways scroll
+  at 390, 1024 and 1440 on 8 pages. Sidebar height is constant across pages.
+  **Not checked:** contrast ratios of the new colours, the platform console,
+  and the calendar's own grid (left in its old style).
+- Repeated sign-ins from screenshot scripts hit the login rate limit. Reuse a
+  saved Playwright `storageState` instead.
+
 ## 2026-10-08 — guided setup after onboarding (PRD 3.1)
 
 - **What's in place:** after creating a company you land on `/setup`, five
