@@ -176,6 +176,13 @@
       "when": 1791433419889,
       "tag": "0024_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791434411929,
+      "tag": "0025_hardening",
+      "breakpoints": true
     }
   ]
 }

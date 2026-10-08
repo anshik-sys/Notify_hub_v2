@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button, errorUrl, Field, firstParam, Form, Hint, Page } from "@/components/form";
+import { clientIp, limits } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 
 // The emailed link lands here with ?token=. Single use, 1 hour; a reset signs
@@ -12,6 +13,8 @@ async function reset(formData: FormData) {
   const token = String(formData.get("token") ?? "");
   const [password, confirm] = [String(formData.get("password") ?? ""), String(formData.get("confirm") ?? "")];
   const back = (m: string) => redirect(errorUrl(`/reset-password?token=${encodeURIComponent(token)}`, m));
+  const limited = await limits([[`reset:ip:${clientIp(await headers())}`, 10, 3600]]);
+  if (limited) back(limited);
   if (password !== confirm) back("The passwords don't match.");
   try {
     await auth.api.resetPassword({ body: { token, newPassword: password }, headers: await headers() });

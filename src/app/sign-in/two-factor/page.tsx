@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button, Checkbox, errorUrl, Field, firstParam, Form, Hint, Page, safeNext } from "@/components/form";
+import { clientIp, limits } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 
 // Second step of a password sign-in with 2FA on (PRD 3.1). The pending
@@ -14,6 +15,8 @@ async function verify(formData: FormData) {
   const backup = formData.get("backup") === "1";
   const code = String(formData.get("code") ?? "").replace(/\s+/g, "");
   const here = `/sign-in/two-factor?${new URLSearchParams({ ...(backup ? { backup: "1" } : {}), ...(next === "/" ? {} : { next }) })}`;
+  const limited = await limits([[`2fa:ip:${clientIp(await headers())}`, 10, 900]]);
+  if (limited) redirect(errorUrl(here, limited));
   try {
     const body = { code, trustDevice: formData.get("trust") === "on" };
     if (backup) await auth.api.verifyBackupCode({ body, headers: await headers() });

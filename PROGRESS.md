@@ -2,6 +2,68 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — security and reliability hardening (PRD 11.1, 11.2)
+
+- **Finding, fixed:** the sign-in, sign-up, 2FA, forgot/reset password and
+  invite forms had **no rate limit at all**. Better Auth's limiter only runs
+  on its HTTP routes, and our forms are server actions calling `auth.api.*`,
+  which skips it. Its HTTP routes were also only limited in production, in
+  memory, per process.
+- **What's in place:**
+  - **Rate limits** in Postgres (shared by every instance), per account and
+    per IP:
+    - sign-in: 5 per account / 15 min, 30 per IP;
+    - sign-up: 5 per IP / hour;
+    - 2FA step: 10 per IP / 15 min;
+    - forgot password: 3 per account and 10 per IP / hour;
+    - reset password and invite acceptance: 10 per IP / hour;
+    - password-checking settings actions: 5 per person / 15 min;
+    - uploads: 30 per person / hour;
+    - downloads: 300 per person / 10 min.
+
+    It fails closed. Better Auth's own routes now use its database limiter,
+    always on.
+  - **Hashed tokens:** reset tokens and 2FA challenge ids are stored only
+    as hashes.
+  - **Headers:**
+    - a CSP with a per-request nonce (`src/proxy.ts`);
+    - nosniff, a referrer policy, X-Frame-Options DENY, a permissions
+      policy, X-Robots-Tag noindex, HSTS on https, no `X-Powered-By`;
+    - `robots.txt` disallows everything.
+  - **`/api/health`:** the database plus a worker heartbeat.
+  - **Startup refusal:** web and worker exit in production on unsafe config.
+- **Verified against `next start` + worker + Mailpit:**
+  - 5 wrong passwords from 5 different IPs → the right password is refused
+    too ("Too many attempts. Try again in 15 minutes");
+  - forgot password: the 4th request is refused;
+  - a direct `/api/auth/sign-in/email` burst → 429;
+  - with the limiter table renamed, sign-in was refused (fail closed);
+    restored → works. That message now says "briefly unavailable" rather
+    than "too many attempts";
+  - hashed tokens: the token from the email never appears in
+    `verification`, and the link still works;
+  - `/sign-in` sends every header above; all 10 script tags carry the CSP's
+    nonce; there are no inline styles;
+  - `/robots.txt` → Disallow: /;
+  - health: 200, and 503 once the heartbeat is 10 minutes old;
+  - web started with a short secret on an https URL with the fake-Slack
+    overrides → listed both problems and exited 1. The worker with the
+    owner role as `DATABASE_URL` and `NODE_ENV=production` → named the
+    superuser problem and exited 1. The normal local config starts with no
+    warnings.
+  - The main pages still load (Home, Reminders, new reminder, Security,
+    Reports).
+
+  120 tests pass (new: rate-limit including fail-closed, env-check, hashed
+  reset tokens).
+- **Not verified by me:** that the browser shows no CSP errors (the preview
+  iframe, the QR, the theme switcher and the pickers). I could only check
+  headers and markup. Please look in the browser console.
+- **Script lesson:** macOS has no `timeout` command; run long-lived
+  processes in the background and poll their logs.
+- **Not in this step:** captcha on sign-up (needs a provider), a WAF, data
+  export and permanent delete (11.5), an accessibility pass (11.4).
+
 ## 2026-10-08 — reports (PRD 10)
 
 - **What's in place:** Reports in the sidebar (`reports.view`; the CSV

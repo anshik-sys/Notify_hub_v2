@@ -1,5 +1,5 @@
 import { isNull, sql } from "drizzle-orm";
-import { bigserial, boolean, check, customType, date, index, integer, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, bigserial, boolean, check, customType, date, index, integer, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // Tenant isolation: every tenant table carries company_id and a policy that
 // only matches rows of the company set by withTenant(). Unset => no rows.
@@ -679,3 +679,25 @@ export const auditLog = pgTable(
     tenantPolicy("company_id"),
   ],
 ).enableRLS();
+
+// Rate limiting (PRD 11.1). Not tenant tables: limits apply before anyone
+// signs in. rateLimit is Better Auth's (its /api/auth/* routes, auth role);
+// rate_limits is ours (src/lib/rate-limit.ts: server actions, app role).
+export const rateLimit = pgTable("rate_limit", {
+  id: text().primaryKey(),
+  key: text().notNull().unique(),
+  count: integer().notNull(),
+  lastRequest: bigint({ mode: "number" }).notNull(),
+});
+
+export const rateLimits = pgTable("rate_limits", {
+  key: text().primaryKey(),
+  windowStart: ts().notNull(),
+  count: integer().notNull(),
+});
+
+// One row, upserted by the worker's minute tick; /api/health reads its age.
+export const workerHeartbeat = pgTable("worker_heartbeat", {
+  id: integer().primaryKey(),
+  at: ts().notNull(),
+});

@@ -1,12 +1,16 @@
 import { Client } from "pg";
 import { PgBoss } from "pg-boss";
-import { ownerUrl } from "./db";
+import { sql } from "drizzle-orm";
+import { checkEnvironment } from "@/lib/env-check";
+import { ownerDb, ownerUrl } from "./db";
 import { claimDigests, digestOne } from "./digest";
 import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, dispatchManual, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
 // Long-running process, deployed separately from the web app.
 // Sends due reminders: immediately when the web app NOTIFYs `reminders_due`,
 // and every minute regardless (the safety net if a notification is missed).
+
+await checkEnvironment("worker");
 
 // useListenNotify + queue notify: a new deliver job wakes a worker at once.
 const boss = new PgBoss({ connectionString: ownerUrl, useListenNotify: true });
@@ -66,7 +70,13 @@ await boss.work<{ companyId: string }>("digest", async ([job]) => {
 });
 
 await boss.schedule("tick", "* * * * *");
+// /api/health reports the worker down if this is older than 3 minutes.
+const heartbeat = () =>
+  ownerDb.execute(sql`insert into worker_heartbeat (id, at) values (1, now()) on conflict (id) do update set at = now()`);
+
 await boss.work("tick", async () => {
+  await heartbeat();
+  await ownerDb.execute(sql`delete from rate_limits where window_start < now() - interval '1 day'`).catch(console.error);
   await enqueue(await sweep());
   await dispatch();
   // Claimed once per delivery per local day; the job only sends.
@@ -89,6 +99,7 @@ listener.on("error", (e) => {
 await listener.query("LISTEN reminders_due");
 
 await dispatch(); // anything that came due while the worker was down
+await heartbeat();
 console.log("worker started");
 
 for (const signal of ["SIGINT", "SIGTERM"]) {

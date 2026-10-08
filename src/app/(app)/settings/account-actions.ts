@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { errorUrl } from "@/components/form";
 import { revokeMySession, setTimeZone } from "@/lib/account";
+import { limits } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 import { requireMember } from "@/lib/session";
 
@@ -15,6 +16,12 @@ import { requireMember } from "@/lib/session";
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "");
 const notice = (path: string, m: string): never => redirect(`${path}?notice=${encodeURIComponent(m)}`);
 const SECURITY = "/settings/security";
+
+// Password-checking actions: 5 tries per person per 15 minutes (PRD 11.1).
+async function passwordLimit(userId: string, back = SECURITY) {
+  const limited = await limits([[`password:user:${userId}`, 5, 900]]);
+  if (limited) redirect(errorUrl(back, limited));
+}
 
 // Better Auth's own message, or a plain one.
 async function call<T>(path: string, fn: () => Promise<T>): Promise<T> {
@@ -43,7 +50,8 @@ export async function signOutAction() {
 }
 
 export async function changePasswordAction(fd: FormData) {
-  await requireMember(true);
+  const { user } = await requireMember(true);
+  await passwordLimit(user.id);
   const [current, next, confirm] = [str(fd, "current"), str(fd, "password"), str(fd, "confirm")];
   if (next !== confirm) redirect(errorUrl(SECURITY, "The new passwords don't match."));
   await call(SECURITY, async () =>
@@ -55,7 +63,8 @@ export async function changePasswordAction(fd: FormData) {
 // Step 1: password -> secret + backup codes. They're shown once; 2FA is only
 // on after step 2 proves the app has the secret.
 export async function startTwoFactorAction(fd: FormData) {
-  await requireMember(true);
+  const { user } = await requireMember(true);
+  await passwordLimit(user.id);
   const r = await call(SECURITY, async () =>
     auth.api.enableTwoFactor({ body: { password: str(fd, "password") }, headers: await headers() }),
   );
@@ -85,7 +94,8 @@ export async function confirmTwoFactorAction(fd: FormData) {
 }
 
 export async function newBackupCodesAction(fd: FormData) {
-  await requireMember(true);
+  const { user } = await requireMember(true);
+  await passwordLimit(user.id);
   const r = await call(SECURITY, async () =>
     auth.api.generateBackupCodes({ body: { password: str(fd, "password") }, headers: await headers() }),
   );
@@ -101,7 +111,8 @@ export async function newBackupCodesAction(fd: FormData) {
 }
 
 export async function disableTwoFactorAction(fd: FormData) {
-  const { company } = await requireMember(true);
+  const { user, company } = await requireMember(true);
+  await passwordLimit(user.id);
   if (company.requireTwoFactor) redirect(errorUrl(SECURITY, "Your company requires two-factor, so it can't be turned off."));
   await call(SECURITY, async () => auth.api.disableTwoFactor({ body: { password: str(fd, "password") }, headers: await headers() }));
   notice(SECURITY, "Two-factor is off.");

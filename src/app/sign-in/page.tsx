@@ -2,6 +2,7 @@ import { APIError } from "better-auth";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { clientIp, limits } from "@/lib/rate-limit";
 import { auth, googleEnabled } from "@/lib/auth";
 import { Button, errorUrl, Field, firstParam, Form, Page, Hint, safeNext } from "@/components/form";
 
@@ -11,6 +12,14 @@ async function signIn(formData: FormData) {
   const next = safeNext(formData.get("next"));
   const back = (message: string) =>
     errorUrl("/sign-in", message) + (next === "/" ? "" : `&next=${encodeURIComponent(next)}`);
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const h = await headers();
+  // PRD 11.1: per account (credential stuffing) and per address.
+  const limited = await limits([
+    [`signin:email:${email}`, 5, 900],
+    [`signin:ip:${clientIp(h)}`, 30, 900],
+  ]);
+  if (limited) redirect(back(limited));
   let twoFactor = false;
   try {
     const res = await auth.api.signInEmail({

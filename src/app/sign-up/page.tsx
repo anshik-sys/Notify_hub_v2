@@ -2,11 +2,14 @@ import { APIError } from "better-auth";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { clientIp, limits } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 import { Button, errorUrl, Field, firstParam, Form, Page, Hint } from "@/components/form";
 
 async function signUp(formData: FormData) {
   "use server";
+  const limited = await limits([[`signup:ip:${clientIp(await headers())}`, 5, 3600]]);
+  if (limited) redirect(errorUrl("/sign-up", limited));
   try {
     await auth.api.signUpEmail({
       body: {

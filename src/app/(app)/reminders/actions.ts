@@ -15,6 +15,7 @@ import {
   validateInput,
 } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
+import { limits } from "@/lib/rate-limit";
 import { channelChoices } from "@/lib/slack-installations";
 import { sendNow, sendTest } from "@/lib/send-now";
 import { setDone } from "@/lib/tasks";
@@ -80,6 +81,10 @@ export async function saveReminder(fd: FormData) {
   // Files: every one is checked (content, type, CSV formulas) before anything
   // is saved, so one bad file means nothing is written.
   const uploads = fd.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+  if (uploads.length) {
+    const limited = await limits([[`upload:user:${user.id}`, 30, 3600]]);
+    if (limited) redirect(errorUrl(back, limited));
+  }
   if (uploads.length > MAX_FILES_PER_SAVE) redirect(errorUrl(back, `Attach at most ${MAX_FILES_PER_SAVE} files at a time.`));
   const files: CheckedFile[] = [];
   for (const u of uploads) {

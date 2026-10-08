@@ -403,3 +403,30 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     range.
   - The page and the CSV export build the same table (`reports/data.ts`), so
     they can't disagree.
+- **Rate limits (PRD 11.1):**
+  - **Better Auth's limiter only guards its HTTP routes** (`/api/auth/*`).
+    Our sign-in, sign-up, 2FA, reset and invite forms are server actions
+    calling `auth.api.*` directly, which **skips it**. So they're limited by
+    `src/lib/rate-limit.ts`: a fixed window in Postgres (`rate_limits`),
+    keyed per account and per IP.
+  - **It fails closed:** if the store can't be reached, the action is
+    refused ("briefly unavailable").
+  - Better Auth's own routes use `storage: "database"` (table `rate_limit`)
+    and are always on.
+  - The worker clears day-old windows.
+- **Reset tokens and 2FA challenge ids are stored hashed**
+  (`verification.storeIdentifier: "hashed"`). Invitations already store a
+  hash; email verification is a signed JWT.
+- **CSP with a per-request nonce, set in `src/proxy.ts`.** Next puts the
+  nonce on its own scripts; anything else inline is blocked.
+  `style-src-attr 'unsafe-inline'` is only for `style=""` attributes (report
+  bars). The other hardening headers, `X-Robots-Tag` and HSTS (https only)
+  are in `next.config.ts`; `robots.txt` disallows everything.
+- **`/api/health`:** 200 when the database answers and the worker ticked in
+  the last 3 minutes (`worker_heartbeat`), otherwise 503. No auth, nothing
+  sensitive.
+- **Startup checks:** the web (`src/instrumentation.ts`) and the worker run
+  `checkEnvironment()`. With `NODE_ENV=production` they **exit** on unsafe
+  config (short secret, http outside localhost, bad encryption key,
+  superuser or BYPASSRLS app role, missing SMTP, fake-Slack overrides,
+  half-configured Slack or Google). In dev they only warn.

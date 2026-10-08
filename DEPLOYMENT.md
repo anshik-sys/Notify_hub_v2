@@ -38,6 +38,22 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0025: `rate_limits` (ours), `rate_limit` (Better Auth's; auth role only),
+`worker_heartbeat`. **Reset links sent before this deploy stop working**, since
+identifiers are now stored hashed; people just ask for a new one.
+
+Hardening settings:
+- **`CLIENT_IP_HEADER`** (default `x-forwarded-for`): the header your proxy or
+  load balancer **sets or overwrites** with the client's address. If clients
+  can send it themselves, per-IP limits can be dodged (per-account limits
+  still hold).
+- **Run the worker with `NODE_ENV=production`** too, so its startup check
+  stops it on bad config, as it does the web server.
+- **The health check for the load balancer:** `GET /api/health` (200, or 503
+  if the database or the worker is down).
+- **HSTS** is sent only when `BETTER_AUTH_URL` is https. Once it's live,
+  browsers remember it for 2 years.
+
 Migration 0024: `audit_log`, the `audit_row()` trigger function (SECURITY DEFINER,
 owned by the migration role) and an `audit` trigger on 16 tables. The app role
 gets only SELECT on `audit_log`. There's no retention yet: it grows forever (to
@@ -208,6 +224,8 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Share a reminder with another department: its members can open it and comment, but see no delivery log; others get "not found". Reminders → Show "Shared with me" lists it for them.
 - [ ] Audit log: rename a department → it appears with your name and "name: old → new"; Export CSV downloads it; a member gets 404. `delete from audit_log` as the app role → permission denied.
 - [ ] Reports: Deliveries shows today's sends per channel with a success rate; Task completion and Overdue match what people see under My tasks; Export CSV downloads the same numbers; a member gets 404.
+- [ ] `curl -I https://<app>/sign-in` shows Content-Security-Policy (with a nonce), Strict-Transport-Security, X-Frame-Options DENY, X-Robots-Tag noindex. The browser console shows no CSP errors on the main pages, the reminder form preview and Settings → Security (QR).
+- [ ] 6 wrong passwords for one account → "Too many attempts". `/api/health` → 200; stop the worker → 503 within 3 minutes.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

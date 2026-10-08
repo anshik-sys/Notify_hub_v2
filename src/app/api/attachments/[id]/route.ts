@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { withTenant } from "@/db";
 import { attachments, reminders } from "@/db/schema";
 import { reminderAccess } from "@/lib/reminders";
+import { limit } from "@/lib/rate-limit";
 import { requireMember } from "@/lib/session";
 import { getBlob } from "@/lib/storage";
 import { isUuid } from "@/lib/validate";
@@ -15,6 +16,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/attachments/[id
   const { id } = await ctx.params;
   if (!isUuid(id)) notFound();
   const { user, companyId, access } = await requireMember();
+  if (!(await limit(`download:user:${user.id}`, 300, 600)).ok) return new Response("Too many downloads. Try again shortly.", { status: 429 });
   const file = await withTenant(companyId, async (tx) => {
     const [row] = await tx
       .select({ meta: attachments, createdBy: reminders.createdBy })

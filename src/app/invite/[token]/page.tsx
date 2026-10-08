@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { acceptInvitation, accountExists, findInvitation } from "@/lib/invitations";
+import { clientIp, limits } from "@/lib/rate-limit";
 import { Button, errorUrl, Field, firstParam, Form, Page, Hint } from "@/components/form";
 
 // Public page: the token in the URL is the only credential.
@@ -21,6 +22,8 @@ async function createAccountAndJoin(formData: FormData) {
   "use server";
   const token = String(formData.get("token"));
   const back = (m: string) => errorUrl(`/invite/${token}`, m);
+  const limited = await limits([[`invite:ip:${clientIp(await headers())}`, 10, 3600]]);
+  if (limited) redirect(back(limited));
   const invite = await findInvitation(token);
   if (!invite) redirect(back("This invite is invalid, expired or already used."));
   if (await accountExists(invite.email)) redirect(back("You already have an account. Sign in to accept."));

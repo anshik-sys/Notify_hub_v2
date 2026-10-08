@@ -53,6 +53,13 @@ export const auth = betterAuth({
       }).catch((e) => console.error("verification email failed", e));
     },
   },
+  // PRD 11.1: reset tokens and 2FA challenge ids are stored only as hashes.
+  verification: { storeIdentifier: "hashed" },
+  // Its own HTTP routes (/api/auth/*): always on, in Postgres so every
+  // instance shares the counts. Our server actions call auth.api directly,
+  // which skips this; they use src/lib/rate-limit.ts instead.
+  rateLimit: { enabled: true, storage: "database", modelName: "rateLimit" },
+  advanced: { ipAddress: { ipAddressHeaders: [process.env.CLIENT_IP_HEADER || "x-forwarded-for"] } },
   socialProviders: {
     google: {
       enabled: googleEnabled,

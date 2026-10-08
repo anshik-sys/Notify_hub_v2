@@ -55,3 +55,24 @@ test("require 2FA gate", () => {
   assert.equal(needsTwoFactorSetup({ requireTwoFactor: true }, { twoFactorEnabled: true }), false);
   assert.equal(needsTwoFactorSetup({ requireTwoFactor: false }, { twoFactorEnabled: null }), false);
 });
+
+test("reset tokens are stored hashed (PRD 11.1)", async () => {
+  const { auth } = await import("./auth");
+  let link = "";
+  // Capture the token from the email instead of sending it.
+  const opts = (auth as unknown as { options: { emailAndPassword: { sendResetPassword: (d: { url: string }) => Promise<void> } } }).options;
+  const original = opts.emailAndPassword.sendResetPassword;
+  opts.emailAndPassword.sendResetPassword = async ({ url }) => void (link = url);
+  try {
+    await q("insert into account (id, account_id, provider_id, user_id, password, updated_at) values ($1, $2, 'credential', $2, 'x', now()) on conflict do nothing", [`acc2-${bob}`, bob]);
+    await auth.api.requestPasswordReset({ body: { email: `${bob}@${s.domain}`, redirectTo: "/reset-password" } });
+  } finally {
+    opts.emailAndPassword.sendResetPassword = original;
+  }
+  const token = new URL(link).pathname.split("/").pop()!;
+  assert.ok(token.length > 10);
+  const rows = await q("select identifier from verification where value = $1", [bob]);
+  assert.equal(rows.length, 1);
+  assert.ok(!rows[0].identifier.includes(token)); // only a hash is kept
+  await q("delete from verification where value = $1", [bob]);
+});
