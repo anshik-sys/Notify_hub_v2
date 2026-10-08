@@ -430,3 +430,23 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   config (short secret, http outside localhost, bad encryption key,
   superuser or BYPASSRLS app role, missing SMTP, fake-Slack overrides,
   half-configured Slack or Google). In dev they only warn.
+- **Approvers (PRD 9.1):** `approverIds()` in `src/lib/reminders.ts` is the
+  one rule.
+  - Mode `any`: everyone active with `reminders.approve`.
+  - Mode `named`: the `company_approvers` among them. **If none of the named
+    ones still qualifies, it falls back to everyone**, so approvals never
+    get stuck.
+  - `decideReminder` enforces it itself (`mayDecide`); the UI just hides the
+    buttons. Visibility doesn't change: approvers still see everything.
+- **CSV import of people** (`importInvitations`) is all-or-nothing.
+  - Any bad row means nothing is created, and every problem is listed.
+  - Existing members are skipped, not errors.
+  - Roles follow the same "can't grant above yourself" rule as single
+    invites.
+  - Invite emails go out after the response (`after()`).
+- **Data retention** (`src/worker/retention.ts`, nightly at 03:00 UTC):
+  - deletes **finished** reminders (sent, cancelled, rejected) untouched
+    for the period, with everything that cascades from them;
+  - deletes older notifications and audit entries;
+  - never touches upcoming or active reminders;
+  - each purge writes one "System" audit row with the counts.

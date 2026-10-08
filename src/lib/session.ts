@@ -28,7 +28,12 @@ export const requireMember = cache(async (allowWithout2fa: boolean = false) => {
     loadAccess(companyId, session.user.id),
     withTenant(companyId, (tx) =>
       tx
-        .select({ name: companies.name, timeZone: companies.timeZone, requireTwoFactor: companies.requireTwoFactor })
+        .select({
+          name: companies.name,
+          timeZone: companies.timeZone,
+          requireTwoFactor: companies.requireTwoFactor,
+          defaultSenderName: companies.defaultSenderName,
+        })
         .from(companies)
         .where(eq(companies.id, companyId)),
     ),

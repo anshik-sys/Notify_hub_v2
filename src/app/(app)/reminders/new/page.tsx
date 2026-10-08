@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { firstParam, Page } from "@/components/form";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
+import { senderDefault } from "@/lib/company";
 import { fieldsFromRule } from "@/lib/recurrence";
 import { channelChoices } from "@/lib/slack-installations";
 import { recipientChoices } from "../form-data";
@@ -19,7 +20,7 @@ export default async function NewReminder(props: PageProps<"/reminders/new">) {
         {...choices}
         slackChannels={slackChannels}
         timeZone={company.timeZone}
-        defaultSender={`Alerts | ${company.name}`}
+        defaultSender={senderDefault(company)}
         defaults={{
           title: "",
           description: "",

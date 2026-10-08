@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { companies, departmentMembers, departments, invitations, roles, user, userRoles } from "@/db/schema";
+import { csvFormulaCheck, parseCsv } from "./attachments";
 import { authDb } from "./auth";
 import { sendMail } from "./mail";
 import { type Access, canGrant, MEMBER_ROLE_ID } from "./permissions";
@@ -61,17 +62,100 @@ export async function createInvitation(
   // Awaited: the admin should hear about a failed send. The invite row stays;
   // inviting again replaces it.
   try {
-    await sendMail({
-      to: email,
-      subject: `You're invited to ${companyName} on NotifyHub`,
-      text: `${actor.name} invited you to join ${companyName} on NotifyHub. The link expires in ${INVITE_DAYS} days.`,
-      links: [{ label: "Accept invite", url: `${process.env.BETTER_AUTH_URL}/invite/${token}` }],
-    });
+    await inviteEmail(email, actor.name, companyName, token);
   } catch (e) {
     console.error("invite email failed", e);
     return "The invite was saved but the email failed to send. Try inviting again.";
   }
   return null;
+}
+
+const inviteEmail = (to: string, from: string, companyName: string, token: string) =>
+  sendMail({
+    to,
+    subject: `You're invited to ${companyName} on NotifyHub`,
+    text: `${from} invited you to join ${companyName} on NotifyHub. The link expires in ${INVITE_DAYS} days.`,
+    links: [{ label: "Accept invite", url: `${process.env.BETTER_AUTH_URL}/invite/${token}` }],
+  });
+
+export const IMPORT_MAX_ROWS = 200;
+
+// PRD 9.1 bulk import: CSV with a header row: email (required), departments
+// and roles (optional, names separated by ";"; Member is always included).
+// All-or-nothing: any bad row and nothing is created. Existing members are
+// skipped, not errors. Returns sendAll() for the caller to run after the
+// response (a few hundred emails shouldn't hold the request open).
+export async function importInvitations(actor: { id: string; name: string; access: Access }, companyId: string, text: string) {
+  const errors: string[] = [];
+  if (csvFormulaCheck(text)) return { errors: ["The file contains a cell starting with = + - or @ (a spreadsheet formula). Remove it and try again."] };
+  const rows = parseCsv(text.replace(/^\uFEFF/, "")).filter((r) => r.some((c) => c.trim()));
+  if (!rows.length) return { errors: ["The file is empty."] };
+  const head = rows[0].map((h) => h.trim().toLowerCase());
+  const col = (name: string) => head.indexOf(name);
+  if (col("email") < 0) return { errors: ['The first row must be a header with an "email" column.'] };
+  const data = rows.slice(1);
+  if (!data.length) return { errors: ["No people in the file, only the header."] };
+  if (data.length > IMPORT_MAX_ROWS) return { errors: [`At most ${IMPORT_MAX_ROWS} people per import (this file has ${data.length}).`] };
+
+  return withTenant(companyId, async (tx) => {
+    const [allDepts, allRoles, members, [company]] = await Promise.all([
+      tx.select({ id: departments.id, name: departments.name }).from(departments),
+      tx.select().from(roles),
+      tx.select({ email: user.email }).from(user),
+      tx.select({ name: companies.name }).from(companies).where(eq(companies.id, companyId)),
+    ]);
+    const deptByName = new Map(allDepts.map((d) => [d.name.toLowerCase(), d.id]));
+    const roleByName = new Map(allRoles.map((r) => [r.name.toLowerCase(), r]));
+    const existing = new Set(members.map((m) => m.email.toLowerCase()));
+    const list = (r: string[], name: string) => (col(name) < 0 ? [] : (r[col(name)] ?? "").split(";").map((x) => x.trim()).filter(Boolean));
+    const seen = new Set<string>();
+    const wanted: { email: string; roleIds: string[]; departmentIds: string[] }[] = [];
+    const skipped: string[] = [];
+    data.forEach((r, i) => {
+      const n = i + 2; // spreadsheet row number
+      const email = (r[col("email")] ?? "").trim().toLowerCase();
+      if (!EMAIL.test(email)) return void errors.push(`Row ${n}: "${email || "(empty)"}" isn't a valid email.`);
+      if (seen.has(email)) return void errors.push(`Row ${n}: ${email} appears more than once.`);
+      seen.add(email);
+      const departmentIds: string[] = [];
+      for (const d of list(r, "departments")) {
+        const id = deptByName.get(d.toLowerCase());
+        if (id) departmentIds.push(id);
+        else errors.push(`Row ${n}: unknown department "${d}".`);
+      }
+      const roleIds = [MEMBER_ROLE_ID];
+      for (const name of list(r, "roles")) {
+        const role = roleByName.get(name.toLowerCase());
+        if (!role) errors.push(`Row ${n}: unknown role "${name}".`);
+        else if (!canGrant(actor.access, role)) errors.push(`Row ${n}: you can't grant the ${role.name} role.`);
+        else if (!roleIds.includes(role.id)) roleIds.push(role.id);
+      }
+      if (existing.has(email)) skipped.push(email);
+      else wanted.push({ email, roleIds, departmentIds: [...new Set(departmentIds)] });
+    });
+    if (errors.length) return { errors: errors.slice(0, 20).concat(errors.length > 20 ? [`…and ${errors.length - 20} more.`] : []) };
+
+    const tokens: { email: string; token: string }[] = [];
+    for (const w of wanted) {
+      const token = randomBytes(32).toString("base64url");
+      await tx.delete(invitations).where(and(eq(invitations.companyId, companyId), eq(invitations.email, w.email), isNull(invitations.acceptedAt)));
+      await tx.insert(invitations).values({
+        companyId,
+        email: w.email,
+        roleIds: w.roleIds,
+        departmentIds: w.departmentIds,
+        invitedBy: actor.id,
+        tokenHash: hashToken(token),
+        expiresAt: new Date(Date.now() + INVITE_DAYS * 86_400_000),
+      });
+      tokens.push({ email: w.email, token });
+    }
+    const sendAll = async () => {
+      for (const t of tokens)
+        await inviteEmail(t.email, actor.name, company.name, t.token).catch((e) => console.error("import invite email failed", t.email, e));
+    };
+    return { invited: wanted.map((w) => w.email), skipped, sendAll };
+  });
 }
 
 // Public lookup for the accept page, before any company is known.

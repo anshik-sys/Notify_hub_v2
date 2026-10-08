@@ -28,6 +28,11 @@ export default async function Users(props: PageProps<"/users">) {
           <LinkButton href="/groups" variant="secondary">
             Groups
           </LinkButton>
+          {canInvite && (
+            <LinkButton href="/users/import" variant="secondary">
+              Import CSV
+            </LinkButton>
+          )}
           {canInvite && <LinkButton href="/users/invite">Invite someone</LinkButton>}
         </>
       }

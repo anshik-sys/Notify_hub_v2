@@ -23,6 +23,8 @@ export const OBJECT_TYPES: Record<string, string> = {
   invitations: "Invitation",
   companies: "Company settings",
   slack_installations: "Slack connection",
+  company_approvers: "Named approver",
+  retention: "Data retention",
 };
 const ACTIONS = ["create", "update", "delete"] as const;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;

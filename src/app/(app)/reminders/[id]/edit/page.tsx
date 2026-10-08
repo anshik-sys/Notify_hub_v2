@@ -3,6 +3,7 @@ import { firstParam, Page } from "@/components/form";
 import { can } from "@/lib/permissions";
 import { getReminder, listAttachments } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
+import { senderDefault } from "@/lib/company";
 import { toLocalInput } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
 import { fieldsFromRule } from "@/lib/recurrence";
@@ -37,7 +38,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
         slackChannels={slackChannels}
         attachments={files}
         timeZone={company.timeZone}
-        defaultSender={`Alerts | ${company.name}`}
+        defaultSender={senderDefault(company)}
         defaults={{
           id: r.id,
           title: r.title,

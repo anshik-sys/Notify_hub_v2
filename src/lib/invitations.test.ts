@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { db } from "@/db";
 import { authDb } from "./auth";
-import { acceptInvitation, createInvitation, findInvitation, hashToken } from "./invitations";
+import { acceptInvitation, createInvitation, findInvitation, hashToken, importInvitations } from "./invitations";
 import { COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "./permissions";
 import { seeder } from "./test-helpers";
 
@@ -88,4 +88,33 @@ test("acceptInvitation: single use, expiry, one company per user, roles", async 
   // Wrong account (email doesn't match the invite): refused.
   const other = await s.user({ company: false });
   assert.match((await acceptInvitation("tok-2", other))!, /can't accept/);
+});
+
+test("CSV import: all-or-nothing, names resolved, members skipped", async () => {
+  const admin = { id: adminId, name: "Admin", access: await loadAccess(s.companyId, adminId) };
+  await s.owner.query("insert into departments (company_id, name) values ($1, 'Operations'), ($1, 'Sales')", [s.companyId]);
+  const count = async () => (await s.owner.query("select count(*)::int as n from invitations where company_id = $1 and accepted_at is null and email like 'imp%'", [s.companyId])).rows[0].n;
+  const bad = await importInvitations(admin, s.companyId, `Email,Departments\nimp1@${s.domain},Operations\nnot-an-email,\nimp1@${s.domain},\nimp3@${s.domain},Opps\nimp4@${s.domain},`);
+  assert.ok("errors" in bad);
+  assert.deepEqual(bad.errors!.length, 3);
+  assert.match(bad.errors!.join(" "), /Row 3: "not-an-email".*Row 4: .* more than once.*Row 5: unknown department "Opps"/);
+  assert.equal(await count(), 0); // nothing created
+
+  assert.deepEqual(await importInvitations(admin, s.companyId, "=cmd,x\n"), { errors: [`The file contains a cell starting with = + - or @ (a spreadsheet formula). Remove it and try again.`] });
+  assert.match((await importInvitations(admin, s.companyId, "name\nx")).errors![0], /"email" column/);
+  const big = ["email", ...Array.from({ length: 201 }, (_, i) => `imp-big${i}@${s.domain}`)].join("\n");
+  assert.match((await importInvitations(admin, s.companyId, big)).errors![0], /At most 200/);
+
+  const existing = `${adminId}@${s.domain}`;
+  const ok = await importInvitations(admin, s.companyId, `email,departments,roles\r\nimp1@${s.domain},Operations;sales,Company Admin\r\n${existing},,\r\nIMP2@${s.domain},,\r\n`);
+  assert.ok(!("errors" in ok));
+  const r = ok as { invited: string[]; skipped: string[]; sendAll: () => Promise<void> };
+  assert.deepEqual([r.invited, r.skipped], [[`imp1@${s.domain}`, `imp2@${s.domain}`], [existing]]);
+  const row = (await s.owner.query("select role_ids, cardinality(department_ids) as d from invitations where email = $1", [`imp1@${s.domain}`])).rows[0];
+  assert.deepEqual([row.role_ids.sort(), row.d], [[COMPANY_ADMIN_ROLE_ID, MEMBER_ROLE_ID].sort(), 2]);
+
+  // A member can't hand out roles above their own.
+  const member = await s.user({ roles: [MEMBER_ROLE_ID] });
+  const m = { id: member, name: "M", access: await loadAccess(s.companyId, member) };
+  assert.match((await importInvitations(m, s.companyId, `email,roles\nimp9@${s.domain},Company Admin`)).errors![0], /can't grant the Company Admin role/);
 });

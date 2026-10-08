@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { aliasedTable, and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { attachments, deliveries, departmentMembers, departments, groupMembers, groups, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
+import { attachments, companies, companyApprovers, deliveries, departmentMembers, departments, groupMembers, groups, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
 import { addNotifications, mutedFor } from "./notifications";
@@ -251,10 +251,12 @@ export async function outOfScope(tx: Tx, companyId: string, actor: Actor, target
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"; // Crockford base32: no I, L, O, U
 const shortId = () => `R-${[...randomBytes(6)].map((b) => ALPHABET[b % 32]).join("")}`;
 
-// Every approver gets it in the notification centre; returns the emails of
-// those who haven't muted approval emails.
-async function approverEmails(tx: Tx, companyId: string, reminderId: string) {
-  const rows = await tx
+// Who decides out-of-scope sends (PRD 9.1): everyone active with
+// reminders.approve, or in 'named' mode only the named ones among them.
+// Named approvers who lost the permission or left don't count; if that
+// leaves nobody, it falls back to everyone, so approvals never get stuck.
+async function approverIds(tx: Tx, companyId: string) {
+  const all = await tx
     .selectDistinct({ id: user.id, email: user.email })
     .from(userRoles)
     .innerJoin(roles, eq(roles.id, userRoles.roleId))
@@ -265,6 +267,23 @@ async function approverEmails(tx: Tx, companyId: string, reminderId: string) {
         or(eq(roles.id, COMPANY_ADMIN_ROLE_ID), sql`'reminders.approve' = any(${roles.permissions})`),
       ),
     );
+  const [c] = await tx.select({ mode: companies.approvalMode }).from(companies).where(eq(companies.id, companyId));
+  if (c?.mode !== "named") return all;
+  const named = new Set((await tx.select({ id: companyApprovers.userId }).from(companyApprovers)).map((n) => n.id));
+  const picked = all.filter((a) => named.has(a.id));
+  return picked.length ? picked : all;
+}
+
+// May this person approve or reject right now?
+export async function mayDecide(companyId: string, actor: Actor) {
+  if (!can(actor.access, "reminders.approve")) return false;
+  return withTenant(companyId, async (tx) => (await approverIds(tx, companyId)).some((a) => a.id === actor.id));
+}
+
+// Every approver gets it in the notification centre; returns the emails of
+// those who haven't muted approval emails.
+async function approverEmails(tx: Tx, companyId: string, reminderId: string) {
+  const rows = await approverIds(tx, companyId);
   await addNotifications(
     tx,
     rows.map((r) => ({ companyId, userId: r.id, kind: "approval", reminderId, text: "Needs your approval" })),
@@ -508,9 +527,10 @@ export async function cancelReminder(actor: Actor, companyId: string, id: string
   return result && "error" in result ? result.error : null;
 }
 
-// The caller has checked reminders.approve.
+// Checks reminders.approve and, in named mode, that the actor is named.
 export async function decideReminder(actor: Actor, companyId: string, id: string, approve: boolean, reason = "") {
   reason = reason.trim();
+  if (!(await mayDecide(companyId, actor))) return "Only the named approvers can decide this.";
   if (!approve && !reason) return "Give a reason for rejecting.";
   if (reason.length > 500) return "Reason must be at most 500 characters.";
   const result = await refusals(() =>

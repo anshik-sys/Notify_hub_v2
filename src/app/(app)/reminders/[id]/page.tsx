@@ -5,7 +5,7 @@ import { List, ListRow } from "@/components/list";
 import { Badge, Muted, Table } from "@/components/table";
 import { can } from "@/lib/permissions";
 import { describe } from "@/lib/recurrence";
-import { deliveryLog, getReminder, isDelayed, listAttachments, reminderAccess, statusLabel } from "@/lib/reminders";
+import { deliveryLog, getReminder, isDelayed, listAttachments, mayDecide as canDecide, reminderAccess, statusLabel } from "@/lib/reminders";
 import { formatSize } from "@/lib/format";
 import { markReadForReminder } from "@/lib/notifications";
 import { requireMember } from "@/lib/session";
@@ -51,7 +51,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   const editable = ["pending_approval", "rejected", "scheduled", "paused"].includes(r.status);
   const tz = r.timeZone;
   const mayChange = editable && (user.id === r.createdBy || can(access, "reminders.edit"));
-  const mayDecide = r.status === "pending_approval" && can(access, "reminders.approve");
+  const mayDecide = r.status === "pending_approval" && (await canDecide(companyId, { id: user.id, access }));
   const maySendNow =
     (r.status === "scheduled" || (r.recurrence && r.status === "paused")) &&
     (user.id === r.createdBy || can(access, "reminders.send_now"));

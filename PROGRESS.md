@@ -2,6 +2,52 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — admin features: CSV import, approvers, sender name, retention (PRD 9.1)
+
+- **Decided with the user:**
+  - **retention** deletes finished history only (finished reminders with
+    everything attached, older notifications and audit entries); upcoming
+    and active reminders are never touched; off by default; at least 90
+    days;
+  - **named approvers:** only they are asked, and only they can decide.
+- **What's in place:**
+  - **Company settings:**
+    - **Sender name:** new reminders default to it.
+    - **Approvals:** anyone who can approve, or only the people you tick.
+    - **Data retention:** keep forever, or 90 / 180 / 365 / 730 days.
+    - The existing follow-up time and 2FA settings are there too.
+  - **Team → Import CSV:**
+    - columns email, departments and roles; a template download;
+    - all-or-nothing, every problem listed;
+    - existing members skipped;
+    - invites sent after the response.
+  - **The worker** runs retention nightly at 03:00 UTC and records each purge
+    in the audit log as "System".
+- **Approvals never get stuck:** if the named approvers all lose the
+  permission or leave, everyone who can approve is asked instead.
+  `decideReminder` now enforces who may decide itself; before, it trusted
+  the caller.
+- **Verified against `next start` + worker + Mailpit:**
+  - sender "HR | Acme" → the form's placeholder, and the sent email's From
+    is "HR | Acme via NotifyHub";
+  - named = carol (a custom Approver role): saving with nobody ticked was
+    refused; alice's Sales reminder → 1 approval email to carol, 0 to the
+    admin; the admin has no buttons, and their direct POST → "Only the
+    named approvers can decide this."; carol approved → sent;
+  - CSV: a file with an unknown department and a bad email → both listed,
+    0 invitations; the good file → "Invited 2 people. Skipped 1 already in
+    the company: bob@…"; 2 invite emails; new2 accepted → Sales with
+    Approver + Member;
+  - retention: 30 days was refused; 90 saved; an old sent reminder was
+    purged and an old **scheduled** one kept; the "System" audit row reads
+    `{reminders: 1, …}`;
+  - a member → 404 on the import page and on company settings.
+
+  124 tests pass (new: company settings, named approvers with fallback,
+  CSV import, retention).
+- **Not in this step:** a trash / soft delete for reminders, user data
+  export (11.5), a CSV preview before importing.
+
 ## 2026-10-08 — security and reliability hardening (PRD 11.1, 11.2)
 
 - **Finding, fixed:** the sign-in, sign-up, 2FA, forgot/reset password and

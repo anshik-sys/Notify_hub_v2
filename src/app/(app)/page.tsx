@@ -4,7 +4,7 @@ import { List, ListRow } from "@/components/list";
 import { StatCards } from "@/components/stats";
 import { listNotifications } from "@/lib/notifications";
 import { can } from "@/lib/permissions";
-import { listPendingApprovals } from "@/lib/reminders";
+import { listPendingApprovals, mayDecide } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { myOpenTasks } from "@/lib/tasks";
 import { formatInZone } from "@/lib/time";
@@ -22,7 +22,7 @@ export default async function Home() {
   const seesReminders = can(access, "reminders.create") || can(access, "reminders.view_all");
   const [me, pending, tasks, stats, next, activity] = await Promise.all([
     getUser(companyId, user.id),
-    can(access, "reminders.approve") ? listPendingApprovals(companyId) : [],
+    can(access, "reminders.approve") ? mayDecide(companyId, viewer).then((d) => (d ? listPendingApprovals(companyId) : [])) : [],
     myOpenTasks(companyId, user.id, TASKS_SHOWN + 1),
     seesReminders ? dashboardStats(companyId, viewer, tz) : null,
     seesReminders ? upcoming(companyId, viewer) : [],

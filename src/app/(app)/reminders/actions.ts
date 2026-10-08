@@ -15,6 +15,7 @@ import {
   validateInput,
 } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
+import { senderDefault } from "@/lib/company";
 import { limits } from "@/lib/rate-limit";
 import { channelChoices } from "@/lib/slack-installations";
 import { sendNow, sendTest } from "@/lib/send-now";
@@ -71,7 +72,7 @@ export async function saveReminder(fd: FormData) {
       },
     },
     company.timeZone,
-    `Alerts | ${company.name}`,
+    senderDefault(company),
     new Date(),
     // Only ask Slack for the channel list when the form uses Slack.
     all(fd, "channels").includes("slack") || all(fd, "slackChannels").length ? await channelChoices(companyId) : null,

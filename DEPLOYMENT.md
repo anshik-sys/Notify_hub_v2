@@ -38,6 +38,12 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0026: company settings (`default_sender_name`, `approval_mode`,
+`retention_days`) and `company_approvers` (with an audit trigger). **Data
+retention** runs nightly at 03:00 UTC in the worker. It's off until a company
+picks a period, and the first run after turning it on deletes all qualifying
+old history. That can't be undone, so have backups.
+
 Migration 0025: `rate_limits` (ours), `rate_limit` (Better Auth's; auth role only),
 `worker_heartbeat`. **Reset links sent before this deploy stop working**, since
 identifiers are now stored hashed; people just ask for a new one.
@@ -226,6 +232,8 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Reports: Deliveries shows today's sends per channel with a success rate; Task completion and Overdue match what people see under My tasks; Export CSV downloads the same numbers; a member gets 404.
 - [ ] `curl -I https://<app>/sign-in` shows Content-Security-Policy (with a nonce), Strict-Transport-Security, X-Frame-Options DENY, X-Robots-Tag noindex. The browser console shows no CSP errors on the main pages, the reminder form preview and Settings → Security (QR).
 - [ ] 6 wrong passwords for one account → "Too many attempts". `/api/health` → 200; stop the worker → 503 within 3 minutes.
+- [ ] Company settings: a sender name shows in new emails' From. Named approvers: only they get approval emails, and an admin who isn't named can't decide.
+- [ ] Team → Import CSV with the template: invites arrive, and the accepted person lands in the right department and role. A file with a bad row imports nothing and lists the problems.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

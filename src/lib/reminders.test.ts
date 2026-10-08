@@ -20,6 +20,7 @@ import {
   validateInput,
   parseTags,
   type Share,
+  mayDecide,
 } from "./reminders";
 import { checkFile } from "./attachments";
 import { resolveRecipients } from "./recipients";
@@ -492,4 +493,25 @@ test("sharing (PRD 5.4): departments, my departments, groups, company; foreign i
   assert.deepEqual((await getReminder(s.companyId, r.id))!.shareLabels, ["Everyone in the company"]);
   assert.equal(await access(r.id, carol), "viewer");
   assert.equal(await reminderAccess(other.companyId, { id: stranger, access: await loadAccess(other.companyId, stranger), email: "x" }, { id: r.id, createdBy: alice }), null);
+});
+
+test("named approvers: only they are asked and may decide; fallback if none can", async () => {
+  const q = async (sql: string, params: unknown[] = []) => (await s.owner.query(sql, params)).rows;
+  const carol2 = await s.user({ roles: [COMPANY_ADMIN_ROLE_ID] }); // a second admin, to be the named one
+  await q("update companies set approval_mode = 'named' where id = $1", [s.companyId]);
+  await q("insert into company_approvers values ($1, $2)", [s.companyId, carol2]);
+  const input = { title: "Wide", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets: [{ kind: "department" as const, ref: sales }] };
+  const r = await createReminder(await actor(alice), s.companyId, input);
+  assert.ok("id" in r);
+  const asked = (await q("select user_id from notifications where reminder_id = $1 and kind = 'approval'", [r.id])).map((x) => x.user_id);
+  assert.deepEqual(asked, [carol2]);
+  assert.match((await decideReminder(await actor(admin), s.companyId, r.id, true))!, /named approvers/);
+  assert.equal(await mayDecide(s.companyId, await actor(admin)), false);
+  assert.equal(await decideReminder(await actor(carol2), s.companyId, r.id, true), null);
+
+  // The named one is deactivated: everyone who can approve is asked again.
+  await q(`update "user" set deactivated_at = now() where id = $1`, [carol2]);
+  assert.equal(await mayDecide(s.companyId, await actor(admin)), true);
+  await q("update companies set approval_mode = 'any' where id = $1", [s.companyId]);
+  await q("delete from company_approvers where company_id = $1", [s.companyId]);
 });

@@ -31,11 +31,20 @@ export const companies = pgTable(
     followUpTime: text().notNull().default("09:00"),
     // PRD 9.1: everyone must set up 2FA before using the app (requireMember).
     requireTwoFactor: boolean().notNull().default(false),
+    // PRD 9.1: null = "Alerts | <name>".
+    defaultSenderName: text(),
+    // Who decides out-of-scope sends: everyone with reminders.approve, or
+    // only the company_approvers among them.
+    approvalMode: text().$type<"any" | "named">().notNull().default("any"),
+    // Finished history older than this is deleted daily (worker). Null = keep.
+    retentionDays: integer(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     tenantPolicy("id"),
     authPolicy,
+    check("companies_approval_mode_valid", sql`${t.approvalMode} in ('any','named')`),
+    check("companies_retention_min", sql`${t.retentionDays} is null or ${t.retentionDays} >= 90`),
     check("companies_follow_up_time_valid", sql`${t.followUpTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
   ],
 ).enableRLS();
@@ -701,3 +710,18 @@ export const workerHeartbeat = pgTable("worker_heartbeat", {
   id: integer().primaryKey(),
   at: ts().notNull(),
 });
+
+// Named approvers (approval_mode = 'named'). Only those still holding
+// reminders.approve count; see approverIds in src/lib/reminders.ts.
+export const companyApprovers = pgTable(
+  "company_approvers",
+  {
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.userId] }), tenantPolicy("company_id")],
+).enableRLS();
