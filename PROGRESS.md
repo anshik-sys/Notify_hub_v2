@@ -2,6 +2,36 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — accessibility pass on the second design
+
+- **How it was checked:**
+  - axe-core (WCAG 2.0 to 2.2 A/AA) on 18 signed-in pages, light and dark, as
+    an admin, with the account menu open.
+  - A script computing contrast for every token pair, because axe skips some
+    pairs.
+  - A keyboard walk of 40 Tabs through the shell in both themes.
+  - A sideways-scroll check on the same 18 pages at 320, 390, 1024 and 1440px.
+- **Fixed:**
+  - The light unread badge was 3.87:1 (white on `#e0531f`); now `#c2410c`
+    at 5.2:1. axe didn't catch it because there was no unread badge on the
+    pages it scanned.
+  - Input borders were 1.23:1 against white, and the pre-redesign grey failed
+    too. New `--input-border` token (3:1+ on white, the panel and dark), used
+    only for fields. Darkening `--border` itself was rejected: every divider
+    and card edge would turn heavy.
+  - Calendar entries were 19px tall, under the 24px minimum target (2.5.8).
+  - A "Skip to content" link as the first Tab. Page's `<main>` now has
+    `id="main"`.
+  - The account menu is a `<nav>` (aria-label on a plain div means nothing).
+  - At 320px: the filter bar goes to one column, and the table-cell
+    no-wrap rule I'd put on `Muted` is now limited to table cells (it was
+    stopping prose from wrapping on Reports).
+- **Result:** axe 0 issues; every focusable control in the shell shows a ring.
+- **Not verified:** a real screen reader (VoiceOver), Windows High Contrast /
+  forced colours, and the platform console and auth pages beyond sign-in.
+  The top-bar search pill relies on its icon and placeholder rather than a
+  3:1 edge; acceptable, but noted.
+
 ## 2026-10-08 — second design: teknova-style shell (branch 2nddesign/reference-style)
 
 - **Why a second branch:** the user wanted to try another reference without

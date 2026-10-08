@@ -55,10 +55,12 @@
   text-align: center;
 }
 
+/* 24px tall: the minimum click target (WCAG 2.5.8). */
 .entry {
   display: block;
   overflow: hidden;
-  padding: 1px 4px;
+  min-height: 24px;
+  padding: 3px 4px;
   border-radius: 4px;
   color: var(--fg);
   font-size: 0.8125rem;

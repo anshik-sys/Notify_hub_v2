@@ -15,11 +15,12 @@
   --border: #e7e7eb;
   --surface: #ececf0; /* hover, neutral pills */
   --input-bg: #ffffff;
+  --input-border: #87878f; /* 3:1 on white and the panel: a field's edge must show (WCAG 1.4.11) */
   --primary-bg: #111113;
   --primary-fg: #ffffff;
   --accent-bg: #e3f4e7; /* avatars, icon circles */
   --accent-fg: #1d6b34;
-  --count-bg: #e0531f; /* unread counts */
+  --count-bg: #c2410c; /* unread counts; 5:1 with white text */
   --count-fg: #ffffff;
   --danger-bg: #fdebe4;
   --danger-fg: #b3361a;
@@ -43,6 +44,7 @@
     --border: #2c2c31;
     --surface: #26262b;
     --input-bg: #111113;
+    --input-border: #6b6b75;
     --primary-bg: #f4f4f5;
     --primary-fg: #111113;
     --accent-bg: #143222;
@@ -68,6 +70,7 @@
   --border: #2c2c31;
   --surface: #26262b;
   --input-bg: #111113;
+  --input-border: #6b6b75;
   --primary-bg: #f4f4f5;
   --primary-fg: #111113;
   --accent-bg: #143222;

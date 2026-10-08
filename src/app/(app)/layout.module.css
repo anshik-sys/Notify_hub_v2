@@ -5,6 +5,26 @@
   padding: 24px;
 }
 
+/* Hidden until focused: the first Tab on any page offers to skip the shell. */
+.skip {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 20;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+
+.skip:focus {
+  transform: none;
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
 .frame {
   display: grid;
   grid-template-columns: 248px 1fr;

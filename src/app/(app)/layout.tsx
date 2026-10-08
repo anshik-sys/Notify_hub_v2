@@ -35,6 +35,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className={styles.shell}>
+      <a href="#main" className={styles.skip}>
+        Skip to content
+      </a>
       <div className={styles.frame}>
         <header className={styles.topbar}>
           <Link href="/" className={styles.brand}>
@@ -141,7 +144,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </button>
 
           {/* Native popover: Esc and clicking outside close it, no JS. */}
-          <div id="account-menu" popover="auto" className={styles.menu} aria-label="Account">
+          <nav id="account-menu" popover="auto" className={styles.menu} aria-label="Account">
             <Link href="/settings/profile" className={styles.menuItem}>
               <Icon name="settings" />
               Profile and settings
@@ -171,7 +174,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 Sign out
               </button>
             </form>
-          </div>
+          </nav>
           <ClosePopoverOnNavigate id="account-menu" />
         </aside>
 

@@ -14,6 +14,17 @@
   grid-column: span 2;
 }
 
+/* Very narrow windows: one column, so nothing pushes the page sideways. */
+@media (max-width: 400px) {
+  .bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bar > :first-child {
+    grid-column: auto;
+  }
+}
+
 .buttons {
   display: flex;
   align-items: center;

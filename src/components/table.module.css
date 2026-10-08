@@ -88,6 +88,10 @@
 .muted {
   color: var(--muted);
   font-size: 0.875rem;
+}
+
+/* IDs and names stay on one line in a table; the table scrolls instead. */
+.td .muted {
   white-space: nowrap;
 }
 

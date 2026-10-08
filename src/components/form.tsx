@@ -24,7 +24,7 @@ export function Page({
   children: React.ReactNode;
 }) {
   return (
-    <main className={center ? `${styles.page} ${styles.center}` : styles.page}>
+    <main id="main" className={center ? `${styles.page} ${styles.center}` : styles.page}>
       <div className={styles.header}>
         <div className={styles.headerText}>
           {back && (
