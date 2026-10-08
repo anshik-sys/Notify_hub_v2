@@ -126,3 +126,27 @@ test("calendar: series expanded, skipped left out, local day, visibility", async
   assert.ok(![...cal.days.values()].flat().some((e) => e.title === "Not for alice"));
   assert.equal(await calendarMonth(s.companyId, await viewer(alice), "UTC", "2030-3"), null);
 });
+
+test("show filter: shared with me and sent to me are listed; dashboard ignores them", async () => {
+  const at = new Date("2030-01-02T00:00Z");
+  const before = await dashboardStats(s.companyId, await viewer(alice), "UTC", at);
+  const shared = await mk(bob, "Bob shares with Ops");
+  await q("insert into reminder_shares (reminder_id, company_id, kind, ref) values ($1, $2, 'department', $3)", [shared, s.companyId, ops]);
+  const toAlice = await mk(bob, "Bob sends to alice", { status: "sent", sendAt: "2025-02-01T09:00Z" });
+  const [{ id: occ }] = await q("insert into reminder_occurrences (company_id, reminder_id, occurs_at, status) values ($1, $2, now(), 'sent') returning id", [s.companyId, toAlice]);
+  await q("insert into deliveries (company_id, reminder_id, occurrence_id, address, user_id, status) values ($1, $2, $3, $4, $4, 'sent')", [s.companyId, toAlice, occ, alice]);
+
+  const all = await titles(alice, {});
+  assert.ok(all.includes("Bob shares with Ops") && all.includes("Bob sends to alice"));
+  assert.deepEqual(await titles(alice, { show: "shared" }), ["Bob shares with Ops"]);
+  assert.deepEqual(await titles(alice, { show: "received" }), ["Bob sends to alice"]);
+  assert.ok(!(await titles(alice, { show: "mine" })).includes("Bob shares with Ops"));
+  assert.ok(!(await titles(alice, { show: "oversee" })).includes("Bob shares with Ops"));
+  assert.ok(!(await titles(mgr, { q: "Bob sends" })).length); // not shared with the manager, not sent to them
+
+  assert.deepEqual(await dashboardStats(s.companyId, await viewer(alice), "UTC", at), before); // shared/received don't count
+
+  const cal = (await calendarMonth(s.companyId, await viewer(alice), "UTC", "2030-01"))!;
+  assert.ok([...cal.days.values()].flat().some((e) => e.title === "Bob shares with Ops"));
+  await q("update reminders set status = 'cancelled' where id = any($1)", [[shared, toAlice]]);
+});

@@ -19,6 +19,7 @@ import {
   updateReminder,
   validateInput,
   parseTags,
+  type Share,
 } from "./reminders";
 import { checkFile } from "./attachments";
 import { resolveRecipients } from "./recipients";
@@ -50,6 +51,10 @@ const raw = (over: Partial<RawReminder> = {}): RawReminder => ({
   channels: ["email"],
   slackChannelIds: [],
   tags: "",
+  shareMine: false,
+  shareDepartmentIds: [],
+  shareGroupIds: [],
+  shareCompany: false,
   ...over,
 });
 const oneTime = {
@@ -60,6 +65,7 @@ const oneTime = {
   dueAfterMinutes: null,
   channels: ["email" as const],
   tags: [] as string[],
+  shares: [] as Share[],
 };
 // An hour ahead: a worker running on this machine must not send test reminders
 // mid-test (it would, within a second, for anything due now).
@@ -218,7 +224,7 @@ test("reminderAccess: owners full, recipients via delivery row, others none", as
     `${carol}@${s.domain}`,
     carol,
   ]);
-  assert.equal(await reminderAccess(s.companyId, await viewer(carol), ref), "recipient");
+  assert.equal(await reminderAccess(s.companyId, await viewer(carol), ref), "viewer");
 });
 
 test("isDelayed", () => {
@@ -452,4 +458,38 @@ test("validateInput: a group alone is a recipient for email and Slack", () => {
   assert.deepEqual("input" in v && v.input?.targets, [{ kind: "group", ref: g }]);
   const sl = validateInput(raw({ groupIds: [g], channels: ["slack"] }), "UTC", "S", new Date(), []);
   assert.ok("input" in sl);
+});
+
+test("sharing (PRD 5.4): departments, my departments, groups, company; foreign ids dropped", async () => {
+  const q = async (sql: string, params: unknown[] = []) => (await s.owner.query(sql, params)).rows;
+  const viewer = async (id: string) => ({ ...(await actor(id)), email: `${id}@${s.domain}` });
+  const loner = await s.user({ roles: [MEMBER_ROLE_ID] });
+  const [{ id: foreignDept }] = await other.owner.query("insert into departments (company_id, name) values ($1, 'Theirs') returning id", [other.companyId]).then((r) => r.rows);
+  const [{ id: night }] = await q("insert into groups (company_id, name) values ($1, 'Night shift') returning id", [s.companyId]);
+  await q("insert into group_members values ($1, $2, $3)", [night, s.companyId, loner]);
+  const base = { title: "Shared", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets: [{ kind: "user" as const, ref: alice }] };
+  const access = async (id: string, who: string) => reminderAccess(s.companyId, await viewer(who), { id, createdBy: alice });
+  const saved = async (id: string) => (await q("select kind, ref from reminder_shares where reminder_id = $1 order by kind, ref", [id])).map((x) => `${x.kind}:${x.ref ?? ""}`);
+
+  const r = await createReminder(await actor(alice), s.companyId, { ...base, shares: [{ kind: "department", ref: sales }, { kind: "department", ref: foreignDept }] });
+  assert.ok("id" in r);
+  assert.deepEqual(await saved(r.id), [`department:${sales}`]); // the other company's department is dropped
+  assert.equal(await access(r.id, carol), "viewer"); // in Sales
+  assert.equal(await access(r.id, loner), null);
+  assert.equal(await access(r.id, bob), "full"); // still full for alice's manager
+
+  // "My departments" expands to alice's (Ops); a group share reaches its members.
+  assert.equal(await updateReminder(await actor(alice), s.companyId, r.id, { ...base, shares: [{ kind: "mine", ref: null }, { kind: "group", ref: night }] }), null);
+  assert.deepEqual(await saved(r.id), [`department:${ops}`, `group:${night}`].sort());
+  assert.equal(await access(r.id, carol), null);
+  assert.equal(await access(r.id, loner), "viewer");
+
+  // The whole company covers everything else; sharing never needs approval.
+  const v = validateInput(raw({ userIds: [alice], shareCompany: true, shareDepartmentIds: [sales] }), "UTC", "S");
+  assert.deepEqual("input" in v && v.input?.shares, [{ kind: "company", ref: null }]);
+  assert.equal(await updateReminder(await actor(alice), s.companyId, r.id, { ...base, shares: [{ kind: "company", ref: null }] }), null);
+  assert.equal((await getReminder(s.companyId, r.id))!.status, "scheduled");
+  assert.deepEqual((await getReminder(s.companyId, r.id))!.shareLabels, ["Everyone in the company"]);
+  assert.equal(await access(r.id, carol), "viewer");
+  assert.equal(await reminderAccess(other.companyId, { id: stranger, access: await loadAccess(other.companyId, stranger), email: "x" }, { id: r.id, createdBy: alice }), null);
 });

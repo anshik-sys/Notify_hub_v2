@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import { db, withTenant } from "./index";
-import { attachmentBlobs, attachments, departments, groupMembers, groups, notificationMutes, notifications, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
+import { attachmentBlobs, attachments, departments, groupMembers, groups, notificationMutes, reminderShares, notifications, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
 import { ALL_PERMISSIONS, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "@/lib/permissions";
 
 // Seeds as the owner (bypasses RLS), then reads through the app role.
@@ -87,6 +87,10 @@ test("slack installations and task assignments are tenant-isolated", async () =>
   const [{ id: gb }] = (await owner.query("insert into groups (company_id, name) values ($1, 'B group') returning id", [b])).rows;
   await owner.query("insert into group_members values ($1, $2, $3)", [gb, b, `u-${b}`]);
   assert.equal((await withTenant(a, (tx) => tx.select().from(groups))).length, 0);
+  const [{ id: rb }] = (await owner.query("select id from reminders where company_id = $1 limit 1", [b])).rows;
+  await owner.query("insert into reminder_shares (reminder_id, company_id, kind) values ($1, $2, 'company')", [rb, b]);
+  assert.equal((await withTenant(a, (tx) => tx.select().from(reminderShares))).length, 0);
+  await assert.rejects(withTenant(a, (tx) => tx.insert(reminderShares).values({ reminderId: rb, companyId: b, kind: "company" })));
   assert.equal((await withTenant(a, (tx) => tx.select().from(groupMembers))).length, 0);
   await assert.rejects(withTenant(a, (tx) => tx.insert(groupMembers).values({ groupId: gb, companyId: b, userId: `u-${b}` })));
   await assert.rejects(withTenant(a, (tx) => tx.insert(notificationMutes).values({ companyId: b, userId: `u-${b}`, event: "x", channel: "email" })));

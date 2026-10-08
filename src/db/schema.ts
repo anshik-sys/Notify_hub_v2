@@ -391,6 +391,8 @@ export const deliveries = pgTable(
     check("deliveries_channel_valid", sql`${t.channel} in ('email','slack')`),
     index().on(t.reminderId),
     index().on(t.status, t.updatedAt),
+    // "Sent to me" in lists (src/lib/views.ts).
+    index().on(t.userId),
     check("deliveries_status_valid", sql`${t.status} in ('queued','sending','sent','failed')`),
     tenantPolicy("company_id"),
   ],
@@ -627,4 +629,27 @@ export const groupMembers = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
   },
   (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index().on(t.userId), tenantPolicy("company_id")],
+).enableRLS();
+
+// Who else may see a reminder (PRD 5.4), beyond those who always can. Sharing
+// is about seeing, not receiving, so it never needs approval.
+export const reminderShares = pgTable(
+  "reminder_shares",
+  {
+    reminderId: uuid()
+      .notNull()
+      .references(() => reminders.id, { onDelete: "cascade" }),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    kind: text().$type<"department" | "group" | "company">().notNull(),
+    // department or group id; null for the whole company.
+    ref: text(),
+  },
+  (t) => [
+    uniqueIndex("reminder_shares_unique_idx").on(t.reminderId, t.kind, sql`coalesce(${t.ref}, '')`),
+    index().on(t.kind, t.ref),
+    check("reminder_shares_kind_valid", sql`${t.kind} in ('department','group','company')`),
+    tenantPolicy("company_id"),
+  ],
 ).enableRLS();

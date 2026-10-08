@@ -1,23 +1,37 @@
 import { and, asc, desc, eq, gte, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { REMINDER_STATUSES, reminderOccurrences, reminders, user, type ReminderStatus } from "@/db/schema";
+import { REMINDER_STATUSES, reminderOccurrences, reminderShares, reminders, user, type ReminderStatus } from "@/db/schema";
 import { type Access, can } from "./permissions";
 import { between, type Rule } from "./recurrence";
+import { sharedWithSql } from "./reminders";
 import { toLocalInput, zonedToUtc } from "./time";
 
 // The list screens (PRD 8): All reminders, the dashboard, the calendar.
-// Everything here is limited by visibleWhere, which matches canSeeReminder
-// (src/lib/reminders.ts): a reminder you can open is one you can find.
+// Two visibility rules, each the SQL twin of one in src/lib/reminders.ts:
+// - overseeWhere = canSeeReminder: yours, all for view_all/approve, and your
+//   managed departments' (full access). Dashboard counts use this.
+// - canViewWhere = reminderAccess: that, plus shared with you or sent to you.
+//   Lists, search and the calendar use this: what you can open, you can find.
 
 type Viewer = { id: string; access: Access };
 
-export function visibleWhere(viewer: Viewer): SQL | undefined {
+export function overseeWhere(viewer: Viewer): SQL | undefined {
   if (can(viewer.access, "reminders.view_all") || can(viewer.access, "reminders.approve")) return undefined;
   return or(
     eq(reminders.createdBy, viewer.id),
     sql`exists (select 1 from department_members m join department_members c on c.department_id = m.department_id
       where m.user_id = ${viewer.id} and m.is_manager and c.user_id = ${reminders.createdBy})`,
   );
+}
+
+const sharedWithMe = (viewer: Viewer) =>
+  sql`exists (select 1 from ${reminderShares} where ${reminderShares.reminderId} = ${reminders.id} and ${sharedWithSql(viewer.id)})`;
+const sentToMe = (viewer: Viewer) =>
+  sql`exists (select 1 from deliveries d where d.reminder_id = ${reminders.id} and d.user_id = ${viewer.id})`;
+
+export function canViewWhere(viewer: Viewer): SQL | undefined {
+  const oversee = overseeWhere(viewer);
+  return oversee && or(oversee, sharedWithMe(viewer), sentToMe(viewer));
 }
 
 // --- All reminders: filters live in the URL ----------------------------------
@@ -32,6 +46,9 @@ export const SORTS = {
   title_desc: "Title, Z–A",
 } as const;
 export const PAGE_SIZE = 25;
+// all: everything you can see; oversee: yours and your teams' (what the
+// dashboard counts); mine; shared: shared with you; received: sent to you.
+export const SHOWS = ["all", "oversee", "mine", "shared", "received"] as const;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const UUIDISH = /^[\w-]{1,64}$/;
 
@@ -46,6 +63,7 @@ export type Filters = {
   to?: string;
   tag?: string;
   failed: boolean;
+  show: (typeof SHOWS)[number];
   sort: keyof typeof SORTS;
   page: number;
 };
@@ -68,6 +86,7 @@ export function parseFilters(p: Params): Filters {
     to: DATE.test(one(p.to)) ? one(p.to) : undefined,
     tag: one(p.tag).toLowerCase().slice(0, 30) || undefined,
     failed: one(p.failed) === "1",
+    show: pick(one(p.show), SHOWS) ?? "all",
     sort: pick(one(p.sort), Object.keys(SORTS) as (keyof typeof SORTS)[]) ?? "send_desc",
     page: Number.isInteger(page) && page > 0 && page < 10_000 ? page : 1,
   };
@@ -78,7 +97,7 @@ export function filterUrl(f: Partial<Filters>) {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(f)) {
     if (v === undefined || v === "" || v === false) continue;
-    if ((k === "sort" && v === "send_desc") || (k === "page" && v === 1)) continue;
+    if ((k === "sort" && v === "send_desc") || (k === "page" && v === 1) || (k === "show" && v === "all")) continue;
     p.set(k, v === true ? "1" : String(v));
   }
   const s = p.toString();
@@ -92,7 +111,11 @@ const recentFailure = sql`exists (select 1 from deliveries d where d.reminder_id
 // ponytail: ilike + offset paging is fine to a few thousand reminders per
 // company; move to pg_trgm and keyset paging if search gets slow.
 export async function searchReminders(companyId: string, viewer: Viewer, timeZone: string, f: Filters) {
-  const where: (SQL | undefined)[] = [visibleWhere(viewer)];
+  const where: (SQL | undefined)[] = [canViewWhere(viewer)];
+  if (f.show === "oversee") where.push(overseeWhere(viewer));
+  if (f.show === "mine") where.push(eq(reminders.createdBy, viewer.id));
+  if (f.show === "shared") where.push(sharedWithMe(viewer), sql`${reminders.createdBy} <> ${viewer.id}`);
+  if (f.show === "received") where.push(sentToMe(viewer));
   if (f.q) {
     const like = `%${f.q.replace(/[\\%_]/g, "\\$&")}%`;
     where.push(
@@ -171,7 +194,7 @@ export async function dashboardStats(companyId: string, viewer: Viewer, timeZone
         failed: sql<number>`count(*) filter (where ${recentFailure})::int`,
       })
       .from(reminders)
-      .where(visibleWhere(viewer)),
+      .where(overseeWhere(viewer)),
   );
   return row;
 }
@@ -181,7 +204,7 @@ export function upcoming(companyId: string, viewer: Viewer, limit = 8) {
     tx
       .select({ id: reminders.id, title: reminders.title, sendAt: reminders.sendAt, recurrence: reminders.recurrence, isTask: reminders.isTask })
       .from(reminders)
-      .where(and(eq(reminders.status, "scheduled"), visibleWhere(viewer)))
+      .where(and(eq(reminders.status, "scheduled"), overseeWhere(viewer)))
       .orderBy(asc(reminders.sendAt))
       .limit(limit),
   );
@@ -226,7 +249,7 @@ export async function calendarMonth(companyId: string, viewer: Viewer, timeZone:
           eq(reminders.status, "scheduled"),
           lt(reminders.sendAt, b.end),
           or(sql`${reminders.recurrence} is not null`, gte(reminders.sendAt, b.start)),
-          visibleWhere(viewer),
+          canViewWhere(viewer),
         ),
       )
       .orderBy(asc(reminders.sendAt))
@@ -267,7 +290,7 @@ export function visibleCreators(companyId: string, viewer: Viewer) {
       .selectDistinct({ id: user.id, name: user.name })
       .from(reminders)
       .innerJoin(user, eq(user.id, reminders.createdBy))
-      .where(visibleWhere(viewer))
+      .where(canViewWhere(viewer))
       .orderBy(user.name),
   );
 }

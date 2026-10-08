@@ -27,6 +27,7 @@ const toGroup = (groupId: string) => ({
   dueAfterMinutes: null,
   channels: ["email" as const],
   tags: [],
+  shares: [],
   targets: [{ kind: "group" as const, ref: groupId }],
 });
 

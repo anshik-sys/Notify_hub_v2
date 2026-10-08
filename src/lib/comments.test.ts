@@ -145,3 +145,17 @@ test("notifications: mentions in-app (email unless muted); the creator hears abo
   assert.deepEqual(await kinds(creator), ["comment", "mention"]);
   await setMutes(s.companyId, bob, []);
 });
+
+test("sharing lets people see and comment; mentioning them notifies", async () => {
+  const outsider = await s.user({ roles: [MEMBER_ROLE_ID] });
+  await q(`update "user" set name = $2 where id = $1`, [outsider, name(outsider)]);
+  assert.match(((await addComment(await actor(outsider), s.companyId, reminderId, { body: "hi", mentionIds: [] })) as { error: string }).error, /not found/);
+  await q("insert into reminder_shares (reminder_id, company_id, kind) values ($1, $2, 'company')", [reminderId, s.companyId]);
+  assert.ok("id" in (await addComment(await actor(outsider), s.companyId, reminderId, { body: "Now I can", mentionIds: [] }, { send })));
+  mails.length = 0;
+  const m = await addComment(await actor(alice), s.companyId, reminderId, { body: `@${name(carol)} see this`, mentionIds: [carol] }, { send });
+  assert.ok("id" in m);
+  assert.deepEqual(m.skipped, []); // carol can see it now, through the share
+  assert.deepEqual(mails, [`${carol}@${s.domain}`]);
+  await q("delete from reminder_shares where reminder_id = $1", [reminderId]);
+});

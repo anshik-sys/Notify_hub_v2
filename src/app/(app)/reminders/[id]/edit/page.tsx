@@ -54,6 +54,11 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           when: isPast(r.sendAt) ? "now" : "later",
           sendAtLocal: isPast(r.sendAt) ? "" : toLocalInput(r.sendAt, r.timeZone),
           tags: r.tags.join(", "),
+          // Saved shares are explicit department ids ("my departments" was expanded at save).
+          shareMine: false,
+          shareDepartmentIds: r.shares.filter((x) => x.kind === "department").map((x) => x.ref!),
+          shareGroupIds: r.shares.filter((x) => x.kind === "group").map((x) => x.ref!),
+          shareCompany: r.shares.some((x) => x.kind === "company"),
           repeat: fieldsFromRule(r.recurrence, r.anchorLocal),
           isTask: r.isTask,
           channels: r.channels,

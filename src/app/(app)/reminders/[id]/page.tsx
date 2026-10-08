@@ -199,6 +199,17 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
         </Section>
       )}
 
+      {seeAs === "full" && (
+        <Section title="Who can see it">
+          <Hint>
+            {r.shareLabels.length
+              ? `Shared with ${r.shareLabels.join(", ")}, as well as`
+              : "Private:"}{" "}
+            the creator, their managers, admins and everyone it’s sent to.
+          </Hint>
+        </Section>
+      )}
+
       {log?.latest && log.rows.length > 0 && (
         <Section title={r.recurrence ? `Latest: ${formatInZone(log.latest.occursAt, tz)}` : "Delivery"}>
           <Hint>

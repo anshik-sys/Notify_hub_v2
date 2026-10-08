@@ -32,6 +32,18 @@ export default async function Reminders(props: PageProps<"/reminders">) {
       <FilterBar action="/reminders" clearHref={filtered ? "/reminders" : undefined}>
         <Field label="Search" name="q" type="search" placeholder="Title, description, recipient, ID or tag" defaultValue={f.q} />
         <SelectField
+          label="Show"
+          name="show"
+          defaultValue={f.show}
+          options={[
+            { value: "all", label: "All I can see" },
+            { value: "oversee", label: "Mine and my teams’" },
+            { value: "mine", label: "Created by me" },
+            { value: "shared", label: "Shared with me" },
+            { value: "received", label: "Sent to me" },
+          ]}
+        />
+        <SelectField
           label="Status"
           name="status"
           defaultValue={f.status ?? ""}
@@ -85,7 +97,7 @@ export default async function Reminders(props: PageProps<"/reminders">) {
       {f.failed && <p className={styles.note}>Showing reminders with a failed delivery in the last 30 days.</p>}
 
       <Table
-        columns={["Title", "Status", "When", "Type", "Tags", "ID"]}
+        columns={["Title", "Status", "When", "Type", ...(f.show === "mine" ? [] : ["Creator"]), "Tags", "ID"]}
         empty={filtered ? "Nothing matches these filters." : "No reminders yet."}
         rows={rows.map((r) => {
           const delayed = isDelayed(r);
@@ -106,6 +118,7 @@ export default async function Reminders(props: PageProps<"/reminders">) {
                 formatInZone(r.sendAt, r.timeZone)
               ),
               r.isTask ? "Task" : "Reminder",
+              ...(f.show === "mine" ? [] : [<Muted key="c">{r.creatorName}</Muted>]),
               <span key="t" className={styles.tags}>
                 {r.tags.map((t) => (
                   <Badge key={t}>{t}</Badge>

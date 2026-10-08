@@ -2,6 +2,43 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — visibility sharing (PRD 5.4)
+
+- **Decided with the user:**
+  - Reminders, search and the calendar show everything you can see, with a
+    "Show" filter: All I can see / Mine and my teams' / Created by me /
+    Shared with me / Sent to me.
+  - Dashboard numbers stay about what you created or oversee.
+- **What's in place:**
+  - **The reminder form** has "Who can see it": my departments, departments,
+    groups, everyone in the company.
+  - **The reminder page** (for owners) says who it's shared with, or that
+    it's private.
+  - **Shared viewers** can open it, download attachments, comment and be
+    mentioned. They don't see the delivery log, recipients or owner actions.
+- **Two levels, two SQL twins.** `reminderAccess` gained "viewer" (sent to
+  you **or** shared with you; it used to be "recipient"), and lists use the
+  matching `canViewWhere`. The dashboard keeps the narrower `overseeWhere`
+  (was `visibleWhere`). Its card links now carry `show=oversee`, so each
+  number still matches the list it opens.
+- **Sharing never needs approval.** It doesn't send anything to anyone.
+- **"My departments" is saved as explicit department ids,** so what's shared
+  doesn't silently change when the creator moves departments.
+- **Verified against `next start` + worker:**
+  - shared with Sales → carol (Sales) opens it, sees no delivery log or edit
+    button, and her comment is saved; bob (Eng) and dave get 404;
+  - edited to the "Night shift" group → carol 404, dave 200; the edit form
+    pre-fills the ticks;
+  - edited to everyone → bob 200, and it stays Scheduled (no approval);
+    bob's "Shared with me" lists it, "Created by me" doesn't; it's on his
+    calendar;
+  - a reminder alice sent to bob (out of scope → approved by the admin) → in
+    bob's "Sent to me", and he can open it; his dashboard numbers stay 0.
+
+  105 tests pass (sharing in reminders, views and comments, plus RLS).
+- **Not in this step:** sharing with individual people, notifications when
+  something is shared with you.
+
 ## 2026-10-08 — settings: profile, password reset, 2FA, sessions (PRD 3, 8, 9.1)
 
 - **Decided with the user:** the full scope (profile, password change and

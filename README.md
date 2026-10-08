@@ -320,11 +320,19 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   which runs alongside the page, so marking read inside the reminder page
   would leave the count stale for that load. The list uses a plain `<a>` (no
   prefetch), so only a real click marks it read.
-- **One visibility rule for every list** (PRD 8): `visibleWhere`
-  (`src/lib/views.ts`) is the SQL form of `canSeeReminder`: your own, all for
-  `view_all`/`approve`, plus reminders by people in a department you manage.
-  The list, dashboard stats, upcoming and the calendar all use it, so anything
-  you can open you can also find. Change both together.
+- **Two visibility levels, each with an SQL twin for lists** (PRD 5.4, 8):
+  - **full** (`canSeeReminder` / `overseeWhere`): the creator, everyone with
+    `view_all`/`approve`, and managers of the creator's departments. They see
+    the delivery log and owner actions. Dashboard counts use this.
+  - **viewer** (`reminderAccess` = "viewer" / `canViewWhere`): also anyone it
+    was sent to, or shared with (the whole company, a department or a group
+    they're in). They can read, download attachments and comment. Lists,
+    search and the calendar use this, so anything you can open you can find.
+  - Change a function and its twin together (`src/lib/reminders.ts`,
+    `src/lib/views.ts`).
+- **Sharing never needs approval:** it's about who sees, not who receives.
+  "My departments" is expanded to department ids when saved, so the saved
+  list is explicit.
 - **List filters live in the URL** (a GET form, no client JS): every view is
   deep-linkable and the back button works. `parseFilters` drops anything
   unknown instead of erroring. Search is `ilike` with `%`/`_` escaped, and

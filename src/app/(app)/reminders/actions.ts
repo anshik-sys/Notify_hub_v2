@@ -31,7 +31,8 @@ export async function saveReminder(fd: FormData) {
   if (id && !isUuid(id)) notFound();
   const departmentIds = all(fd, "departments");
   const groupIds = all(fd, "groups");
-  if (!departmentIds.every(isUuid) || !groupIds.every(isUuid)) notFound();
+  const [shareDepartmentIds, shareGroupIds] = [all(fd, "shareDepartments"), all(fd, "shareGroups")];
+  if (![...departmentIds, ...groupIds, ...shareDepartmentIds, ...shareGroupIds].every(isUuid)) notFound();
   const back = id ? `/reminders/${id}/edit` : "/reminders/new";
 
   const parsed = validateInput(
@@ -51,6 +52,10 @@ export async function saveReminder(fd: FormData) {
       channels: all(fd, "channels"),
       slackChannelIds: all(fd, "slackChannels"),
       tags: str(fd, "tags"),
+      shareMine: fd.get("shareMine") === "on",
+      shareDepartmentIds,
+      shareGroupIds,
+      shareCompany: fd.get("shareCompany") === "on",
       isTask: fd.get("isTask") === "on",
       dueLocal: str(fd, "due"),
       repeat: {

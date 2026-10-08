@@ -27,6 +27,10 @@ export type ReminderDefaults = {
   channels: string[];
   slackChannelIds: string[];
   tags: string;
+  shareMine: boolean;
+  shareDepartmentIds: string[];
+  shareGroupIds: string[];
+  shareCompany: boolean;
 };
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -274,6 +278,28 @@ export function ReminderForm({
           rows={3}
           defaultValue={defaults.emails}
         />
+      </Section>
+
+      <Section title="Who can see it">
+        <Hint>Always: you, your managers, admins and everyone it’s sent to. Share it to let others see it too (not receive it).</Hint>
+        {mine.length > 0 && (
+          <Checkbox label={`My departments (${mine.map((d) => d.name).join(", ")})`} name="shareMine" defaultChecked={defaults.shareMine} />
+        )}
+        {departments.length > 0 && (
+          <CheckboxGroup
+            legend="Departments"
+            name="shareDepartments"
+            options={departments.map((d) => ({ value: d.id, label: d.name, checked: defaults.shareDepartmentIds.includes(d.id) }))}
+          />
+        )}
+        {groups.length > 0 && (
+          <CheckboxGroup
+            legend="Groups"
+            name="shareGroups"
+            options={groups.map((g) => ({ value: g.id, label: g.name, checked: defaults.shareGroupIds.includes(g.id) }))}
+          />
+        )}
+        <Checkbox label="Everyone in the company" name="shareCompany" defaultChecked={defaults.shareCompany} />
       </Section>
 
       <Section title="When">

@@ -34,11 +34,11 @@ export default async function Home() {
       {stats && (
         <StatCards
           items={[
-            { label: "Needs approval", value: stats.pending, href: filterUrl({ status: "pending_approval" }) },
-            { label: "Active", value: stats.active, href: filterUrl({ status: "scheduled", sort: "send_asc" }) },
-            { label: "Due in 7 days", value: stats.dueSoon, href: filterUrl({ status: "scheduled", to: dueByDate(tz), sort: "send_asc" }) },
-            { label: "Completed", value: stats.completed, href: filterUrl({ status: "sent" }) },
-            { label: "Failed (30 days)", value: stats.failed, href: filterUrl({ failed: true }), tone: "danger" },
+            { label: "Needs approval", value: stats.pending, href: filterUrl({ show: "oversee", status: "pending_approval" }) },
+            { label: "Active", value: stats.active, href: filterUrl({ show: "oversee", status: "scheduled", sort: "send_asc" }) },
+            { label: "Due in 7 days", value: stats.dueSoon, href: filterUrl({ show: "oversee", status: "scheduled", to: dueByDate(tz), sort: "send_asc" }) },
+            { label: "Completed", value: stats.completed, href: filterUrl({ show: "oversee", status: "sent" }) },
+            { label: "Failed (30 days)", value: stats.failed, href: filterUrl({ show: "oversee", failed: true }), tone: "danger" },
           ]}
         />
       )}

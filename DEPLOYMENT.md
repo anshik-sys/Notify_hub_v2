@@ -38,6 +38,9 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0023: `reminder_shares` (who else can see a reminder) and an index on
+`deliveries.user_id` (for "Sent to me" in lists).
+
 Migration 0022: `two_factor` (2FA secrets, encrypted by Better Auth; **granted to
 `notifyhub_auth` only, revoked from `notifyhub_app`**), `user.two_factor_enabled`,
 `user.time_zone`, `companies.require_two_factor`. New dependency: `qrcode`.
@@ -197,6 +200,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Forgot password → the email arrives → the link resets the password, and works only once; other sessions are signed out.
 - [ ] Company → Require two-factor: refused until you have it yourself; then someone without it is sent to set it up.
 - [ ] `select has_table_privilege('notifyhub_app', 'two_factor', 'select')` is `f`.
+- [ ] Share a reminder with another department: its members can open it and comment, but see no delivery log; others get "not found". Reminders → Show "Shared with me" lists it for them.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { aliasedTable, and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { attachments, deliveries, departmentMembers, departments, groupMembers, groups, reminderOccurrences, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
+import { attachments, deliveries, departmentMembers, departments, groupMembers, groups, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
 import { addNotifications, mutedFor } from "./notifications";
@@ -27,7 +27,10 @@ export type ReminderInput = {
   channels: ("email" | "slack")[];
   tags: string[];
   targets: Target[];
+  // PRD 5.4: who else may see it. "mine" = the creator's departments, expanded at save.
+  shares: Share[];
 };
+export type Share = { kind: "mine" | "department" | "group" | "company"; ref: string | null };
 type Actor = { id: string; access: Access };
 
 class Refused extends Error {}
@@ -55,6 +58,10 @@ export type RawReminder = {
   channels: string[]; // "email" | "slack"
   slackChannelIds: string[];
   tags: string; // comma separated
+  shareMine: boolean;
+  shareDepartmentIds: string[];
+  shareGroupIds: string[];
+  shareCompany: boolean;
 };
 
 // slack: the company's public channels when Slack is connected, else null.
@@ -150,8 +157,17 @@ export function validateInput(
   }
   const tags = parseTags(raw.tags);
   if ("error" in tags) return tags;
+  // The whole company covers every narrower share.
+  const shares: Share[] = raw.shareCompany
+    ? [{ kind: "company", ref: null }]
+    : [
+        ...(raw.shareMine ? [{ kind: "mine" as const, ref: null }] : []),
+        ...[...new Set(raw.shareDepartmentIds)].map((ref) => ({ kind: "department" as const, ref })),
+        ...[...new Set(raw.shareGroupIds)].map((ref) => ({ kind: "group" as const, ref })),
+      ];
   return {
     input: {
+      shares,
       tags: tags.tags,
       title,
       description,
@@ -272,6 +288,27 @@ async function notifyApprovers(emails: string[], title: string, id: string) {
     }).catch((e) => console.error("approval email failed", e));
 }
 
+// Replaces the reminder's shares. "mine" becomes the creator's current
+// departments, so the saved list is explicit; unknown ids are dropped.
+async function saveShares(tx: Tx, companyId: string, reminderId: string, creator: string, shares: Share[]) {
+  await tx.delete(reminderShares).where(eq(reminderShares.reminderId, reminderId));
+  const rows: { kind: "department" | "group" | "company"; ref: string | null }[] = [];
+  if (shares.some((x) => x.kind === "company")) rows.push({ kind: "company", ref: null });
+  else {
+    const wanted = new Set(shares.filter((x) => x.kind === "department").map((x) => x.ref!));
+    if (shares.some((x) => x.kind === "mine")) {
+      const mine = await tx.select({ id: departmentMembers.departmentId }).from(departmentMembers).where(eq(departmentMembers.userId, creator));
+      mine.forEach((d) => wanted.add(d.id));
+    }
+    const isId = (x: string) => /^[0-9a-f-]{36}$/i.test(x);
+    const depts = [...wanted].filter(isId);
+    const grps = shares.filter((x) => x.kind === "group").map((x) => x.ref!).filter(isId);
+    if (depts.length) rows.push(...(await tx.select({ id: departments.id }).from(departments).where(inArray(departments.id, depts))).map((d) => ({ kind: "department" as const, ref: d.id })));
+    if (grps.length) rows.push(...(await tx.select({ id: groups.id }).from(groups).where(inArray(groups.id, grps))).map((g) => ({ kind: "group" as const, ref: g.id })));
+  }
+  if (rows.length) await tx.insert(reminderShares).values(rows.map((r) => ({ ...r, reminderId, companyId })));
+}
+
 async function checked(tx: Tx, companyId: string, actor: Actor, input: ReminderInput) {
   const resolved = await resolveRecipients(tx, companyId, input.targets);
   if (resolved.users.length + resolved.external.length === 0)
@@ -341,7 +378,7 @@ export async function createReminder(actor: Actor, companyId: string, input: Rem
     withTenant(companyId, async (tx) => {
       const out = await checked(tx, companyId, actor, input);
       const status: ReminderStatus = out.length ? "pending_approval" : "scheduled";
-      const { targets, ...fields } = input;
+      const { targets, shares, ...fields } = input;
       let id = "";
       for (let attempt = 0; !id; attempt++) {
         const [row] = await tx
@@ -353,6 +390,7 @@ export async function createReminder(actor: Actor, companyId: string, input: Rem
         else if (attempt > 3) throw new Error("could not allocate a short id");
       }
       await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
+      await saveShares(tx, companyId, id, actor.id, shares);
       await saveAttachments(tx, companyId, id, actor.id, files, []);
       await notifyIfDue(tx, status, input.sendAt);
       return { id, approvers: status === "pending_approval" ? await approverEmails(tx, companyId, id) : [] };
@@ -404,7 +442,7 @@ export async function updateReminder(
         const next = firstAtOrAfter(input.recurrence, current.anchorLocal, current.timeZone, current.sendAt);
         if (next) input = { ...input, anchorLocal: current.anchorLocal, timeZone: current.timeZone, sendAt: next };
       }
-      const { targets, ...fields } = input;
+      const { targets, shares, ...fields } = input;
       await tx
         .update(reminders)
         .set({
@@ -416,6 +454,7 @@ export async function updateReminder(
         .where(eq(reminders.id, id));
       await tx.delete(reminderTargets).where(eq(reminderTargets.reminderId, id));
       await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
+      await saveShares(tx, companyId, id, actor.id, shares);
       await saveAttachments(tx, companyId, id, actor.id, files, removeAttachmentIds);
       await notifyIfDue(tx, status, input.sendAt);
       return { approvers: status === "pending_approval" ? await approverEmails(tx, companyId, id) : [] };
@@ -524,7 +563,7 @@ export async function reminderAccess(
   companyId: string,
   viewer: Actor & { email: string },
   r: { id: string; createdBy: string },
-): Promise<"full" | "recipient" | null> {
+): Promise<"full" | "viewer" | null> {
   if (await canSeeReminder(companyId, viewer, r.createdBy)) return "full";
   const [got] = await withTenant(companyId, (tx) =>
     tx
@@ -542,8 +581,27 @@ export async function reminderAccess(
       )
       .limit(1),
   );
-  return got ? "recipient" : null;
+  if (got) return "viewer";
+  return (await sharedWith(companyId, viewer.id, r.id)) ? "viewer" : null;
 }
+
+// Shared with the whole company, a department I'm in, or a group I'm in.
+// The SQL twin for lists is in src/lib/views.ts (canViewWhere).
+async function sharedWith(companyId: string, userId: string, reminderId: string) {
+  const [row] = await withTenant(companyId, (tx) =>
+    tx
+      .select({ one: sql`1` })
+      .from(reminderShares)
+      .where(and(eq(reminderShares.reminderId, reminderId), sharedWithSql(userId)))
+      .limit(1),
+  );
+  return Boolean(row);
+}
+
+export const sharedWithSql = (userId: string) =>
+  sql`(${reminderShares.kind} = 'company'
+    or (${reminderShares.kind} = 'department' and ${reminderShares.ref} in (select department_id::text from department_members where user_id = ${userId}))
+    or (${reminderShares.kind} = 'group' and ${reminderShares.ref} in (select group_id::text from group_members where user_id = ${userId})))`;
 
 export async function canSeeReminder(companyId: string, viewer: Actor, createdBy: string) {
   // Approvers must be able to open what they're asked to review.
@@ -603,7 +661,30 @@ export async function getReminder(companyId: string, id: string) {
       const creator = { id: r.reminder.createdBy, access: await loadAccess(companyId, r.reminder.createdBy) };
       outOfScopeList = await outOfScope(tx, companyId, creator, targets, await resolveRecipients(tx, companyId, targets));
     }
-    return { ...r.reminder, creatorName: r.creatorName, creatorEmail: r.creatorEmail, targets, targetLabels: targets.map(label), outOfScope: outOfScopeList };
+    const shares = await tx.select({ kind: reminderShares.kind, ref: reminderShares.ref }).from(reminderShares).where(eq(reminderShares.reminderId, id));
+    const shareDepts = shares.filter((x) => x.kind === "department").map((x) => x.ref!);
+    const shareGroups = shares.filter((x) => x.kind === "group").map((x) => x.ref!);
+    const [sd, sg] = await Promise.all([
+      shareDepts.length ? tx.select({ id: departments.id, name: departments.name }).from(departments).where(inArray(departments.id, shareDepts)) : [],
+      shareGroups.length ? tx.select({ id: groups.id, name: groups.name }).from(groups).where(inArray(groups.id, shareGroups)) : [],
+    ]);
+    const shareLabels = shares.map((x) =>
+      x.kind === "company"
+        ? "Everyone in the company"
+        : x.kind === "department"
+          ? `${sd.find((d) => d.id === x.ref)?.name ?? "Deleted"} (department)`
+          : `${sg.find((g) => g.id === x.ref)?.name ?? "Deleted"} (group)`,
+    );
+    return {
+      ...r.reminder,
+      creatorName: r.creatorName,
+      creatorEmail: r.creatorEmail,
+      targets,
+      targetLabels: targets.map(label),
+      outOfScope: outOfScopeList,
+      shares,
+      shareLabels,
+    };
   });
 }
 
