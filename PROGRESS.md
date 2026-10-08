@@ -12,6 +12,8 @@ Outside feedback on the second design. All five points taken:
   idea as the theme). Labels are visually hidden, not `display: none`: the
   first version did that and axe found 12 nameless links and buttons.
   Desktop only; below 768px the sidebar is already a row.
+  The button first sat at the bottom of the nav; it moved to the right edge
+  of the logo area at the user's request (where Slack and Linear put it).
 - **No grey panel:** cards sit on the white frame with a hairline
   `--card-border` and a soft `--shadow-card`. To avoid cards inside cards,
   `Section` and `Form` carry `data-card`, and List / Table / filter bar drop

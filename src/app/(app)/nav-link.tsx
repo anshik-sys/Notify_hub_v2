@@ -43,9 +43,16 @@ export function SidebarToggle({ collapsed: initial }: { collapsed: boolean }) {
   }
   const label = collapsed ? "Expand sidebar" : "Collapse sidebar";
   return (
-    <button type="button" onClick={toggle} className={styles.navItem} aria-expanded={!collapsed} aria-controls="sidebar" data-label={label}>
+    <button
+      type="button"
+      onClick={toggle}
+      className={styles.collapse}
+      aria-expanded={!collapsed}
+      aria-controls="sidebar"
+      aria-label={label}
+      title={label}
+    >
       <Icon name="sidebar" />
-      <span className={styles.label}>{label}</span>
     </button>
   );
 }

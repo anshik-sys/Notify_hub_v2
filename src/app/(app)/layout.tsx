@@ -43,15 +43,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </a>
       <div id="frame" className={styles.frame} data-collapsed={collapsed || undefined}>
         <header className={styles.topbar}>
-          <Link href="/" className={styles.brand}>
-            <span className={styles.logo} aria-hidden="true">
-              N
-            </span>
-            <span className={styles.brandText}>
-              <span className={styles.company}>{company.name}</span>
-              <span className={styles.product}>NotifyHub</span>
-            </span>
-          </Link>
+          <div className={styles.brandArea}>
+            <Link href="/" className={styles.brand}>
+              <span className={styles.logo} aria-hidden="true">
+                N
+              </span>
+              <span className={styles.brandText}>
+                <span className={styles.company}>{company.name}</span>
+                <span className={styles.product}>NotifyHub</span>
+              </span>
+            </Link>
+            <SidebarToggle collapsed={collapsed} />
+          </div>
 
           {seesReminders && (
             <form action="/reminders" role="search" className={styles.search}>
@@ -134,8 +137,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               </NavLink>
             )}
           </nav>
-
-          <SidebarToggle collapsed={collapsed} />
 
           <button popoverTarget="account-menu" className={styles.user} data-label={user.name}>
             <Avatar name={user.name} size="large" />

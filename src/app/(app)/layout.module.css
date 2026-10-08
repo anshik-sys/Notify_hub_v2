@@ -50,8 +50,13 @@
     grid-template-columns: 52px 1fr;
   }
 
+  /* Just the logo and the expand button. */
+  .frame[data-collapsed] .brandArea {
+    width: auto;
+  }
+
   .frame[data-collapsed] .brand {
-    width: 52px;
+    flex: none;
   }
 
   .frame[data-collapsed] .chevron {
@@ -127,12 +132,21 @@
   padding: 4px 0 16px;
 }
 
-.brand {
+/* Logo and company, with the collapse button at the right edge. */
+.brandArea {
   display: flex;
   flex-shrink: 0;
   align-items: center;
+  gap: 8px;
+  width: 216px; /* lines the search up with the page */
+}
+
+.brand {
+  display: flex;
+  flex: 1;
+  align-items: center;
   gap: 12px;
-  width: 216px; /* lines the search up with the page panel */
+  min-width: 0;
   color: inherit;
   text-decoration: none;
 }
@@ -241,6 +255,38 @@
   outline-offset: 2px;
 }
 
+.collapse {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background-color var(--duration) var(--ease-out),
+    color var(--duration) var(--ease-out),
+    transform var(--duration) var(--ease-out);
+}
+
+.collapse:hover {
+  background: var(--panel);
+  color: var(--fg);
+}
+
+.collapse:active {
+  transform: scale(0.94);
+}
+
+.collapse:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
 /* Unread count on the bell, top right. */
 .badge {
   position: absolute;
@@ -318,12 +364,6 @@
 
 .navItem {
   transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out);
-  width: 100%;
-  border: 0;
-  background: none;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -505,7 +545,7 @@
 }
 
 @media (max-width: 1100px) {
-  .brand {
+  .brandArea {
     width: auto;
   }
 }
@@ -541,8 +581,13 @@
   /* The theme stays in Settings > Appearance. */
   .brandText,
   .inviteLabel,
-  .tools > form {
+  .tools > form,
+  .collapse {
     display: none;
+  }
+
+  .brandArea {
+    width: auto;
   }
 
   .invite {
