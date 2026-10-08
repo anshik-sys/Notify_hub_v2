@@ -2,9 +2,20 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-card);
   background: var(--bg);
+  box-shadow: var(--shadow-card);
 }
+
+/* Inside a card (Section, Form) it drops its own card look. */
+[data-card] .list {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
 
 /* Divider inset from the edges, like the reference tables. */
 .item + .item {

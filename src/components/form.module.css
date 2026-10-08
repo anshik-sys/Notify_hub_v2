@@ -7,7 +7,7 @@
   flex-direction: column;
   gap: 24px;
   width: 100%;
-  max-width: 1120px;
+  max-width: 1280px;
 }
 
 /* Sign-in style screens, outside the app shell: a card centred on the canvas. */
@@ -102,8 +102,10 @@
   flex-direction: column;
   gap: 12px;
   padding: 20px 24px 24px;
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-card);
   background: var(--bg);
+  box-shadow: var(--shadow-card);
 }
 
 .sectionTitle {
@@ -126,14 +128,18 @@
    groups so cards don't nest. Inside the sign-in card it stays plain. */
 .page:not(.center) > .form {
   padding: 24px;
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-card);
   background: var(--bg);
+  box-shadow: var(--shadow-card);
 }
 
 .form .section {
   padding: 0;
+  border: 0;
   border-radius: 0;
   background: none;
+  box-shadow: none;
 }
 
 /* Fields fill the form's width; buttons size to their label. */
@@ -279,4 +285,84 @@
   min-height: 120px;
   resize: vertical;
   line-height: 1.4;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  align-items: start;
+  gap: 24px;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 8px 10px 8px 16px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: var(--shadow-card);
+  color: var(--fg);
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: box-shadow var(--duration) var(--ease-out);
+}
+
+.banner:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.banner:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.bannerTitle {
+  font-weight: 600;
+}
+
+.bannerTrack {
+  display: inline-block;
+  width: 80px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.bannerFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--success-fg);
+}
+
+.bannerCount {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.bannerAction {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  font-weight: 600;
 }

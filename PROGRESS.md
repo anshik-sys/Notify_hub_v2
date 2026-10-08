@@ -2,6 +2,37 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — design feedback round: flatter frame, toned stats, two-column home
+
+Outside feedback on the second design. All five points taken:
+
+- **Collapsible sidebar:** a "Collapse sidebar" button turns it into a 52px
+  icon rail with tooltips. The choice is kept in a `sidebar` cookie that the
+  shell reads on the server, so pages load already collapsed (no flash; same
+  idea as the theme). Labels are visually hidden, not `display: none`: the
+  first version did that and axe found 12 nameless links and buttons.
+  Desktop only; below 768px the sidebar is already a row.
+- **No grey panel:** cards sit on the white frame with a hairline
+  `--card-border` and a soft `--shadow-card`. To avoid cards inside cards,
+  `Section` and `Form` carry `data-card`, and List / Table / filter bar drop
+  their card look inside one. That's the only way to target across CSS
+  Modules without per-page CSS.
+- **Toned stat cards:** new `--warning-*` and `--info-*` tokens (all ≥5.7:1).
+  `StatCards` takes `tone` (danger, warning, info, success) and an `icon`.
+  Danger and warning only tint above 0, so a quiet dashboard stays calm.
+  Reports and the platform console still pass `tone: "danger"` unchanged.
+- **Two-column Home** via a new kit `Columns` (3:2, stacks below 1100px):
+  tasks and upcoming on the left; approvals, activity and departments on the
+  right. The "Your groups, roles… are in Settings" hint went; those live in
+  the account menu now.
+- **Compact setup nudge:** new kit `Banner`, one pill-shaped line with a
+  progress bar, replacing the full-width list row.
+- Page max width went from 1120 to 1280 so the collapsed rail's freed space
+  gets used.
+- **Verified:** axe 0 issues on 18 pages in both themes and on the collapsed
+  rail; no sideways scroll at 320/390/1024/1440; collapse survives a reload.
+  **Not checked:** Safari's `grid-template-columns` transition, VoiceOver.
+
 ## 2026-10-08 — dev setup for testing against a real slack app
 
 - A real Slack app needs an https redirect and a public interactivity URL,

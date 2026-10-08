@@ -53,15 +53,43 @@ export function Page({
 
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className={styles.section}>
+    <section className={styles.section} data-card>
       <h2 className={styles.sectionTitle}>{title}</h2>
       {children}
     </section>
   );
 }
 
+// Two columns for dashboards: the main one wider. Stacks on narrower windows.
+export function Columns({ main, side }: { main: React.ReactNode; side: React.ReactNode }) {
+  return (
+    <div className={styles.columns}>
+      <div className={styles.column}>{main}</div>
+      <div className={styles.column}>{side}</div>
+    </div>
+  );
+}
+
+// A slim nudge with progress (e.g. setup): one line, so it never dominates a page.
+export function Banner({ href, title, done, total, action }: { href: string; title: string; done: number; total: number; action: string }) {
+  return (
+    <Link href={href} className={styles.banner}>
+      <span className={styles.bannerTitle}>{title}</span>
+      <span className={styles.bannerTrack} role="img" aria-label={`${done} of ${total} done`}>
+        <span className={styles.bannerFill} style={{ width: `${Math.round((done / total) * 100)}%` }} />
+      </span>
+      <span className={styles.bannerCount} aria-hidden="true">
+        {done}/{total}
+      </span>
+      <span className={styles.bannerAction}>
+        {action} <span aria-hidden="true">→</span>
+      </span>
+    </Link>
+  );
+}
+
 export function Form(props: React.FormHTMLAttributes<HTMLFormElement>) {
-  return <form className={styles.form} {...props} />;
+  return <form className={styles.form} data-card {...props} />;
 }
 
 export function Field({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {

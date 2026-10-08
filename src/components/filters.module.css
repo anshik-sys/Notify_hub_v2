@@ -5,8 +5,10 @@
   align-items: end;
   margin-bottom: 20px;
   padding: 16px 20px;
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-card);
   background: var(--bg);
+  box-shadow: var(--shadow-card);
 }
 
 /* The search box takes a whole row's start. */

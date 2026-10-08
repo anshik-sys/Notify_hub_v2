@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
@@ -7,7 +8,7 @@ import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { signOutAction } from "./settings/account-actions";
 import styles from "./layout.module.css";
-import { ClosePopoverOnNavigate, NavLink } from "./nav-link";
+import { ClosePopoverOnNavigate, NavLink, SidebarToggle } from "./nav-link";
 
 // Signed-in app shell, desktop-first: a rounded frame on a soft canvas with a
 // top bar (company, search, theme, notifications, invite), a left sidebar of
@@ -22,6 +23,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { user, companyId, company, access } = await requireMember(true);
   // Fresh on every navigation; no polling (add it if people ask).
   const unread = await unreadCount(companyId, user.id);
+  // Set by SidebarToggle (nav-link.tsx); read here so the first paint is right.
+  const collapsed = (await cookies()).get("sidebar")?.value === "collapsed";
   const seesReminders = can(access, "reminders.create") || can(access, "reminders.view_all");
   // Company-wide setup, used now and then: in the account menu, not the sidebar.
   const companyLinks = (
@@ -38,7 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <a href="#main" className={styles.skip}>
         Skip to content
       </a>
-      <div className={styles.frame}>
+      <div id="frame" className={styles.frame} data-collapsed={collapsed || undefined}>
         <header className={styles.topbar}>
           <Link href="/" className={styles.brand}>
             <span className={styles.logo} aria-hidden="true">
@@ -84,7 +87,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        <aside className={styles.sidebar}>
+        <aside id="sidebar" className={styles.sidebar}>
           <nav className={styles.nav} aria-label="Main">
             <p className={styles.navLabel}>Menu</p>
             <NavLink href="/" icon="home">
@@ -132,7 +135,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             )}
           </nav>
 
-          <button popoverTarget="account-menu" className={styles.user}>
+          <SidebarToggle collapsed={collapsed} />
+
+          <button popoverTarget="account-menu" className={styles.user} data-label={user.name}>
             <Avatar name={user.name} size="large" />
             <span className={styles.userText}>
               <span className={styles.userName}>{user.name}</span>

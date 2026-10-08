@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Hint, Page, Section } from "@/components/form";
+import { Banner, Columns, Hint, Page, Section } from "@/components/form";
 import { List, ListRow } from "@/components/list";
 import { StatCards } from "@/components/stats";
 import { listNotifications } from "@/lib/notifications";
@@ -31,115 +30,132 @@ export default async function Home() {
     can(access, "company.edit") ? setupStatus(companyId, user.id) : null,
   ]);
 
+  const tasksSection = tasks.length > 0 && (
+    <Section title="Your open tasks">
+      <List>
+        {tasks.slice(0, TASKS_SHOWN).map((t) => (
+          <ListRow
+            key={t.assignmentId}
+            href={`/reminders/${t.reminderId}`}
+            title={t.title}
+            badge={isOverdue(t.dueAt) ? "Overdue" : undefined}
+            meta={t.dueAt ? `Due ${formatInZone(t.dueAt, t.timeZone)}` : undefined}
+          />
+        ))}
+        {tasks.length > TASKS_SHOWN && <ListRow href="/tasks" title="See all tasks" />}
+      </List>
+    </Section>
+  );
+
+  const upcomingSection = seesReminders && (
+    <Section title="Upcoming">
+      {next.length ? (
+        <List>
+          {next.map((r) => (
+            <ListRow
+              key={r.id}
+              href={`/reminders/${r.id}`}
+              title={r.title}
+              badge={r.isTask ? "Task" : undefined}
+              meta={`${formatInZone(r.sendAt, tz)}${r.recurrence ? " · repeats" : ""}`}
+            />
+          ))}
+          <ListRow href="/calendar" title="Open the calendar" />
+        </List>
+      ) : (
+        <Hint>Nothing scheduled.</Hint>
+      )}
+    </Section>
+  );
+
+  const approvalsSection = pending.length > 0 && (
+    <Section title={`Approvals waiting (${pending.length})`}>
+      <List>
+        {pending.slice(0, 5).map((p) => (
+          <ListRow key={p.id} href={`/reminders/${p.id}`} title={p.title} meta={`From ${p.creatorName}`} />
+        ))}
+        {pending.length > 5 && <ListRow href="/approvals" title="See all approvals" />}
+      </List>
+    </Section>
+  );
+
+  const activitySection = (
+    <Section title="Recent activity">
+      {activity.length ? (
+        <List>
+          {activity.map((n) => (
+            <ListRow
+              key={n.id}
+              href={`/notifications/${n.id}`}
+              plain
+              title={n.text}
+              badge={n.readAt ? undefined : "New"}
+              meta={`${n.reminderTitle ?? "Deleted reminder"} · ${formatInZone(n.createdAt, tz)}`}
+            />
+          ))}
+        </List>
+      ) : (
+        <Hint>Nothing yet.</Hint>
+      )}
+    </Section>
+  );
+
+  const departmentsSection = (
+    <Section title="Your departments">
+      {me && me.departments.length > 0 ? (
+        <List>
+          {me.departments.map((d) => (
+            <ListRow
+              key={d.id}
+              href={`/departments/${d.id}`}
+              title={d.name}
+              badge={d.isManager ? "Manager" : undefined}
+              meta={d.isManager ? "You manage this department" : "Member"}
+            />
+          ))}
+        </List>
+      ) : (
+        <Hint>You’re not in a department yet. An admin or department manager can add you.</Hint>
+      )}
+    </Section>
+  );
+
+  // Two columns: your work on the left (tasks, what's coming), things that
+  // need a look on the right (approvals, activity, departments).
   return (
     <Page title={`Hi, ${user.name.split(" ")[0]}`}>
       {setup && !setup.complete && !setup.dismissed && (
-        <List>
-          <ListRow href="/setup" title={`Finish setting up (${setup.done} of 3 done)`} meta="Departments, people and managers" />
-        </List>
+        <Banner href="/setup" title="Finish setting up" done={setup.done} total={3} action="Continue" />
       )}
 
       {stats && (
         <StatCards
           items={[
-            { label: "Needs approval", value: stats.pending, href: filterUrl({ show: "oversee", status: "pending_approval" }) },
-            { label: "Active", value: stats.active, href: filterUrl({ show: "oversee", status: "scheduled", sort: "send_asc" }) },
-            { label: "Due in 7 days", value: stats.dueSoon, href: filterUrl({ show: "oversee", status: "scheduled", to: dueByDate(tz), sort: "send_asc" }) },
-            { label: "Completed", value: stats.completed, href: filterUrl({ show: "oversee", status: "sent" }) },
-            { label: "Failed (30 days)", value: stats.failed, href: filterUrl({ show: "oversee", failed: true }), tone: "danger" },
+            { label: "Needs approval", value: stats.pending, href: filterUrl({ show: "oversee", status: "pending_approval" }), tone: "warning", icon: "approvals" },
+            { label: "Active", value: stats.active, href: filterUrl({ show: "oversee", status: "scheduled", sort: "send_asc" }), tone: "info", icon: "reminders" },
+            { label: "Due in 7 days", value: stats.dueSoon, href: filterUrl({ show: "oversee", status: "scheduled", to: dueByDate(tz), sort: "send_asc" }), icon: "calendar" },
+            { label: "Completed", value: stats.completed, href: filterUrl({ show: "oversee", status: "sent" }), tone: "success", icon: "check" },
+            { label: "Failed (30 days)", value: stats.failed, href: filterUrl({ show: "oversee", failed: true }), tone: "danger", icon: "alert" },
           ]}
         />
       )}
 
-      {pending.length > 0 && (
-        <Section title={`Approvals waiting (${pending.length})`}>
-          <List>
-            {pending.slice(0, 5).map((p) => (
-              <ListRow key={p.id} href={`/reminders/${p.id}`} title={p.title} meta={`From ${p.creatorName}`} />
-            ))}
-            {pending.length > 5 && <ListRow href="/approvals" title="See all approvals" />}
-          </List>
-        </Section>
-      )}
-
-      {tasks.length > 0 && (
-        <Section title="Your open tasks">
-          <List>
-            {tasks.slice(0, TASKS_SHOWN).map((t) => (
-              <ListRow
-                key={t.assignmentId}
-                href={`/reminders/${t.reminderId}`}
-                title={t.title}
-                badge={isOverdue(t.dueAt) ? "Overdue" : undefined}
-                meta={t.dueAt ? `Due ${formatInZone(t.dueAt, t.timeZone)}` : undefined}
-              />
-            ))}
-            {tasks.length > TASKS_SHOWN && <ListRow href="/tasks" title="See all tasks" />}
-          </List>
-        </Section>
-      )}
-
-      {seesReminders && (
-        <Section title="Upcoming">
-          {next.length ? (
-            <List>
-              {next.map((r) => (
-                <ListRow
-                  key={r.id}
-                  href={`/reminders/${r.id}`}
-                  title={r.title}
-                  badge={r.isTask ? "Task" : undefined}
-                  meta={`${formatInZone(r.sendAt, tz)}${r.recurrence ? " · repeats" : ""}`}
-                />
-              ))}
-              <ListRow href="/calendar" title="Open the calendar" />
-            </List>
-          ) : (
-            <Hint>Nothing scheduled.</Hint>
-          )}
-        </Section>
-      )}
-
-      <Section title="Recent activity">
-        {activity.length ? (
-          <List>
-            {activity.map((n) => (
-              <ListRow
-                key={n.id}
-                href={`/notifications/${n.id}`}
-                plain
-                title={n.text}
-                badge={n.readAt ? undefined : "New"}
-                meta={`${n.reminderTitle ?? "Deleted reminder"} · ${formatInZone(n.createdAt, tz)}`}
-              />
-            ))}
-          </List>
-        ) : (
-          <Hint>Nothing yet.</Hint>
-        )}
-      </Section>
-
-      <Section title="Your departments">
-        {me && me.departments.length > 0 ? (
-          <List>
-            {me.departments.map((d) => (
-              <ListRow
-                key={d.id}
-                href={`/departments/${d.id}`}
-                title={d.name}
-                badge={d.isManager ? "Manager" : undefined}
-                meta={d.isManager ? "You manage this department" : "Member"}
-              />
-            ))}
-          </List>
-        ) : (
-          <Hint>You’re not in a department yet. An admin or department manager can add you.</Hint>
-        )}
-      </Section>
-
-      <Hint>
-        Your groups, roles, appearance and sign out are in <Link href="/settings/profile">Settings</Link>.
-      </Hint>
+      <Columns
+        main={
+          <>
+            {tasksSection}
+            {upcomingSection}
+            {!tasksSection && !upcomingSection && departmentsSection}
+          </>
+        }
+        side={
+          <>
+            {approvalsSection}
+            {activitySection}
+            {(tasksSection || upcomingSection) && departmentsSection}
+          </>
+        }
+      />
     </Page>
   );
 }

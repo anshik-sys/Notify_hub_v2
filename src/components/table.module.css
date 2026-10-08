@@ -2,9 +2,20 @@
 .wrap {
   overflow-x: auto;
   padding: 4px 12px 8px;
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-card);
   background: var(--bg);
+  box-shadow: var(--shadow-card);
 }
+
+/* Inside a card (Section, Form) it drops its own card look. */
+[data-card] .wrap {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
 
 .table {
   width: 100%;

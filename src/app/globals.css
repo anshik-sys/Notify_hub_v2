@@ -27,11 +27,17 @@
   --paper: #ffffff; /* always light: QR codes must be dark on light */
   --success-bg: #e3f4e7;
   --success-fg: #1d6b34;
+  --warning-bg: #fdf1d8; /* needs attention soon */
+  --warning-fg: #855400;
+  --info-bg: #e3edff;
+  --info-fg: #1f4fc4;
+  --card-border: #ebebef; /* hairline round white cards on the white frame */
   --radius: 12px; /* inputs, small boxes */
   --radius-card: 24px;
   --radius-frame: 32px;
   --shadow: 0 30px 80px -30px rgb(30 30 45 / 0.22);
   --shadow-hover: 0 12px 28px -18px rgb(30 30 45 / 0.35); /* a card lifting */
+  --shadow-card: 0 1px 2px rgb(30 30 45 / 0.04), 0 8px 24px -16px rgb(30 30 45 / 0.14);
   /* Motion: short and ease-out, so a hover or press answers at once. */
   --duration: 160ms;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -60,8 +66,14 @@
     --paper: #ffffff;
     --success-bg: #143222;
     --success-fg: #9be3b0;
+    --warning-bg: #3a2a08;
+    --warning-fg: #fcd58a;
+    --info-bg: #10244a;
+    --info-fg: #a9c7ff;
+    --card-border: #2a2a2f;
     --shadow: 0 30px 80px -30px rgb(0 0 0 / 0.7);
     --shadow-hover: 0 12px 28px -18px rgb(0 0 0 / 0.8);
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
   }
 }
 
@@ -87,8 +99,14 @@
   --paper: #ffffff;
   --success-bg: #143222;
   --success-fg: #9be3b0;
+  --warning-bg: #3a2a08;
+  --warning-fg: #fcd58a;
+  --info-bg: #10244a;
+  --info-fg: #a9c7ff;
+  --card-border: #2a2a2f;
   --shadow: 0 30px 80px -30px rgb(0 0 0 / 0.7);
   --shadow-hover: 0 12px 28px -18px rgb(0 0 0 / 0.8);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
 }
 
 *,

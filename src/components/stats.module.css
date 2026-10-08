@@ -7,19 +7,44 @@
   list-style: none;
 }
 
-/* Label top-left, a round arrow top-right, the number below. */
+/* Icon then label top-left, a round arrow top-right, the number below.
+   --tone-bg/--tone-fg carry the card's meaning (set by the tone classes). */
 .card {
-  transition: transform var(--duration) var(--ease-out), box-shadow var(--duration) var(--ease-out);
+  --tone-bg: var(--panel);
+  --tone-fg: var(--fg);
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: start;
   gap: 16px 8px;
   height: 100%;
-  padding: 18px 18px 20px 20px;
+  padding: 16px 16px 20px 18px;
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-card);
   background: var(--bg);
+  box-shadow: var(--shadow-card);
   color: var(--fg);
   text-decoration: none;
+  transition: transform var(--duration) var(--ease-out), box-shadow var(--duration) var(--ease-out);
+}
+
+.danger {
+  --tone-bg: var(--danger-bg);
+  --tone-fg: var(--danger-fg);
+}
+
+.warning {
+  --tone-bg: var(--warning-bg);
+  --tone-fg: var(--warning-fg);
+}
+
+.info {
+  --tone-bg: var(--info-bg);
+  --tone-fg: var(--info-fg);
+}
+
+.success {
+  --tone-bg: var(--success-bg);
+  --tone-fg: var(--success-fg);
 }
 
 .card:focus-visible {
@@ -27,15 +52,35 @@
   outline-offset: 2px;
 }
 
-.label {
+/* Icon above the label, so the label gets the card's full width. */
+.head {
+  display: flex;
+  flex-direction: column;
   grid-row: 1;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--tone-bg);
+  color: var(--tone-fg);
+}
+
+.label {
   color: var(--muted);
   font-size: 0.875rem;
   font-weight: 500;
 }
 
 .arrow {
-  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   display: inline-flex;
   grid-row: 1;
   grid-column: 2;
@@ -46,25 +91,10 @@
   border-radius: 999px;
   background: var(--panel);
   color: var(--fg);
-}
-
-.card:hover .arrow {
-  background: var(--primary-bg);
-  color: var(--primary-fg);
-}
-
-/* Hover: the card lifts and the arrow nudges the way it points. */
-.card:hover {
-  box-shadow: var(--shadow-hover);
-  transform: translateY(-2px);
-}
-
-.card:hover .arrow {
-  transform: translate(2px, -2px);
-}
-
-.card:active {
-  transform: translateY(0) scale(0.99);
+  transition:
+    background-color var(--duration) var(--ease-out),
+    color var(--duration) var(--ease-out),
+    transform var(--duration) var(--ease-out);
 }
 
 .value {
@@ -75,11 +105,23 @@
   line-height: 1;
 }
 
+/* Bad news also colours the number. */
 .danger .value {
   color: var(--danger-fg);
 }
 
-.danger .arrow {
-  background: var(--danger-bg);
-  color: var(--danger-fg);
+/* Hover: the card lifts and the arrow nudges the way it points. */
+.card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+
+.card:hover .arrow {
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  transform: translate(2px, -2px);
+}
+
+.card:active {
+  transform: translateY(0) scale(0.99);
 }
