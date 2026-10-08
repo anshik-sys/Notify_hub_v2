@@ -391,3 +391,15 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     `audit_log` (through RLS). The trigger is `SECURITY DEFINER`.
   - **Known noise:** editing a reminder re-creates its recipients and shares,
     so they show as delete + create pairs.
+- **Report definitions (PRD 10, `src/lib/reports.ts`), all in the viewer's time
+  zone:**
+  - **Deliveries:** a delivery counts at its `sent_at`, or its last update if
+    it never sent. Success rate = sent ÷ (sent + failed); pending isn't
+    counted either way.
+  - **Tasks:** counted by their occurrence's due date. "On time" = done
+    by the due time. Time to complete = done minus when it was sent.
+  - **Grouping:** someone in two departments or groups counts in each.
+  - **Overdue:** the current state (open and past due), whatever the date
+    range.
+  - The page and the CSV export build the same table (`reports/data.ts`), so
+    they can't disagree.

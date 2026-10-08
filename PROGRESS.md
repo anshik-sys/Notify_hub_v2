@@ -2,6 +2,37 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-08 — reports (PRD 10)
+
+- **What's in place:** Reports in the sidebar (`reports.view`; the CSV
+  needs `reports.export`; Company Admin has both). Three tabs:
+  - **Deliveries:** sent / failed per channel, success rates, and a table
+    by hour (ranges of 7 days or less), day or month;
+  - **Task completion:** by department, group (team) or person: assigned,
+    done, on time, completion %, average time to complete;
+  - **Overdue:** a count and the oldest due date per department, group or
+    person, then the list of overdue tasks with days overdue.
+
+  Filters are in the URL, and Export CSV uses the same table as the page.
+- **No chart library:** bars are a CSS width in a table cell (a new `Bar` kit
+  piece). PRD 8 asks for functional views, and the tables carry the
+  numbers.
+- **The definitions are written down** in README (which timestamp, what "on
+  time" means, double-counting across departments), so the numbers can be
+  explained.
+- **Verified against `next start` + worker + fake Slack:**
+  - an email+Slack reminder to 3 people (one without Slack) and a task to 2
+    → Deliveries: email 5 sent; Slack 2 sent, 1 failed, 67%;
+  - Task completion for Ops: 3 assigned, 1 done (alice), 33%;
+  - Overdue: bob's seeded 3-day-old task;
+  - the CSVs match the pages; a member gets 404 for both, with no sidebar
+    link.
+
+  113 tests pass (new: `reports.test.ts`: buckets, the Dubai midnight edge,
+  months, per-department, group and person, overdue, CSV).
+- **Not in this step:** scheduled report emails, reports scoped to managers
+  (they don't have `reports.view`), charts beyond bars.
+
 ## 2026-10-08 — audit log (PRD 9.1)
 
 - **What's in place:**

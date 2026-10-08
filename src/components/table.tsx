@@ -55,3 +55,13 @@ export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "dang
 export function Muted({ children }: { children: React.ReactNode }) {
   return <span className={styles.muted}>{children}</span>;
 }
+
+// A horizontal bar for a number in a table cell (reports); no chart library.
+export function Bar({ value, max, label }: { value: number; max: number; label?: string }) {
+  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  return (
+    <span className={styles.barWrap} title={label}>
+      <span className={styles.bar} style={{ width: `${pct}%` }} />
+    </span>
+  );
+}

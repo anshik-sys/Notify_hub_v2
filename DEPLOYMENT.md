@@ -207,6 +207,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] `select has_table_privilege('notifyhub_app', 'two_factor', 'select')` is `f`.
 - [ ] Share a reminder with another department: its members can open it and comment, but see no delivery log; others get "not found". Reminders → Show "Shared with me" lists it for them.
 - [ ] Audit log: rename a department → it appears with your name and "name: old → new"; Export CSV downloads it; a member gets 404. `delete from audit_log` as the app role → permission denied.
+- [ ] Reports: Deliveries shows today's sends per channel with a success rate; Task completion and Overdue match what people see under My tasks; Export CSV downloads the same numbers; a member gets 404.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".
