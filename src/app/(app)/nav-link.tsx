@@ -3,6 +3,7 @@
 // Client component only to know the current path for the active link.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { Icon, type IconName } from "@/components/icon";
 import styles from "./layout.module.css";
 
@@ -23,4 +24,15 @@ export function NavLink({
       {children}
     </Link>
   );
+}
+
+// The shell stays mounted across client navigations, so an open popover menu
+// would stay open on the new page. Close it whenever the path changes.
+export function ClosePopoverOnNavigate({ id }: { id: string }) {
+  const path = usePathname();
+  useEffect(() => {
+    const el = document.getElementById(id);
+    if (el?.matches(":popover-open")) el.hidePopover();
+  }, [id, path]);
+  return null;
 }

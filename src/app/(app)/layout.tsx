@@ -7,12 +7,14 @@ import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { signOutAction } from "./settings/account-actions";
 import styles from "./layout.module.css";
-import { NavLink } from "./nav-link";
+import { ClosePopoverOnNavigate, NavLink } from "./nav-link";
 
 // Signed-in app shell, desktop-first: a rounded frame on a soft canvas with a
 // top bar (company, search, theme, notifications, invite), a left sidebar of
-// grouped navigation, and the page in a tinted panel. Below 768px the frame
-// goes edge to edge and the sidebar becomes a scrollable row.
+// grouped navigation with the user card at the bottom (it opens the account
+// menu), and the page in a tinted panel. Below 768px the frame goes edge to
+// edge, the sidebar becomes a scrollable row and the top-bar avatar opens the
+// same menu instead.
 // Links are hidden by permission for tidiness only; every page checks again.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // true: the shell renders on the security page too (where 2FA is set up);
@@ -58,9 +60,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 </span>
               )}
             </Link>
-            <Link href="/settings/profile" className={styles.me} aria-label="Your profile" title={user.name}>
+            <button popoverTarget="account-menu" className={styles.me} aria-label="Account menu" title={user.name}>
               <Avatar name={user.name} size="large" />
-            </Link>
+            </button>
             {can(access, "users.create") && (
               <Link href="/users/invite" className={styles.invite}>
                 <Icon name="plus" />
@@ -136,23 +138,41 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 Company
               </NavLink>
             )}
-            <NavLink href="/settings/profile" icon="settings">
-              Settings
-            </NavLink>
           </nav>
 
-          <div className={styles.user}>
+          <button popoverTarget="account-menu" className={styles.user}>
             <Avatar name={user.name} size="large" />
             <span className={styles.userText}>
               <span className={styles.userName}>{user.name}</span>
               <span className={styles.userEmail}>{user.email}</span>
             </span>
-            <form action={signOutAction}>
-              <button className={styles.round} aria-label="Sign out" title="Sign out">
+            <span className={styles.chevron}>
+              <Icon name="chevron" size={16} />
+            </span>
+          </button>
+
+          {/* Native popover: Esc and clicking outside close it, no JS. */}
+          <div id="account-menu" popover="auto" className={styles.menu} aria-label="Account">
+            <Link href="/settings/profile" className={styles.menuItem}>
+              <Icon name="settings" />
+              Profile and settings
+            </Link>
+            <Link href="/settings/security" className={styles.menuItem}>
+              <Icon name="roles" />
+              Security
+            </Link>
+            <Link href="/notifications/preferences" className={styles.menuItem}>
+              <Icon name="bell" />
+              Notification preferences
+            </Link>
+            <form action={signOutAction} className={styles.menuSignOut}>
+              <button className={styles.menuItem}>
                 <Icon name="logout" />
+                Sign out
               </button>
             </form>
           </div>
+          <ClosePopoverOnNavigate id="account-menu" />
         </aside>
 
         <div className={styles.content}>{children}</div>

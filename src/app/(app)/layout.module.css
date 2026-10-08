@@ -151,10 +151,14 @@
   text-align: center;
 }
 
+/* Top-bar avatar: only on narrow windows, where the user card is hidden. */
 .me {
-  display: inline-flex;
+  display: none;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
-  text-decoration: none;
+  background: none;
+  cursor: pointer;
 }
 
 .invite {
@@ -227,12 +231,83 @@
 }
 
 
+/* The user card opens the account menu. */
 .user {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
   margin-top: auto;
-  padding: 16px 4px 0;
+  padding: 10px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--panel);
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.user:hover {
+  background: var(--surface);
+}
+
+.user:focus-visible,
+.menuItem:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.chevron {
+  display: inline-flex;
+  color: var(--muted);
+}
+
+/* The window-fixed frame means the user card is always at the same spot:
+   the menu opens just above it. */
+.menu {
+  position: fixed;
+  inset: auto auto 112px 44px;
+  width: 248px;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  color: var(--fg);
+}
+
+.menu:popover-open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+  color: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menuItem:hover {
+  background: var(--panel);
+}
+
+.menuSignOut {
+  margin-top: 4px;
+  padding-top: 4px;
   border-top: 1px solid var(--border);
 }
 
@@ -327,6 +402,15 @@
   .navLabel,
   .user {
     display: none;
+  }
+
+  .me {
+    display: inline-flex;
+  }
+
+  /* Opens under the top-bar avatar instead. */
+  .menu {
+    inset: 68px 12px auto auto;
   }
 
   .navItem {

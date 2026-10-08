@@ -24,6 +24,16 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   count. The sidebar item was a duplicate. Trade-off: no sidebar highlight on
   /notifications. The bell is server-rendered and doesn't know the current
   path; worth a client wrapper only if people get lost there.
+- **Account menu on the sidebar user card** (user's idea, Slack-style): Profile
+  and settings, Security, Notification preferences, Sign out. The Settings nav
+  item and the top-bar avatar are gone; below 768px the user card is hidden,
+  so the avatar comes back there and opens the same menu. It uses the native
+  `popover` attribute: Esc, clicking outside and focus handling come free. It
+  is placed with fixed coordinates, which only works because the frame is
+  fixed to the window. CSS anchor positioning was skipped: Firefox support is
+  still patchy. One catch: the shell stays mounted across client navigations,
+  so the menu stayed open on the new page. `ClosePopoverOnNavigate` closes it
+  when the path changes.
 - **Icons moved to `src/components/icon.tsx`.** The server layout needs them
   too, and a "use client" module can't share plain objects with it.
 - **Verified:** in Chromium at 1440 (light and dark), plus no sideways scroll
