@@ -297,6 +297,7 @@ async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
   const notes = note ? [`Sent to #${inst.fallbackChannelName ?? "fallback"}: not on Slack`] : [];
   let failed = 0;
   let scopeMissing = false;
+  let notInChannel = false;
   for (const file of await filesOf(r.reminder.id)) {
     try {
       const data = await getBlob(ownerDb, file.id);
@@ -304,10 +305,12 @@ async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
     } catch (e) {
       console.error("Slack file upload failed", file.id, e);
       if (e instanceof SlackError && e.code === "missing_scope") scopeMissing = true;
+      if (e instanceof SlackError && e.code === "not_in_channel") notInChannel = true;
       failed++;
     }
   }
   if (scopeMissing) notes.push("Files not sent: reconnect Slack to allow file uploads");
+  else if (notInChannel) notes.push("Files not sent: invite the Slack app to the channel, or reconnect Slack");
   else if (failed) notes.push(`${failed} file${failed === 1 ? "" : "s"} failed to upload`);
   return { slackChannel: posted.channel, slackTs: posted.ts, lastError: notes.join("; ") || null };
 }

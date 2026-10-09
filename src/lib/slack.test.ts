@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { digestMessage, listChannels, lookupByEmail, reminderMessage, SlackError, SlackRateLimited, slackApi } from "./slack";
+import { digestMessage, listChannels, lookupByEmail, reminderMessage, SlackError, SlackRateLimited, slackApi, uploadFile } from "./slack";
 
 // A fake fetch: records requests, replies with the next canned response.
 function fakeFetch(...replies: { status?: number; json?: object; headers?: Record<string, string> }[]) {
   const calls: { url: string; auth: string | null; body: URLSearchParams }[] = [];
   const f = (async (url: string, init: RequestInit) => {
-    calls.push({ url, auth: (init.headers as Record<string, string>).Authorization ?? null, body: init.body as URLSearchParams });
+    calls.push({ url, auth: (init.headers as Record<string, string> | undefined)?.Authorization ?? null, body: init.body as URLSearchParams });
     const r = replies.shift()!;
     return new Response(JSON.stringify(r.json ?? {}), { status: r.status ?? 200, headers: r.headers });
   }) as typeof fetch;
@@ -79,4 +79,23 @@ test("digestMessage: empty, escaped, capped at 20 lines", () => {
   assert.ok(json.includes("+3 more in NotifyHub"));
   assert.ok(!json.includes("r20|"));
   assert.equal(m.text, "Daily digest: 23 overdue, 0 in the next 24 hours");
+});
+
+test("uploadFile: not_in_channel joins and retries once; a failed join reports not_in_channel", async () => {
+  const file = { channel: "C1", threadTs: "9.9", filename: "a.pdf", data: Buffer.from("x") };
+  const url = { json: { ok: true, upload_url: "https://up.test/u", file_id: "F1" } };
+  const notIn = { json: { ok: false, error: "not_in_channel" } };
+  const ok = { json: { ok: true } };
+
+  const joined = fakeFetch(url, ok, notIn, ok, ok);
+  await uploadFile("t", file, joined.f);
+  assert.deepEqual(
+    joined.calls.map((c) => c.url.split("/").pop()),
+    ["files.getUploadURLExternal", "u", "files.completeUploadExternal", "conversations.join", "files.completeUploadExternal"],
+  );
+  assert.equal(joined.calls[3].body.get("channel"), "C1");
+
+  const old = fakeFetch(url, ok, notIn, { json: { ok: false, error: "missing_scope" } });
+  await assert.rejects(uploadFile("t", file, old.f), (e) => e instanceof SlackError && e.code === "not_in_channel");
+  assert.equal(old.calls.length, 4); // no second complete
 });

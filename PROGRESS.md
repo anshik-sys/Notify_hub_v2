@@ -2,6 +2,24 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-09 — real Slack test: files now reach channels
+
+- **Tested against a real Slack app** (through ngrok). Messages, the DM and
+  file uploads into DM threads worked. **Channel uploads failed** with
+  `not_in_channel`: `chat:write.public` lets the bot post without joining,
+  but `files.completeUploadExternal` needs it in the channel. The fake Slack
+  never modelled that.
+- **Fix:** `uploadFile` joins the channel (`conversations.join`, new
+  `channels:join` scope) and retries once. If the join fails (an older
+  connection without the scope, or a private channel), the delivery notes
+  "invite the Slack app to the channel, or reconnect Slack". The Integrations
+  page shows "Reconnect Slack" when either file scope is missing.
+- **Also found:** a worker started before `.env` changed kept calling the
+  fake Slack with the real token (`invalid_auth`). Restart the worker after
+  editing `.env`.
+- New test in `slack.test.ts` (join and retry; failed join). 138 tests pass,
+  typecheck clean.
+
 ## 2026-10-08 — one-button theme toggle in the top bar
 
 - The top bar had System / Light / Dark. The user asked to drop System since

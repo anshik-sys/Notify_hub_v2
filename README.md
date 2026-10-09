@@ -155,8 +155,10 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     `clock_timestamp()`, not `now()`;
   - **Slack** uploads into the message's thread *after* posting. A failed
     upload is noted on the delivery, never retried (that would re-post the
-    message). It needs the `files:write` scope; older connections show
-    "Reconnect Slack".
+    message). It needs the `files:write` scope. `chat:write.public` lets the
+    bot post to a channel it hasn't joined, but files need it inside, so on
+    `not_in_channel` it joins (`channels:join`, public channels) and retries
+    once. Older connections show "Reconnect Slack".
 - **Slack buttons:**
   - **the signature is checked first, on the raw body** (`verifySlackSignature`: HMAC plus a 5-minute timestamp window). Without it anyone could POST a fake "Mark done";
   - a button's `value` is the **occurrence**, never a person. The clicker is

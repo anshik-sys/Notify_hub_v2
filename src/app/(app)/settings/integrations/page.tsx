@@ -61,9 +61,9 @@ export default async function Integrations(props: PageProps<"/settings/integrati
         {inst ? (
           <>
             <Hint>Connected to the {inst.teamName} workspace. Reminders can now go to Slack channels and as direct messages.</Hint>
-            {!inst.scopes.includes("files:write") && (
+            {!(inst.scopes.includes("files:write") && inst.scopes.includes("channels:join")) && (
               <p role="status" className={styles.warning}>
-                This connection was made before file uploads existed, so attachments aren’t sent to Slack.{" "}
+                This connection was made before some file features existed, so attachments may not reach Slack channels.{" "}
                 <a href="/api/slack/install">Reconnect Slack</a> to enable them.
               </p>
             )}

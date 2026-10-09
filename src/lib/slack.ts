@@ -2,7 +2,7 @@
 // SLACK_AUTHORIZE_URL default to Slack; in dev and tests they point at the
 // fake (scripts/fake-slack.ts). Never log tokens.
 
-export const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "users:read", "users:read.email", "im:write", "files:write"];
+export const SLACK_SCOPES = ["chat:write", "chat:write.public", "channels:read", "users:read", "users:read.email", "im:write", "files:write", "channels:join"];
 const apiBase = () => process.env.SLACK_API_URL ?? "https://slack.com/api";
 export const authorizeUrl = () => process.env.SLACK_AUTHORIZE_URL ?? "https://slack.com/oauth/v2/authorize";
 
@@ -115,12 +115,25 @@ export async function uploadFile(
   );
   const res = await f(upload_url, { method: "POST", body: new Uint8Array(file.data) });
   if (!res.ok) throw new SlackError(`upload_failed_${res.status}`);
-  await slackApi(
-    "files.completeUploadExternal",
-    token,
-    { files: [{ id: file_id, title: file.filename }], channel_id: file.channel, thread_ts: file.threadTs },
-    f,
-  );
+  const complete = () =>
+    slackApi(
+      "files.completeUploadExternal",
+      token,
+      { files: [{ id: file_id, title: file.filename }], channel_id: file.channel, thread_ts: file.threadTs },
+      f,
+    );
+  try {
+    await complete();
+  } catch (e) {
+    // chat:write.public posts to a channel without joining it; files need the
+    // bot in the channel. Join (public channels, channels:join) and retry once.
+    // If the join fails (older install, private channel), report not_in_channel.
+    if (!(e instanceof SlackError && e.code === "not_in_channel")) throw e;
+    await slackApi("conversations.join", token, { channel: file.channel }, f).catch(() => {
+      throw e;
+    });
+    await complete();
+  }
 }
 
 // The email on a Slack user's profile (needs users:read.email); null if hidden/unknown.

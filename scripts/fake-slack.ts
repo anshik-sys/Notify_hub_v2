@@ -23,7 +23,7 @@ type Msg = { kind: "post" | "update" | "respond" | "file"; channel: string; ts: 
 const uploads = new Map<string, { filename: string; bytes: number }>(); // file id -> what was POSTed
 let fileCounter = 1;
 // Scopes granted at install; FAKE_SLACK_SCOPES lets you simulate an old install without files:write.
-const SCOPES = process.env.FAKE_SLACK_SCOPES ?? "chat:write,chat:write.public,channels:read,users:read,users:read.email,im:write,files:write";
+const SCOPES = process.env.FAKE_SLACK_SCOPES ?? "chat:write,chat:write.public,channels:read,users:read,users:read.email,im:write,files:write,channels:join";
 const messages: Msg[] = [];
 let tsCounter = 1000;
 const users = new Map<string, string>(); // slack id -> email
