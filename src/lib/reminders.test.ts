@@ -369,7 +369,8 @@ test("channels (PRD 5.3)", () => {
   assert.match(v({ company: true, channels: ["slack"] }).error!, /whole company on Slack, pick a Slack channel/);
   assert.match(v({ emails: "x@y.test", channels: ["slack"] }).error!, /Slack needs a channel, people, a department or a group/);
   assert.match(v({ channels: ["email", "slack"], slackChannelIds: ["C1"] }).error!, /Email needs people/);
-  assert.match(v({ userIds: ["u"], channels: ["email"], slackChannelIds: ["C1"] }).error!, /Tick Slack/);
+  // Picks left over after unticking Slack are dropped, not refused.
+  assert.deepEqual(v({ userIds: ["u"], channels: ["email"], slackChannelIds: ["C1"] }).input!.targets.map((t) => t.kind), ["user"]);
   assert.match(v({ userIds: ["u"], channels: ["slack"], slackChannelIds: ["C9"] }).error!, /no longer exists/);
 
   const ok = v({ company: true, channels: ["email", "slack"], slackChannelIds: ["C1", "C1"] }).input!;

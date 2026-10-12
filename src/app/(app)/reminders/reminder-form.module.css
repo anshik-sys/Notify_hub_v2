@@ -179,7 +179,9 @@
    Browsers without :has() show everything, as before. */
 .when,
 .task,
-.repeat {
+.repeat,
+.channels,
+.slackPicks {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -194,6 +196,7 @@
 
 .when:has(input[name="when"][value="now"]:checked) .sendAt,
 .task:not(:has(input[name="isTask"]:checked)) .due,
+.channels:not(:has(input[name="channels"][value="slack"]:checked)) .slackPicks,
 .repeat:not(:has(select[name="repeat"] option[value="custom"]:checked)) .custom,
 .custom:not(:has(select[name="unit"] option[value="week"]:checked)) .weekdays,
 .custom:not(:has(select[name="unit"] option[value="month"]:checked)) .monthlyBy,

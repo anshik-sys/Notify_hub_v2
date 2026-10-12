@@ -2,6 +2,23 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — Slack channel picks live under Channels
+
+- The recipients fold was titled "…, Slack channels and emails" even with
+  Slack disconnected. Its title is now built from what it holds (e.g.
+  "Other departments, groups and emails").
+- The Slack channel list moved into **Channels**, under the Slack checkbox,
+  and shows only once Slack is ticked (CSS `:has`). Its approval note moved
+  with it; the Recipients note no longer mentions Slack.
+- **Rule change in `validateInput`:** channel picks are now **dropped** when
+  Slack isn't ticked, instead of refusing with "Tick Slack as a channel…".
+  With the list hidden in that state, the old error pointed at something the
+  user couldn't see. Test updated (the picks leave no `slack_channel`
+  target).
+- **Verified:** typecheck, lint, 139 tests; the form renders with the same
+  37 field names. **Not verified:** a Slack-connected company in the browser
+  (the demo has Slack disconnected, so the list doesn't render there).
+
 ## 2026-10-12 — reminder form shows only what applies
 
 - Fields that only matter for one choice now hide until it's made, with CSS

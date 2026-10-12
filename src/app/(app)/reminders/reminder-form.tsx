@@ -155,11 +155,11 @@ export function ReminderForm({
   // by id (an older reminder) stays listed so saving an edit keeps it.
   const shareable = departments.filter((d) => !d.mine || defaults.shareDepartmentIds.includes(d.id));
   const widerInUse = Boolean(
-    defaults.departmentIds.some((id) => others.some((d) => d.id === id)) ||
-      defaults.groupIds.length ||
-      defaults.slackChannelIds.length ||
-      defaults.emails.trim(),
+    defaults.departmentIds.some((id) => others.some((d) => d.id === id)) || defaults.groupIds.length || defaults.emails.trim(),
   );
+  // Names only what the fold holds, e.g. "Other departments, groups and emails".
+  const widerParts = [others.length > 0 && "other departments", groups.length > 0 && "groups", "emails"].filter(Boolean) as string[];
+  const widerTitle = widerParts.join(", ").replace(/, ([^,]*)$/, " and $1").replace(/^./, (c) => c.toUpperCase());
   // "More options" opens by itself when editing a reminder that uses one of them.
   const usesOptions = Boolean(
     defaults.tags ||
@@ -184,8 +184,7 @@ export function ReminderForm({
 
       <Section title="Recipients" required>
         <Hint>
-          Sending outside your departments, to the whole company, to Slack channels or to outside emails needs an admin’s
-          approval first.
+          Sending outside your departments, to the whole company or to outside emails needs an admin’s approval first.
         </Hint>
         {/* The quick picks on one row: your department(s) first, then the company. */}
         <div className={styles.quickPicks}>
@@ -247,7 +246,7 @@ export function ReminderForm({
 
         {/* The wider recipients: folded, open when editing one that's in use. */}
         <details className={styles.more} open={widerInUse}>
-          <summary className={styles.summary}>Other departments, groups, Slack channels and emails</summary>
+          <summary className={styles.summary}>{widerTitle}</summary>
           <div className={styles.moreRows}>
             {others.length > 0 && (
               <CheckboxGroup
@@ -271,13 +270,6 @@ export function ReminderForm({
                 }))}
               />
             )}
-            {slackChannels && slackChannels.length > 0 && (
-              <CheckboxGroup
-                legend="Slack channels"
-                name="slackChannels"
-                options={slackChannels.map((c) => ({ value: c.id, label: `#${c.name}`, checked: defaults.slackChannelIds.includes(c.id) }))}
-              />
-            )}
             <TextArea
               label="Other emails (comma or one per line)"
               name="emails"
@@ -290,17 +282,31 @@ export function ReminderForm({
       </Section>
 
       <Section title="Channels" required>
-        <CheckboxGroup
-          legend="Send by"
-          hideLegend
-          name="channels"
-          options={[
-            { value: "email", label: "Email", checked: defaults.channels.includes("email") },
-            ...(slackChannels
-              ? [{ value: "slack", label: "Slack (direct messages, and any channels picked above)", checked: defaults.channels.includes("slack") }]
-              : []),
-          ]}
-        />
+        <div className={styles.channels}>
+          <CheckboxGroup
+            legend="Send by"
+            hideLegend
+            name="channels"
+            options={[
+              { value: "email", label: "Email", checked: defaults.channels.includes("email") },
+              ...(slackChannels
+                ? [{ value: "slack", label: "Slack (direct messages, and any channels picked below)", checked: defaults.channels.includes("slack") }]
+                : []),
+            ]}
+          />
+          {slackChannels && slackChannels.length > 0 && (
+            // Shown once Slack is ticked (CSS :has); always submitted, and only
+            // read when Slack is a channel.
+            <div className={styles.slackPicks}>
+              <CheckboxGroup
+                legend="Also post in these Slack channels"
+                name="slackChannels"
+                options={slackChannels.map((c) => ({ value: c.id, label: `#${c.name}`, checked: defaults.slackChannelIds.includes(c.id) }))}
+              />
+              <Hint>Posting in a channel needs an admin’s approval, unless you’re an admin.</Hint>
+            </div>
+          )}
+        </div>
         {!slackChannels && <Hint>Slack isn’t connected. An admin can connect it under Integrations.</Hint>}
       </Section>
 

@@ -110,8 +110,9 @@ export function validateInput(
   // Channels (PRD 5.3).
   const channels = [...new Set(raw.channels)].filter((c): c is "email" | "slack" => c === "email" || c === "slack");
   if (channels.length === 0) return { error: "Choose at least one channel: email or Slack." };
-  const slackChannels = [...new Set(raw.slackChannelIds)].map((id) => slack?.find((c) => c.id === id));
-  if (slackChannels.length && !channels.includes("slack")) return { error: "Tick Slack as a channel to post to Slack channels." };
+  // Channel picks only count with Slack ticked: the form hides them otherwise,
+  // so leftovers from unticking Slack are dropped rather than refused.
+  const slackChannels = channels.includes("slack") ? [...new Set(raw.slackChannelIds)].map((id) => slack?.find((c) => c.id === id)) : [];
   if (channels.includes("slack")) {
     if (!slack) return { error: "Slack isn't connected. An admin can connect it under Integrations." };
     if (slackChannels.some((c) => !c)) return { error: "One of the Slack channels no longer exists." };
