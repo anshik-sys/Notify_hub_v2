@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Image from "next/image";
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
@@ -45,9 +46,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <header className={styles.topbar}>
           <div className={styles.brandArea}>
             <Link href="/" className={styles.brand}>
-              <span className={styles.logo} aria-hidden="true">
-                N
-              </span>
+              {/* Decorative: the link's text names it. */}
+              <Image src="/logo.png" alt="" width={44} height={44} className={styles.logo} priority />
               <span className={styles.brandText}>
                 <span className={styles.company}>{company.name}</span>
                 <span className={styles.product}>NotifyHub</span>

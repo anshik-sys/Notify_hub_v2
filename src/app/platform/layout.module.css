@@ -32,17 +32,10 @@
 }
 
 .logo {
-  display: inline-flex;
+  display: block;
   flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
   width: 44px;
   height: 44px;
-  border-radius: 999px;
-  background: var(--primary-bg);
-  color: var(--primary-fg);
-  font-size: 1.125rem;
-  font-weight: 700;
 }
 
 .brandText {

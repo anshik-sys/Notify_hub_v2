@@ -2,6 +2,24 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — the NotifyHub logo
+
+- The user supplied the logo (a colourful calendar mark on a white rounded
+  tile, 1254px PNG). The tile edge had ~6,800 half-transparent fringe
+  pixels from background removal, so it was cropped to the tile, flattened
+  on white and given clean rounded corners (22.5% radius) with `sharp`
+  (already installed by Next; script kept outside the repo).
+- `src/app/icon.png` (192px, the browser tab), `src/app/apple-icon.png`
+  (180px, opaque; iOS rounds it), `public/logo.png` (128px, in-app). The
+  default Next.js `favicon.ico` from the scaffold is gone.
+- The black "N" circle in the app shell and the platform console is now
+  the logo (`next/image`, 44px, `alt=""` since the link text names it).
+- **Verified:** typecheck, lint; file names match Next 16's metadata
+  conventions. **Not verified:** the running server was the user's
+  `pnpm start` from 17:22, which can't see new files: rebuild to see it.
+- **Still without the logo:** emails (need an absolute URL in the HTML) and
+  the Slack app icon (uploaded by hand on api.slack.com).
+
 ## 2026-10-12 — loading placeholder; no caching
 
 - The user felt a pause on every click and asked about caching. Measured

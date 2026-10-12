@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-switcher";
@@ -21,9 +22,8 @@ export default async function PlatformLayout({ children }: { children: React.Rea
       <div className={styles.frame}>
         <header className={styles.bar}>
           <Link href="/platform" className={styles.brand}>
-            <span className={styles.logo} aria-hidden="true">
-              N
-            </span>
+            {/* Decorative: the link's text names it. */}
+            <Image src="/logo.png" alt="" width={44} height={44} className={styles.logo} priority />
             <span className={styles.brandText}>
               <span className={styles.product}>NotifyHub</span>
               <span className={styles.sub}>Platform</span>
