@@ -2,6 +2,22 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — reminders list: less bloat
+
+- The user found `/reminders` bloated. Causes: 11 filters always open (a
+  third of the screen), "Type" and "ID" columns squeezing the tags so they
+  wrapped, and a double gap (the filter bar's 20px margin on top of the
+  page's 24px gap).
+- **Filters:** Search, Show, Status and Type stay; Channel, Repeats,
+  Creator, Tag, dates and Sort fold into a native `<details>` "More filters"
+  (still no client JS). It opens by itself when one of them is set, so an
+  active filter never hides. New kit props on `FilterBar`: `more`,
+  `moreOpen`; the other three filter pages are unchanged apart from the gap.
+- **Table:** dropped the Type column (tasks get a "Task" badge next to the
+  title) and the ID column (it's on the reminder, and still searchable).
+- The filter bar's own bottom margin is gone everywhere; the page gap spaces it.
+- **Verified:** typecheck and lint. **Not verified:** the look in a browser.
+
 ## 2026-10-12 — owner security page moved into the console
 
 - `/account/security` rendered the security page bare on the canvas, outside

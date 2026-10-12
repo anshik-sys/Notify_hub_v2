@@ -3,7 +3,21 @@
 import Link from "next/link";
 import styles from "./filters.module.css";
 
-export function FilterBar({ action, clearHref, children }: { action: string; clearHref?: string; children: React.ReactNode }) {
+// more: the less-used filters, folded into a native <details> ("More
+// filters"); moreOpen when one of them is set, so an active filter never hides.
+export function FilterBar({
+  action,
+  clearHref,
+  more,
+  moreOpen,
+  children,
+}: {
+  action: string;
+  clearHref?: string;
+  more?: React.ReactNode;
+  moreOpen?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <form method="get" action={action} className={styles.bar} role="search">
       {children}
@@ -15,6 +29,12 @@ export function FilterBar({ action, clearHref, children }: { action: string; cle
           </Link>
         )}
       </div>
+      {more && (
+        <details className={styles.more} open={moreOpen}>
+          <summary className={styles.moreToggle}>More filters</summary>
+          <div className={styles.moreFields}>{more}</div>
+        </details>
+      )}
     </form>
   );
 }

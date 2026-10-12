@@ -29,7 +29,51 @@ export default async function Reminders(props: PageProps<"/reminders">) {
       title="Reminders"
       actions={can(access, "reminders.create") && <LinkButton href="/reminders/new">New reminder</LinkButton>}
     >
-      <FilterBar action="/reminders" clearHref={filtered ? "/reminders" : undefined}>
+      <FilterBar
+        action="/reminders"
+        clearHref={filtered ? "/reminders" : undefined}
+        moreOpen={Boolean(f.channel || f.repeat || f.creator || f.tag || f.from || f.to || f.sort !== "send_desc")}
+        more={
+          <>
+            <SelectField
+              label="Channel"
+              name="channel"
+              defaultValue={f.channel ?? ""}
+              options={[any, { value: "email", label: "Email" }, { value: "slack", label: "Slack" }]}
+            />
+            <SelectField
+              label="Repeats"
+              name="repeat"
+              defaultValue={f.repeat ?? ""}
+              options={[
+                any,
+                { value: "none", label: "One-time" },
+                { value: "daily", label: "Daily" },
+                { value: "weekly", label: "Weekly" },
+                { value: "monthly", label: "Monthly" },
+                { value: "yearly", label: "Yearly" },
+              ]}
+            />
+            {creators.length > 1 && (
+              <SelectField
+                label="Creator"
+                name="creator"
+                defaultValue={f.creator ?? ""}
+                options={[any, ...creators.map((c) => ({ value: c.id, label: c.name }))]}
+              />
+            )}
+            <Field label="Tag" name="tag" defaultValue={f.tag} />
+            <Field label="Sends from" name="from" type="date" defaultValue={f.from} />
+            <Field label="Sends to" name="to" type="date" defaultValue={f.to} />
+            <SelectField
+              label="Sort"
+              name="sort"
+              defaultValue={f.sort}
+              options={Object.entries(SORTS).map(([value, label]) => ({ value, label }))}
+            />
+          </>
+        }
+      >
         <Field label="Search" name="q" type="search" placeholder="Title, description, recipient, ID or tag" defaultValue={f.q} />
         <SelectField
           label="Show"
@@ -50,46 +94,10 @@ export default async function Reminders(props: PageProps<"/reminders">) {
           options={[any, ...REMINDER_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))]}
         />
         <SelectField
-          label="Channel"
-          name="channel"
-          defaultValue={f.channel ?? ""}
-          options={[any, { value: "email", label: "Email" }, { value: "slack", label: "Slack" }]}
-        />
-        <SelectField
-          label="Repeats"
-          name="repeat"
-          defaultValue={f.repeat ?? ""}
-          options={[
-            any,
-            { value: "none", label: "One-time" },
-            { value: "daily", label: "Daily" },
-            { value: "weekly", label: "Weekly" },
-            { value: "monthly", label: "Monthly" },
-            { value: "yearly", label: "Yearly" },
-          ]}
-        />
-        <SelectField
           label="Type"
           name="type"
           defaultValue={f.type ?? ""}
           options={[any, { value: "task", label: "Task" }, { value: "reminder", label: "Reminder" }]}
-        />
-        {creators.length > 1 && (
-          <SelectField
-            label="Creator"
-            name="creator"
-            defaultValue={f.creator ?? ""}
-            options={[any, ...creators.map((c) => ({ value: c.id, label: c.name }))]}
-          />
-        )}
-        <Field label="Tag" name="tag" defaultValue={f.tag} />
-        <Field label="Sends from" name="from" type="date" defaultValue={f.from} />
-        <Field label="Sends to" name="to" type="date" defaultValue={f.to} />
-        <SelectField
-          label="Sort"
-          name="sort"
-          defaultValue={f.sort}
-          options={Object.entries(SORTS).map(([value, label]) => ({ value, label }))}
         />
         {f.failed && <input type="hidden" name="failed" value="1" />}
       </FilterBar>
@@ -97,7 +105,7 @@ export default async function Reminders(props: PageProps<"/reminders">) {
       {f.failed && <p className={styles.note}>Showing reminders with a failed delivery in the last 30 days.</p>}
 
       <Table
-        columns={["Title", "Status", "When", "Type", ...(f.show === "mine" ? [] : ["Creator"]), "Tags", "ID"]}
+        columns={["Title", "Status", "When", ...(f.show === "mine" ? [] : ["Creator"]), "Tags"]}
         empty={filtered ? "Nothing matches these filters." : "No reminders yet."}
         rows={rows.map((r) => {
           const delayed = isDelayed(r);
@@ -105,7 +113,14 @@ export default async function Reminders(props: PageProps<"/reminders">) {
             key: r.id,
             href: `/reminders/${r.id}`,
             cells: [
-              r.title,
+              // ID: on the reminder itself, and searchable here.
+              r.isTask ? (
+                <span key="t" className={styles.title}>
+                  {r.title} <Badge>Task</Badge>
+                </span>
+              ) : (
+                r.title
+              ),
               <Badge key="s" tone={delayed || r.status === "rejected" ? "danger" : "neutral"}>
                 {delayed ? "Delayed" : statusLabel(r)}
               </Badge>,
@@ -117,14 +132,12 @@ export default async function Reminders(props: PageProps<"/reminders">) {
               ) : (
                 formatInZone(r.sendAt, r.timeZone)
               ),
-              r.isTask ? "Task" : "Reminder",
               ...(f.show === "mine" ? [] : [<Muted key="c">{r.creatorName}</Muted>]),
               <span key="t" className={styles.tags}>
                 {r.tags.map((t) => (
                   <Badge key={t}>{t}</Badge>
                 ))}
               </span>,
-              <Muted key="id">{r.shortId}</Muted>,
             ],
           };
         })}

@@ -3,7 +3,6 @@
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
   align-items: end;
-  margin-bottom: 20px;
   padding: 16px 20px;
   border: 1px solid var(--card-border);
   border-radius: var(--radius-card);
@@ -52,6 +51,36 @@
 
 .apply:active {
   transform: scale(0.97);
+}
+
+/* The folded filters: a full row under the main one, same grid inside. */
+.more {
+  grid-column: 1 / -1;
+}
+
+.moreToggle {
+  width: fit-content;
+  color: var(--muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.moreToggle:hover {
+  color: var(--fg);
+}
+
+.moreFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+@media (max-width: 400px) {
+  .moreFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .clear {
