@@ -7,7 +7,6 @@ import { listPendingApprovals, mayDecide } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { myOpenTasks } from "@/lib/tasks";
 import { formatInZone } from "@/lib/time";
-import { getUser } from "@/lib/users";
 import { setupStatus } from "@/lib/setup";
 import { dashboardStats, dueByDate, filterUrl, upcoming } from "@/lib/views";
 
@@ -15,18 +14,19 @@ import { dashboardStats, dueByDate, filterUrl, upcoming } from "@/lib/views";
 const isOverdue = (d: Date | null) => Boolean(d && d.getTime() < Date.now());
 
 const TASKS_SHOWN = 5;
+const ACTIVITY_SHOWN = 3; // the full list is behind the bell
 
 export default async function Home() {
   const { user, companyId, access, timeZone: tz } = await requireMember();
   const viewer = { id: user.id, access };
   const seesReminders = can(access, "reminders.create") || can(access, "reminders.view_all");
-  const [me, pending, tasks, stats, next, activity, setup] = await Promise.all([
-    getUser(companyId, user.id),
-    can(access, "reminders.approve") ? mayDecide(companyId, viewer).then((d) => (d ? listPendingApprovals(companyId) : [])) : [],
+  const approver = can(access, "reminders.approve") && (await mayDecide(companyId, viewer));
+  const [pending, tasks, stats, next, activity, setup] = await Promise.all([
+    approver ? listPendingApprovals(companyId) : [],
     myOpenTasks(companyId, user.id, TASKS_SHOWN + 1),
     seesReminders ? dashboardStats(companyId, viewer, tz) : null,
     seesReminders ? upcoming(companyId, viewer) : [],
-    listNotifications(companyId, user.id).then((n) => n.items.slice(0, 8)),
+    listNotifications(companyId, user.id).then((n) => n.items.slice(0, ACTIVITY_SHOWN)),
     can(access, "company.edit") ? setupStatus(companyId, user.id) : null,
   ]);
 
@@ -89,7 +89,6 @@ export default async function Home() {
               href={`/notifications/${n.id}`}
               plain
               title={n.text}
-              badge={n.readAt ? undefined : "New"}
               meta={`${n.reminderTitle ?? "Deleted reminder"} · ${formatInZone(n.createdAt, tz)}`}
             />
           ))}
@@ -100,28 +99,21 @@ export default async function Home() {
     </Section>
   );
 
-  const departmentsSection = (
-    <Section title="Your departments">
-      {me && me.departments.length > 0 ? (
-        <List>
-          {me.departments.map((d) => (
-            <ListRow
-              key={d.id}
-              href={`/departments/${d.id}`}
-              title={d.name}
-              badge={d.isManager ? "Manager" : undefined}
-              meta={d.isManager ? "You manage this department" : "Member"}
-            />
-          ))}
-        </List>
-      ) : (
-        <Hint>You’re not in a department yet. An admin or department manager can add you.</Hint>
-      )}
-    </Section>
-  );
-
   // Two columns: your work on the left (tasks, what's coming), things that
-  // need a look on the right (approvals, activity, departments).
+  // need a look on the right (approvals, activity). With no work to show,
+  // the right column's content moves left.
+  const work = (tasksSection || upcomingSection) && (
+    <>
+      {tasksSection}
+      {upcomingSection}
+    </>
+  );
+  const look = (
+    <>
+      {approvalsSection}
+      {activitySection}
+    </>
+  );
   return (
     <Page title={`Hi, ${user.name.split(" ")[0]}`}>
       {setup && !setup.complete && !setup.dismissed && (
@@ -131,7 +123,11 @@ export default async function Home() {
       {stats && (
         <StatCards
           items={[
-            { label: "Needs approval", value: stats.pending, href: filterUrl({ show: "oversee", status: "pending_approval" }), tone: "warning", icon: "approvals" },
+            // Approvers have the "Approvals waiting" section instead; for
+            // everyone else this is where their own held reminders show.
+            ...(approver
+              ? []
+              : [{ label: "Needs approval", value: stats.pending, href: filterUrl({ show: "oversee", status: "pending_approval" }), tone: "warning" as const, icon: "approvals" as const }]),
             { label: "Active", value: stats.active, href: filterUrl({ show: "oversee", status: "scheduled", sort: "send_asc" }), tone: "info", icon: "reminders" },
             { label: "Due in 7 days", value: stats.dueSoon, href: filterUrl({ show: "oversee", status: "scheduled", to: dueByDate(tz), sort: "send_asc" }), icon: "calendar" },
             { label: "Completed", value: stats.completed, href: filterUrl({ show: "oversee", status: "sent" }), tone: "success", icon: "check" },
@@ -140,22 +136,7 @@ export default async function Home() {
         />
       )}
 
-      <Columns
-        main={
-          <>
-            {tasksSection}
-            {upcomingSection}
-            {!tasksSection && !upcomingSection && departmentsSection}
-          </>
-        }
-        side={
-          <>
-            {approvalsSection}
-            {activitySection}
-            {(tasksSection || upcomingSection) && departmentsSection}
-          </>
-        }
-      />
+      {work ? <Columns main={work} side={look} /> : look}
     </Page>
   );
 }

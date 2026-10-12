@@ -8,7 +8,7 @@ import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { signOutAction } from "./settings/account-actions";
 import styles from "./layout.module.css";
-import { ClosePopoverOnNavigate, NavLink, SidebarToggle } from "./nav-link";
+import { ClosePopoverOnNavigate, HideOn, NavLink, SidebarToggle } from "./nav-link";
 
 // Signed-in app shell, desktop-first: a rounded frame on a soft canvas with a
 // top bar (company, search, theme, notifications, new reminder), a left sidebar of
@@ -57,10 +57,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
 
           {seesReminders && (
-            <form action="/reminders" role="search" className={styles.search}>
-              <Icon name="search" />
-              <input name="q" type="search" placeholder="Search reminders…" aria-label="Search reminders" className={styles.searchInput} />
-            </form>
+            <HideOn path="/reminders">
+              <form action="/reminders" role="search" className={styles.search}>
+                <Icon name="search" />
+                <input name="q" type="search" placeholder="Search reminders…" aria-label="Search reminders" className={styles.searchInput} />
+              </form>
+            </HideOn>
           )}
 
           <div className={styles.tools}>

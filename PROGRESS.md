@@ -2,6 +2,28 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — removing repeated UI
+
+From a UI audit the user asked for ("do 1 to 6"):
+
+- **1, top-bar avatar vs sidebar user card: not changed.** The audit was
+  wrong: the avatar only shows below 768px, where the sidebar card is
+  hidden, so only one is ever on screen.
+- **2:** the top-bar search hides on `/reminders`, which has its own search
+  field. New `HideOn` (client, `usePathname`) in `nav-link.tsx`.
+- **3:** Home's "Needs approval" stat card hides **for approvers only**, who
+  have the "Approvals waiting" section. For everyone else it's the only place
+  their own held reminders show, so it stays.
+- **4:** Home's "Recent activity" shows 3 items, without a "New" badge on
+  each; the full list and the unread count are behind the bell.
+- **5:** "Your departments" removed from Home (it's on Profile and in the
+  sidebar). With no tasks or upcoming reminders, approvals and activity now
+  take the page instead of a left column holding only departments.
+- **6:** Profile's "More" section dropped Security and Notification
+  preferences (both in the account menu); it's now "Your data" with the
+  export.
+- **Verified:** typecheck and lint. **Not verified:** the look in a browser.
+
 ## 2026-10-12 — top bar: "New reminder" instead of "Invite"
 
 - The user's call: the app's main job is reminders; inviting belongs on Team
