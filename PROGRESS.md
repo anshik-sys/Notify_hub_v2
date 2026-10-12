@@ -2,6 +2,20 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — loading placeholder; no caching
+
+- The user felt a pause on every click and asked about caching. Measured
+  on the dev server (localhost): Home 0.18s, Reminders 0.14–0.18s, Tasks
+  0.09s, Calendar 0.15s, New reminder 0.17–0.22s. The pause is dev-mode
+  compiling, no prefetching in dev, and the ngrok round trip, plus no
+  feedback after a click. **No data caching:** pages are per-person and
+  per-company, so a cache risks stale or wrong data to save ~0.15s.
+- New `src/app/(app)/loading.tsx`: inside the shell, a title bar and three
+  pulsing cards. It fades in after 150ms, so fast pages never flash it; no
+  pulse with reduced motion; a hidden "Loading…" status for screen readers.
+- **Verified:** typecheck, lint; pages still render. **Not verified:** how it
+  feels; compare `pnpm build && pnpm start` on localhost.
+
 ## 2026-10-12 — Slack channel picks live under Channels
 
 - The recipients fold was titled "…, Slack channels and emails" even with
