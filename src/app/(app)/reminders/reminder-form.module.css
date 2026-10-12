@@ -84,25 +84,81 @@
   font-weight: 400;
 }
 
-/* "More options": the rarely needed settings, folded under one row. */
+/* "More options": the rarely needed settings behind one clickable row that
+   looks like a control (border, hover, a chevron that turns when open). */
 .options {
-  border-top: 1px solid var(--border);
-  padding-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 .optionsSummary {
+  transition: background-color var(--duration) var(--ease-out);
   display: flex;
   align-items: center;
-  min-height: 44px;
-  font-weight: 600;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
   cursor: pointer;
+  list-style: none; /* Safari's marker; ours is the chevron */
+}
+
+.optionsSummary::-webkit-details-marker {
+  display: none;
+}
+
+.optionsSummary:hover {
+  background: var(--panel);
+}
+
+.optionsSummary:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.optionsText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 600;
+}
+
+.optionsHint {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+/* The icon points up; closed it points down. */
+.optionsChevron {
+  transition: transform var(--duration) var(--ease-out);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--fg);
+  transform: rotate(180deg);
+}
+
+.options[open] .optionsChevron {
+  transform: none;
+}
+
+.options[open] > .optionsSummary {
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 
 .optionsBody {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding-top: 8px;
+  padding: 16px;
 }
 
 /* A group inside "More options": a small heading, no card of its own. */

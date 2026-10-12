@@ -22,6 +22,10 @@ From the form audit ("do it": items 1–5, 7–10):
   departments", **except** one an older reminder already shares by id, so
   saving an edit doesn't silently drop that share.
 - Shorter hints (When, Task, Attachments, Who can see it).
+- **Follow-up:** "More options" read as a title (`display: flex` on a
+  `<summary>` drops the browser's triangle). It's now a bordered row with a
+  hover tint, a round chevron that turns when open, and a muted line of what's
+  inside ("Tags, links, attachments, sharing, sender name").
 - **Unchanged:** every field name (same 37 `name`s before and after, diffed
   on the rendered page), the action and validation.
 - **Verified:** typecheck, lint, 139 tests; `/reminders/new` and an edit page

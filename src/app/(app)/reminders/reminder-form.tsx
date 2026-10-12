@@ -1,4 +1,5 @@
 import { Button, Checkbox, CheckboxGroup, Field, Form, Hint, RadioGroup, Section, SelectField, TextArea } from "@/components/form";
+import { Icon } from "@/components/icon";
 import { ACCEPT, MAX_FILES_PER_SAVE } from "@/lib/attachments";
 import { formatSize } from "@/lib/format";
 import type { RepeatFields } from "@/lib/recurrence";
@@ -310,7 +311,15 @@ export function ReminderForm({
 
       {/* Native disclosure, no client JS: the rarely needed settings. */}
       <details className={styles.options} open={usesOptions}>
-        <summary className={styles.optionsSummary}>More options</summary>
+        <summary className={styles.optionsSummary}>
+          <span className={styles.optionsText}>
+            More options
+            <span className={styles.optionsHint}>Tags, links, attachments, sharing, sender name</span>
+          </span>
+          <span className={styles.optionsChevron}>
+            <Icon name="chevron" size={18} />
+          </span>
+        </summary>
         <div className={styles.optionsBody}>
           <Field label="Tags, comma separated" name="tags" maxLength={400} placeholder="payroll, q3" defaultValue={defaults.tags} />
 
