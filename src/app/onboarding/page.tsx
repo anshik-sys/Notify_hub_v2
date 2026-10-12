@@ -1,20 +1,11 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { createCompany } from "@/lib/onboarding";
-import { Button, errorUrl, Field, firstParam, Form, Page, Hint, SelectField } from "@/components/form";
+import { Button, errorUrl, firstParam, Form, Hint, Page } from "@/components/form";
+import { signOutAction } from "../(app)/settings/account-actions";
 
-const TIME_ZONES = ["UTC", ...Intl.supportedValuesOf("timeZone")];
-
-async function onboard(formData: FormData) {
-  "use server";
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/sign-in");
-  const error = await createCompany(session.user, String(formData.get("name")), String(formData.get("timeZone")));
-  if (error) redirect(errorUrl("/onboarding", error));
-  redirect("/setup"); // PRD 3.1: the guided setup follows
-}
-
+// Where requireMember sends a signed-in person with no company. Companies are
+// created by the platform owner only (decided 2026-10-12), so this is a dead end.
 export default async function Onboarding(props: PageProps<"/onboarding">) {
   const error = firstParam((await props.searchParams).error);
   const session = await auth.api.getSession({ headers: await headers() });
@@ -22,12 +13,12 @@ export default async function Onboarding(props: PageProps<"/onboarding">) {
   if (!session) redirect(error ? errorUrl("/sign-in", "That link is invalid or expired. Sign in to get a new one.") : "/sign-in");
   if (session.user.companyId) redirect("/");
   return (
-    <Page center title="Set up your company" error={error}>
-      <Form action={onboard}>
-        <Field label="Company name" name="name" autoComplete="organization" maxLength={100} required />
-        <SelectField label="Time zone" name="timeZone" defaultValue="UTC" options={TIME_ZONES} />
-        <Hint>Your company domain is taken from your email: {session.user.email.split("@")[1]}</Hint>
-        <Button>Create company</Button>
+    <Page center title="No company yet">
+      <Hint>
+        {session.user.email} isn’t part of a company on NotifyHub. Ask your company’s admin to invite you, then use the link in that email.
+      </Hint>
+      <Form action={signOutAction}>
+        <Button variant="secondary">Sign out</Button>
       </Form>
     </Page>
   );

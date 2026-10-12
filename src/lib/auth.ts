@@ -59,12 +59,18 @@ export const auth = betterAuth({
   // instance shares the counts. Our server actions call auth.api directly,
   // which skips this; they use src/lib/rate-limit.ts instead.
   rateLimit: { enabled: true, storage: "database", modelName: "rateLimit" },
+  // Companies are created by the platform owner only (decided 2026-10-12);
+  // people join through an invite. This closes the public HTTP sign-up; the
+  // invite page calls auth.api.signUpEmail, which this doesn't affect.
+  disabledPaths: ["/sign-up/email"],
   advanced: { ipAddress: { ipAddressHeaders: [process.env.CLIENT_IP_HEADER || "x-forwarded-for"] } },
   socialProviders: {
     google: {
       enabled: googleEnabled,
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      // Existing accounts only: a new Google account would have no company.
+      disableImplicitSignUp: true,
       mapProfileToUser: (profile) => {
         if (!profile.email_verified) throw new APIError("FORBIDDEN", { message: "Google email is not verified" });
         return {};

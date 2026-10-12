@@ -38,11 +38,10 @@ One package, two processes, one Postgres:
 | `src/lib/test-helpers.ts` | `seeder()` for DB tests: one throwaway company per test file. |
 | `src/app/(app)/users/`, `src/app/invite/[token]` | People pages and the public invite accept page. |
 | `src/lib/mail.ts` | `sendMail()`: one recipient per message, over SMTP (Mailpit in dev, SES in prod). |
-| `src/lib/onboarding.ts` | Creates a company and attaches the signed-in user, in one transaction. |
 | `src/components/form.tsx`, `table.tsx`, `list.tsx` | The UI kit (`Page`, `Section`, `Form`, `Field`, `Button`, `LinkButton`, `Table`, `Badge`, `List`, …), each with its own `.module.css`. |
 | `src/app/(app)/` | Signed-in pages, wrapped by `layout.tsx`: the app shell (left sidebar; a top bar below 768px). The route group doesn't change URLs. |
 | `src/app/globals.css` | Design tokens (CSS variables, light and dark) and element defaults. |
-| `src/app/sign-in`, `sign-up`, `onboarding` | Server-rendered forms posting to server actions. No client-side auth code. |
+| `src/app/sign-in`, `onboarding` | Server-rendered forms posting to server actions. No client-side auth code. `onboarding` is only the "no company yet" dead end: companies are created on `/platform`. |
 | `src/app/api/auth/[...all]` | Better Auth's HTTP endpoints (sessions, OAuth callbacks). |
 | `drizzle/` | SQL migrations. `0001` is hand-written; `0003` is generated plus hand-added role creation and grants. |
 
@@ -56,7 +55,7 @@ pnpm db:migrate
 psql notifyhub -c "ALTER ROLE notifyhub_app PASSWORD 'dev'"
 psql notifyhub -c "ALTER ROLE notifyhub_auth PASSWORD 'dev'"
 # Mailpit on localhost:1025 (SMTP) / :8025 (UI) catches all mail
-pnpm test        # tenant isolation and onboarding tests
+pnpm test        # needs Mailpit running (invites send real mail)
 pnpm dev         # web
 pnpm worker      # sends reminders; without it they sit "Scheduled" and show "Delayed"
 pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at it)
@@ -69,8 +68,8 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     grant on `session`, `account` or `verification` (tokens, password hashes).
   - `AUTH_DATABASE_URL` → `notifyhub_auth`: Better Auth only. It has an
     `auth_unscoped` policy on `user` and `companies`, because sign-in looks a
-    user up by email before any company is known, and onboarding creates the
-    company. It has no grant on tenant data tables (`departments`, etc.).
+    user up by email before any company is known, and the platform console
+    creates companies (`createCompanyForCustomer`). It has no grant on tenant data tables (`departments`, etc.).
   - `OWNER_DATABASE_URL` → table owner: migrations and the worker. Bypasses RLS.
 
   Pointing `DATABASE_URL` at the owner, a superuser or `notifyhub_auth` silently
@@ -245,9 +244,13 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   `WHERE accepted_at IS NULL AND expires_at > now()`, so it's single use even
   when two clicks race. Accepting marks the email verified, because the link
   proves the mailbox.
-- **`sendOnSignUp` is false on purpose.** `/sign-up` sends the verification email
-  itself; otherwise accepting an invite would also send one. Calling
-  `signUpEmail` from anywhere else sends nothing.
+- **Sign-up is invite only.** `disabledPaths: ["/sign-up/email"]` closes Better
+  Auth's public HTTP sign-up; the invite page still calls `auth.api.signUpEmail`
+  directly, which `disabledPaths` doesn't touch (it only filters the router).
+  Google has `disableImplicitSignUp`, so it signs in existing accounts only.
+  Don't switch to `emailAndPassword.disableSignUp`: that blocks the invite page too.
+- **`sendOnSignUp` is false on purpose.** Accepting an invite proves the mailbox,
+  so it must not also send a verification email.
 - **Deactivation is enforced in three places:**
   - Better Auth's `session.create.before` hook blocks every sign-in method;
   - `setActive` deletes the user's sessions;
@@ -273,13 +276,12 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
 - **`user.company_id` is set only server-side.** It's a Better Auth
   `additionalField` with `input: false`. Better Auth rejects it from
   `/update-user` with `FIELD_NOT_ALLOWED`. Do not flip `input` to true.
-- **A company's domain is claimed by whoever onboards first with a verified
-  email at that domain.** Email verification is what makes that claim mean
-  anything. It's enforced twice: Better Auth refuses unverified sign-ins, and
-  `createCompany` checks `emailVerified` again. Keep both.
-- **`sendVerificationEmail` doesn't await the send, on purpose.** Sign-up gives
-  the same response for new and existing emails. Awaiting SMTP only for new ones
-  would reveal by timing which emails are registered.
+- **Only the platform owner creates companies** (decided 2026-10-12). The
+  domain is whatever the owner enters, and the first admin's invite must be at
+  that domain.
+- **`sendVerificationEmail` doesn't await the send, on purpose.** Sign-in sends
+  it to unverified accounts; awaiting SMTP only for those would reveal by timing
+  which emails are registered.
 - **Verification links carry a signed token (JWT, 1 hour), not a stored one.** It
   can't be revoked before expiry, but once the email is verified, reusing the
   link only redirects and doesn't sign anyone in.
@@ -482,7 +484,7 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     leak into the log); only `erased_at` is recorded, against the admin.
   - **Auto-erase:** with a retention period set, people deactivated longer
     than it are erased nightly.
-- **Guided setup (`/setup`, PRD 3.1):** onboarding lands there. Each step
+- **Guided setup (`/setup`, PRD 3.1):** the first admin reaches it from Home's "Finish setting up" banner. Each step
   (departments, invites, a manager per department, plus optional Slack and a
   first reminder) is **computed from the real data** (`setupStatus`), so doing
   it anywhere in the app counts and nothing can drift. Only "dismissed" is

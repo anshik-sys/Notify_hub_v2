@@ -35,6 +35,8 @@ export async function createCompanyAction(fd: FormData) {
     domain: str(fd, "domain"),
     timeZone: str(fd, "timeZone"),
     adminEmail: str(fd, "adminEmail"),
+    contactEmail: str(fd, "contactEmail"),
+    contactPhone: str(fd, "contactPhone"),
   });
   if (!r.id) go("/platform", r.error ?? "Couldn't create it.");
   go(`/platform/companies/${r.id}`, r.error ?? null, "Company created. The first admin has been invited.");
@@ -43,7 +45,16 @@ export async function createCompanyAction(fd: FormData) {
 export async function editCompanyAction(fd: FormData) {
   const id = companyId(fd);
   await gate(`/platform/companies/${id}`);
-  go(`/platform/companies/${id}`, await editCompany(id, { name: str(fd, "name"), domain: str(fd, "domain"), timeZone: str(fd, "timeZone") }));
+  go(
+    `/platform/companies/${id}`,
+    await editCompany(id, {
+      name: str(fd, "name"),
+      domain: str(fd, "domain"),
+      timeZone: str(fd, "timeZone"),
+      contactEmail: str(fd, "contactEmail"),
+      contactPhone: str(fd, "contactPhone"),
+    }),
+  );
 }
 
 export async function suspendAction(fd: FormData) {

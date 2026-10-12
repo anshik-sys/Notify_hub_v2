@@ -39,15 +39,17 @@ async function signIn(formData: FormData) {
 
 async function signInWithGoogle() {
   "use server";
-  const { url } = await auth.api.signInSocial({ body: { provider: "google", callbackURL: "/" }, headers: await headers() });
+  const { url } = await auth.api.signInSocial({ body: { provider: "google", callbackURL: "/", errorCallbackURL: "/sign-in" }, headers: await headers() });
   if (!url) redirect(errorUrl("/sign-in", "Google sign-in is unavailable."));
   redirect(url);
 }
 
 export default async function SignIn(props: PageProps<"/sign-in">) {
   const { error, notice, next } = await props.searchParams;
+  // Google sign-in for an address with no account (sign-up is invite only).
+  const shown = firstParam(error) === "signup_disabled" ? "No NotifyHub account uses that Google address. Ask your company’s admin for an invite." : firstParam(error);
   return (
-    <Page center title="Sign in" error={firstParam(error)} notice={firstParam(notice)}>
+    <Page center title="Sign in" error={shown} notice={firstParam(notice)}>
       <Form action={signIn}>
         <input type="hidden" name="next" value={safeNext(firstParam(next))} />
         <Field label="Email" name="email" type="email" autoComplete="email" required />
@@ -62,9 +64,7 @@ export default async function SignIn(props: PageProps<"/sign-in">) {
       <Hint>
         <Link href="/forgot-password">Forgot your password?</Link>
       </Hint>
-      <Hint>
-        New company? <Link href="/sign-up">Create an account</Link>
-      </Hint>
+      <Hint>Joining a company? Use the invite link from your email.</Hint>
     </Page>
   );
 }

@@ -214,13 +214,12 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - Tests need Mailpit running: `createInvitation` sends real mail.
 - **SAML SSO (PRD 3.1) isn't built.** It's deferred until a customer needs it (decided
   2026-10-08). Email/password, Google, 2FA and invites cover sign-in meanwhile.
-- No captcha on sign-up yet (PRD 3.1); sign-up is rate limited per IP.
 
 ## Verification checklist
 
 - [ ] `DATABASE_URL` user is not a superuser: `select rolsuper, rolbypassrls from pg_roles where rolname = current_user` is `f, f`.
 - [ ] Worker logs `tick` once a minute.
-- [ ] Sign up → verification email arrives (check spam and the `From`) → link lands on onboarding → home shows the company name; sign out returns to `/sign-in`.
+- [ ] `/sign-up` → 404, and `curl -X POST https://<app>/api/auth/sign-up/email` → 404. Google sign-in with an address that has no account → back on `/sign-in` with "Ask your company's admin for an invite".
 - [ ] Invite someone → email arrives → accept link creates the account and lands on the company → the same link again says "already used".
 - [ ] As a member, a reminder to your own department is "Scheduled", and one to another department is "Needs approval"; admins get an email.
 - [ ] "Now" to two people: both emails arrive within seconds, each addressed only to that person, Reply-To the creator; the reminder shows "2 sent".
@@ -255,7 +254,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Team → Import CSV with the template: invites arrive, and the accepted person lands in the right department and role. A file with a bad row imports nothing and lists the problems.
 - [ ] `/platform` as an owner (2FA on, from an allowed IP) lists every company with usage and queue health. From another IP, or as a company admin → 404. Suspend a test company → its people see "Account suspended" and nothing sends; unsuspend → it resumes.
 - [ ] Export a person's data (JSON with every section, no tokens). Deactivate them → Erase permanently → they can't sign in, show as "Deleted person", their comments read "Comment deleted", and the audit log no longer contains their email.
-- [ ] Sign up a new company: after onboarding you land on the setup checklist; departments, invites and managers tick off as you do them, and Home stops showing "Finish setting up" once it's done.
+- [ ] Create a company on `/platform` with a contact email and phone → the first admin's invite arrives → accepting it lands on Home with "Finish setting up"; Settings → Company shows the contact details and saves edits. On the setup checklist, departments, invites and managers tick off as you do them, and Home stops showing "Finish setting up" once it's done.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".

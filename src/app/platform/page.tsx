@@ -66,6 +66,8 @@ export default async function PlatformHome(props: PageProps<"/platform">) {
           <Field label="Domain" name="domain" placeholder="acme.com" required />
           <SelectField label="Time zone" name="timeZone" defaultValue="UTC" options={TIME_ZONES} />
           <Field label="First admin’s email (at that domain)" name="adminEmail" type="email" required />
+          <Field label="Contact email (optional)" name="contactEmail" type="email" autoComplete="off" maxLength={254} />
+          <Field label="Contact phone (optional)" name="contactPhone" type="tel" autoComplete="off" maxLength={30} />
           <Hint>The company is created empty and its first admin gets an invite email. You don’t join it.</Hint>
           <Button>Create company</Button>
         </Form>

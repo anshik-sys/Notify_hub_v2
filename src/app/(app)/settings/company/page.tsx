@@ -6,6 +6,7 @@ import {
   RETENTION_CHOICES,
   senderDefault,
   setApprovers,
+  setContact,
   setDefaultSender,
   setFollowUpTime,
   setRequireTwoFactor,
@@ -21,6 +22,12 @@ async function admin() {
   return m;
 }
 const done = (error: string | null): never => redirect(error ? errorUrl("/settings/company", error) : "/settings/company?notice=Saved.");
+
+async function saveContact(fd: FormData) {
+  "use server";
+  const { companyId } = await admin();
+  done(await setContact(companyId, String(fd.get("contactEmail") ?? ""), String(fd.get("contactPhone") ?? "")));
+}
 
 async function saveFollowUp(fd: FormData) {
   "use server";
@@ -70,6 +77,15 @@ export default async function CompanySettings(props: PageProps<"/settings/compan
         </LinkButton>
       }
     >
+      <Section title="Contact">
+        <Form action={saveContact}>
+          <Field label="Contact email" name="contactEmail" type="email" autoComplete="email" maxLength={254} defaultValue={settings.contactEmail ?? ""} />
+          <Field label="Contact phone" name="contactPhone" type="tel" autoComplete="tel" maxLength={30} defaultValue={settings.contactPhone ?? ""} />
+          <Hint>Who NotifyHub should get in touch with about your account. Both optional.</Hint>
+          <Button>Save</Button>
+        </Form>
+      </Section>
+
       <Section title="Sender name">
         <Form action={saveSender}>
           <Field label="Default sender name for new reminders" name="sender" maxLength={100} placeholder={`Alerts | ${company.name}`} defaultValue={settings.defaultSenderName ?? ""} />

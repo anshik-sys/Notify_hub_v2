@@ -211,6 +211,13 @@
       "when": 1791438289632,
       "tag": "0029_setup",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791785159401,
+      "tag": "0030_company_contact",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { db } from "@/db";
-import { companySettings, senderDefault, setApprovers, setDefaultSender, setRetention } from "./company";
+import { companySettings, senderDefault, setApprovers, setContact, setDefaultSender, setRetention } from "./company";
 import { COMPANY_ADMIN_ROLE_ID, MEMBER_ROLE_ID } from "./permissions";
 import { seeder } from "./test-helpers";
 
@@ -36,4 +36,14 @@ test("default sender, retention, approvers", async () => {
   assert.deepEqual(await companySettings(s.companyId).then((c) => [c.approvalMode, c.approverIds]), ["named", [admin]]);
   assert.equal(await setApprovers(s.companyId, "any", []), null);
   assert.deepEqual(await companySettings(s.companyId).then((c) => [c.approvalMode, c.approverIds]), ["any", []]);
+});
+
+test("contact email and phone", async () => {
+  assert.equal(await setContact(s.companyId, " Ops@Acme.com ", " +1 (415) 555-0100 "), null);
+  assert.deepEqual(await companySettings(s.companyId).then((c) => [c.contactEmail, c.contactPhone]), ["ops@acme.com", "+1 (415) 555-0100"]);
+  assert.match((await setContact(s.companyId, "not-an-email", ""))!, /contact email/);
+  assert.match((await setContact(s.companyId, "", "555-CALL"))!, /contact phone/);
+  assert.match((await setContact(s.companyId, "", "12345"))!, /contact phone/); // too few digits
+  assert.equal(await setContact(s.companyId, "", ""), null);
+  assert.deepEqual(await companySettings(s.companyId).then((c) => [c.contactEmail, c.contactPhone]), [null, null]);
 });

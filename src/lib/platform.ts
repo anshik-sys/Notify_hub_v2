@@ -4,8 +4,9 @@ import { notFound } from "next/navigation";
 import { db, setCurrentActor, withTenant } from "@/db";
 import { companies, platformSettings } from "@/db/schema";
 import { auth, authDb } from "./auth";
+import { checkContact } from "./company";
 import { createInvitation } from "./invitations";
-import { isTimeZone } from "./onboarding";
+import { isTimeZone } from "./time";
 import { ALL_PERMISSIONS, COMPANY_ADMIN_ROLE_ID, isPermission } from "./permissions";
 import { clientIp, limits } from "./rate-limit";
 
@@ -118,7 +119,10 @@ export const platformQueue = () =>
 const DOMAIN = /^(?=.{3,253}$)[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
 // A new company plus an invitation for its first admin (the owner doesn't join).
-export async function createCompanyForCustomer(owner: Owner, input: { name: string; domain: string; timeZone: string; adminEmail: string }) {
+type Contact = { contactEmail: string; contactPhone: string };
+const contact = (input: Contact) => ({ contactEmail: input.contactEmail.trim().toLowerCase(), contactPhone: input.contactPhone.trim() });
+
+export async function createCompanyForCustomer(owner: Owner, input: { name: string; domain: string; timeZone: string; adminEmail: string } & Contact) {
   const name = input.name.trim();
   const domain = input.domain.trim().toLowerCase();
   if (!name || name.length > 100) return { error: "Company name must be 1–100 characters." };
@@ -126,9 +130,15 @@ export async function createCompanyForCustomer(owner: Owner, input: { name: stri
   if (!isTimeZone(input.timeZone)) return { error: "Choose a valid time zone." };
   const email = input.adminEmail.trim().toLowerCase();
   if (!email.endsWith(`@${domain}`)) return { error: `The first admin's email must be at ${domain}.` };
+  const c = contact(input);
+  const bad = checkContact(c.contactEmail, c.contactPhone);
+  if (bad) return { error: bad };
   let id = "";
   try {
-    [{ id }] = await authDb.insert(companies).values({ name, domain, timeZone: input.timeZone }).returning({ id: companies.id });
+    [{ id }] = await authDb
+      .insert(companies)
+      .values({ name, domain, timeZone: input.timeZone, contactEmail: c.contactEmail || null, contactPhone: c.contactPhone || null })
+      .returning({ id: companies.id });
   } catch (e) {
     if ((e as { cause?: { code?: string } }).cause?.code === "23505") return { error: `A company for ${domain} already exists.` };
     throw e;
@@ -139,15 +149,18 @@ export async function createCompanyForCustomer(owner: Owner, input: { name: stri
   return error ? { id, error: `Company created, but: ${error}` } : { id };
 }
 
-export async function editCompany(companyId: string, input: { name: string; domain: string; timeZone: string }) {
+export async function editCompany(companyId: string, input: { name: string; domain: string; timeZone: string } & Contact) {
   const name = input.name.trim();
   const domain = input.domain.trim().toLowerCase();
   if (!name || name.length > 100) return "Company name must be 1–100 characters.";
   if (!DOMAIN.test(domain)) return "Enter a domain like acme.com.";
   if (!isTimeZone(input.timeZone)) return "Choose a valid time zone.";
+  const c = contact(input);
+  const bad = checkContact(c.contactEmail, c.contactPhone);
+  if (bad) return bad;
   try {
     const done = await withTenant(companyId, (tx) =>
-      tx.update(companies).set({ name, domain, timeZone: input.timeZone }).where(sql`${companies.id} = ${companyId}`).returning({ id: companies.id }),
+      tx.update(companies).set({ name, domain, timeZone: input.timeZone, contactEmail: c.contactEmail || null, contactPhone: c.contactPhone || null }).where(sql`${companies.id} = ${companyId}`).returning({ id: companies.id }),
     );
     return done.length ? null : "Company not found.";
   } catch (e) {

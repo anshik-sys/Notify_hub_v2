@@ -49,3 +49,12 @@ export function toLocalInput(date: Date, tz: string) {
 export function formatInZone(date: Date, tz: string) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: tz }).format(date);
 }
+
+export function isTimeZone(tz: string) {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}

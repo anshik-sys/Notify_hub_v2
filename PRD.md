@@ -92,9 +92,9 @@ The company is organised into **departments**, each with its own **managers**. A
   - the user's email domain must match the company's domain;
   - users are created automatically on their first SSO login;
   - single logout is supported.
-- **Company onboarding** (self-signup with a captcha, or set up by the platform owner):
-  1. Create the company: name, domain and time zone.
-  2. The person onboarding becomes the first **company admin**, with full access.
+- **Company onboarding** (set up by the platform owner only; self-signup removed, decided 2026-10-12):
+  1. The platform owner creates the company: name, domain, time zone, and optionally a contact email and phone.
+  2. The owner invites the first **company admin**, who gets full access on accepting.
   3. A guided setup follows:
      - create departments;
      - invite members and assign them to departments;

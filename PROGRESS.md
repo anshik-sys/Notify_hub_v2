@@ -2,6 +2,37 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — companies are created by the platform owner only; company contact details
+
+- **Decision (user):** no more self-signup. The platform owner creates every
+  company on `/platform` and invites its first admin (already built). PRD 3.1
+  updated.
+- **Closed:** `/sign-up` is gone. `disabledPaths: ["/sign-up/email"]` 404s Better
+  Auth's HTTP sign-up. It only filters the router, so the invite page's
+  `auth.api.signUpEmail` still works. `emailAndPassword.disableSignUp` would have
+  broken invites. Google gets `disableImplicitSignUp`, so it only signs in
+  existing accounts; a stranger lands back on `/sign-in` with "ask for an
+  invite".
+- `/onboarding` is now a dead end for a signed-in account with no company:
+  "ask your admin for an invite" plus Sign out. `createCompany`, the free-mail
+  list and its test were removed; `isTimeZone` moved to `src/lib/time.ts`. The
+  "no captcha on sign-up" known gap went with it.
+- **Contact email and phone** on `companies` (migration 0030, both optional).
+  Shared check `checkContact` in `src/lib/company.ts`. The owner sets them when
+  creating or editing a company; admins edit them in Settings → Company.
+  Phone: `+`, digits, spaces, `()-`, 7–15 digits. The existing `companies`
+  audit trigger records changes.
+  Not added to `erase_person`/`exportPerson`: it's company data, even if the
+  address is a person's.
+- **Verified:** typecheck and lint clean; `/sign-up` and
+  `POST /api/auth/sign-up/email` both 404 on the dev server, and no user was
+  created; the new company-contact test passes.
+  **Not verified:** the platform test's create step and 4 other tests failed
+  only because Mailpit wasn't running (ECONNREFUSED :1025). The contact-phone
+  rejection in that test ran before the mail step and passed. Re-run
+  `pnpm test` with Mailpit up. Google's rejection redirect isn't checked
+  (Google isn't configured locally).
+
 ## 2026-10-09 — real Slack test: files now reach channels
 
 - **Tested against a real Slack app** (through ngrok). Messages, the DM and

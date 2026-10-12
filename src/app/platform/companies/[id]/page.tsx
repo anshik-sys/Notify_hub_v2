@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Button, Checkbox, Field, firstParam, Form, Hint, Page, Section, SelectField } from "@/components/form";
 import { StatCards } from "@/components/stats";
+import { companySettings } from "@/lib/company";
 import { platformCompanies, requirePlatformOwner } from "@/lib/platform";
 import { formatInZone } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
@@ -14,6 +15,7 @@ export default async function PlatformCompany(props: PageProps<"/platform/compan
   if (!isUuid(id)) notFound();
   const c = (await platformCompanies()).find((x) => x.id === id);
   if (!c) notFound();
+  const { contactEmail, contactPhone } = await companySettings(id);
   const sp = await props.searchParams;
   const tz = "UTC";
   const hidden = <input type="hidden" name="companyId" value={c.id} />;
@@ -40,6 +42,8 @@ export default async function PlatformCompany(props: PageProps<"/platform/compan
           <Field label="Name" name="name" maxLength={100} required defaultValue={c.name} />
           <Field label="Domain" name="domain" required defaultValue={c.domain} />
           <SelectField label="Time zone" name="timeZone" defaultValue={c.time_zone} options={TIME_ZONES} />
+          <Field label="Contact email (optional)" name="contactEmail" type="email" autoComplete="off" maxLength={254} defaultValue={contactEmail ?? ""} />
+          <Field label="Contact phone (optional)" name="contactPhone" type="tel" autoComplete="off" maxLength={30} defaultValue={contactPhone ?? ""} />
           <Button>Save</Button>
         </Form>
       </Section>

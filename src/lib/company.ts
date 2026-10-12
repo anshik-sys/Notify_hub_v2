@@ -3,6 +3,25 @@ import { withTenant } from "@/db";
 import { companies, companyApprovers, roles, user, userRoles } from "@/db/schema";
 import { COMPANY_ADMIN_ROLE_ID } from "./permissions";
 
+// Both optional ("" clears). Shared with the platform console.
+export function checkContact(email: string, phone: string) {
+  if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return "Enter a valid contact email.";
+  const digits = phone.replace(/\D/g, "").length;
+  if (phone && (!/^\+?[\d\s()-]+$/.test(phone) || digits < 7 || digits > 15)) return "Enter a valid contact phone, like +971 4 123 4567.";
+  return null;
+}
+
+export async function setContact(companyId: string, email: string, phone: string) {
+  email = email.trim().toLowerCase();
+  phone = phone.trim();
+  const error = checkContact(email, phone);
+  if (error) return error;
+  await withTenant(companyId, (tx) =>
+    tx.update(companies).set({ contactEmail: email || null, contactPhone: phone || null }).where(eq(companies.id, companyId)),
+  );
+  return null;
+}
+
 // HH:MM, 24-hour, in the company's time zone (also a DB CHECK).
 export async function setFollowUpTime(companyId: string, time: string) {
   if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(time)) return "Pick a time of day.";
@@ -48,6 +67,8 @@ export async function companySettings(companyId: string) {
   const [c] = await withTenant(companyId, (tx) =>
     tx
       .select({
+        contactEmail: companies.contactEmail,
+        contactPhone: companies.contactPhone,
         followUpTime: companies.followUpTime,
         defaultSenderName: companies.defaultSenderName,
         approvalMode: companies.approvalMode,

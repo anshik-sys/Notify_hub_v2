@@ -27,6 +27,10 @@ export const companies = pgTable(
     name: text().notNull(),
     domain: text().notNull().unique(),
     timeZone: text().notNull(),
+    // PRD 4: who to reach at the company. Optional; set by the platform owner
+    // or the company's admins (src/lib/company.ts checkContact).
+    contactEmail: text(),
+    contactPhone: text(),
     // Local time of day for daily task follow-ups (PRD 5.8), in timeZone.
     followUpTime: text().notNull().default("09:00"),
     // PRD 9.1: everyone must set up 2FA before using the app (requireMember).

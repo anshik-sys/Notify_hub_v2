@@ -60,15 +60,21 @@ test("cross-company functions need the platform flag and return aggregates", asy
   assert.equal(typeof q.queued, "number");
 });
 
+const noContact = { contactEmail: "", contactPhone: "" };
+
 test("create, suspend, delete only when empty", async () => {
   const domain = `${randomUUID().slice(0, 8)}.example.com`;
-  assert.match((await createCompanyForCustomer({ id: alice, name: "Owner", email: "o@x" }, { name: "New Co", domain, timeZone: "UTC", adminEmail: "a@other.com" })).error!, /must be at/);
-  const r = await createCompanyForCustomer({ id: alice, name: "Owner", email: "o@x" }, { name: "New Co", domain, timeZone: "UTC", adminEmail: `boss@${domain}` });
+  assert.match((await createCompanyForCustomer({ id: alice, name: "Owner", email: "o@x" }, { name: "New Co", domain, timeZone: "UTC", adminEmail: "a@other.com", ...noContact })).error!, /must be at/);
+  const base = { name: "New Co", domain, timeZone: "UTC", adminEmail: `boss@${domain}` };
+  assert.match((await createCompanyForCustomer({ id: alice, name: "Owner", email: "o@x" }, { ...base, contactEmail: "", contactPhone: "call me" })).error!, /contact phone/);
+  const r = await createCompanyForCustomer({ id: alice, name: "Owner", email: "o@x" }, { ...base, contactEmail: " Ops@Acme.com ", contactPhone: "+971 4 123 4567" });
   assert.ok(r.id && !r.error, r.error);
   created.push(r.id!);
+  const [row] = (await s.owner.query("select contact_email, contact_phone from companies where id = $1", [r.id])).rows;
+  assert.deepEqual([row.contact_email, row.contact_phone], ["ops@acme.com", "+971 4 123 4567"]);
   const inv = (await s.owner.query("select email, role_ids from invitations where company_id = $1", [r.id])).rows;
   assert.deepEqual(inv.map((i) => [i.email, i.role_ids.includes("00000000-0000-4000-8000-000000000001")]), [[`boss@${domain}`, true]]);
-  assert.match((await createCompanyForCustomer({ id: alice, name: "O", email: "o@x" }, { name: "Dup", domain, timeZone: "UTC", adminEmail: `x@${domain}` })).error!, /already exists/);
+  assert.match((await createCompanyForCustomer({ id: alice, name: "O", email: "o@x" }, { name: "Dup", domain, timeZone: "UTC", adminEmail: `x@${domain}`, ...noContact })).error!, /already exists/);
 
   assert.equal(await setSuspended(s.companyId, true), null);
   assert.ok((await platformCompanies()).find((c) => c.id === s.companyId)!.suspended_at);
