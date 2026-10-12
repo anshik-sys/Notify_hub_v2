@@ -21,6 +21,11 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 - An owner who signs in on the company `/sign-in` lands on `/onboarding`,
   which now forwards them to `/platform`. Platform sign-out returns to
   `/platform/sign-in`.
+- `/platform/sign-in` is email and password plus a "Forgot your password?"
+  link (the shared `/forgot-password`); no sign-up link and no Google (user's
+  call). After a reset the owner signs in on `/sign-in` and `/onboarding`
+  forwards them to `/platform`. `/platform/sign-up` stays for the
+  one-time account setup, reached by typing the URL (DEPLOYMENT.md says so).
 - **Your `.env`:** `anshik@yougotagift.com` is in a company, so it's no longer
   an owner. Put a separate address in `PLATFORM_OWNER_EMAILS` and create it at
   `/platform/sign-up`.
