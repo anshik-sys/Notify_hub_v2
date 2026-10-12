@@ -154,6 +154,9 @@ export function ReminderForm({
     <Form action={saveReminder}>
       {defaults.id && <input type="hidden" name="id" value={defaults.id} />}
 
+      <Hint>
+        Fields marked <span aria-hidden="true">*</span> are required. Everything else can be left as it is.
+      </Hint>
       <Field label="Title" name="title" maxLength={200} required defaultValue={defaults.title} />
       <TextArea label="Description (optional)" name="description" maxLength={5000} defaultValue={defaults.description} />
       <Field label="Tags (optional, comma separated)" name="tags" maxLength={400} placeholder="payroll, q3" defaultValue={defaults.tags} />
@@ -171,7 +174,7 @@ export function ReminderForm({
         </details>
       </Section>
 
-      <Section title="Channels">
+      <Section title="Channels" required>
         <CheckboxGroup
           legend="Send by"
           name="channels"
@@ -185,7 +188,7 @@ export function ReminderForm({
         {!slackChannels && <Hint>Slack isn’t connected. An admin can connect it under Integrations.</Hint>}
       </Section>
 
-      <Section title="Recipients">
+      <Section title="Recipients" required>
         <Hint>
           Sending outside your departments, to the whole company or to outside emails needs an admin’s approval first.
         </Hint>
@@ -302,7 +305,7 @@ export function ReminderForm({
         <Checkbox label="Everyone in the company" name="shareCompany" defaultChecked={defaults.shareCompany} />
       </Section>
 
-      <Section title="When">
+      <Section title="When" required>
         <RadioGroup
           legend="Send"
           name="when"
@@ -335,7 +338,7 @@ export function ReminderForm({
 
       <Section title="Task">
         <Checkbox label="This is a task: everyone must mark it done" name="isTask" defaultChecked={defaults.isTask} />
-        <Field label={`Due (${timeZone})`} name="due" type="datetime-local" defaultValue={defaults.dueLocal} />
+        <Field label={`Due (${timeZone}, needed for a task)`} name="due" type="datetime-local" defaultValue={defaults.dueLocal} />
         <Hint>
           Anyone not done by then gets a reminder every day until they are. For repeating tasks, each one is due the
           same time after it’s sent.

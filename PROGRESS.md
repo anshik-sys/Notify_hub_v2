@@ -2,6 +2,23 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — required fields marked with *
+
+- The user couldn't tell what the new-reminder form needs. Now:
+  - **Kit:** `Field`, `TextArea` and `SelectField` show a red `*` after the
+    label whenever the input has `required` (app-wide, so sign-in, invite
+    etc. get it too). Screen readers already hear "required" from the input,
+    so the `*` is `aria-hidden`.
+  - `Section` takes `required` for "pick at least one" groups: a `*` plus a
+    visually hidden "(required)". New `.required` and `.hidden` classes.
+  - **Reminder form:** Title, Channels, Recipients and When are marked; a
+    note on top says "Fields marked * are required"; the Due label says
+    "needed for a task" (it's only required when it's a task).
+- These match `validateInput`'s rules; nothing about validation changed.
+- **Verified:** typecheck and lint; signed in as the demo admin,
+  `/reminders/new` renders 200 with the four markers and the note.
+  **Not verified:** the look in a browser.
+
 ## 2026-10-12 — reminder detail in two columns
 
 - The detail page stacked up to 13 sections in one column. Now it uses the

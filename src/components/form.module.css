@@ -366,3 +366,18 @@
   color: var(--primary-fg);
   font-weight: 600;
 }
+
+/* The * on required fields and sections. */
+.required {
+  color: var(--danger-fg);
+}
+
+/* Read out, not shown. */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

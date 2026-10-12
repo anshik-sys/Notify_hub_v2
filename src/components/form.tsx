@@ -51,10 +51,29 @@ export function Page({
   );
 }
 
-export function Section({ title, children }: { title: string; children: React.ReactNode }) {
+// The red * after a required field's label. Inputs with `required` get it
+// from Field etc. (screen readers already hear "required" from the input);
+// a section that needs at least one choice passes `required` and also gets
+// the word, visually hidden.
+const Star = () => (
+  <span className={styles.required} aria-hidden="true">
+    {" "}
+    *
+  </span>
+);
+
+export function Section({ title, required, children }: { title: string; required?: boolean; children: React.ReactNode }) {
   return (
     <section className={styles.section} data-card>
-      <h2 className={styles.sectionTitle}>{title}</h2>
+      <h2 className={styles.sectionTitle}>
+        {title}
+        {required && (
+          <>
+            <Star />
+            <span className={styles.hidden}> (required)</span>
+          </>
+        )}
+      </h2>
       {children}
     </section>
   );
@@ -95,7 +114,10 @@ export function Form(props: React.FormHTMLAttributes<HTMLFormElement>) {
 export function Field({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className={styles.field}>
-      {label}
+      <span>
+        {label}
+        {props.required && <Star />}
+      </span>
       <input className={styles.input} {...props} />
     </label>
   );
@@ -104,7 +126,10 @@ export function Field({ label, ...props }: { label: string } & React.InputHTMLAt
 export function TextArea({ label, ...props }: { label: string } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <label className={styles.field}>
-      {label}
+      <span>
+        {label}
+        {props.required && <Star />}
+      </span>
       <textarea className={`${styles.input} ${styles.textarea}`} {...props} />
     </label>
   );
@@ -117,7 +142,10 @@ export function SelectField({
 }: { label: string; options: (string | { value: string; label: string })[] } & React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <label className={styles.field}>
-      {label}
+      <span>
+        {label}
+        {props.required && <Star />}
+      </span>
       <select className={styles.input} {...props}>
         {options.map((o) =>
           typeof o === "string" ? (
