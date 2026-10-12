@@ -2,6 +2,18 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — top bar: "New reminder" instead of "Invite"
+
+- The user's call: the app's main job is reminders; inviting belongs on Team
+  (which already has "Invite someone"). The top-bar pill now says
+  "New reminder" (→ `/reminders/new`), shown to people with
+  `reminders.create`. Classes renamed `.invite` → `.create`.
+- It now has an `aria-label`: below 768px the label is hidden and the old
+  Invite link had no accessible name there.
+- `/reminders` still has its own "New reminder" page action, so that page
+  shows two. Kept: page actions are the rule in AGENTS.md.
+- **Verified:** typecheck and lint. **Not verified:** the look in a browser.
+
 ## 2026-10-12 — reminders list: less bloat
 
 - The user found `/reminders` bloated. Causes: 11 filters always open (a

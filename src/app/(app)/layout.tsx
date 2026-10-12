@@ -11,7 +11,7 @@ import styles from "./layout.module.css";
 import { ClosePopoverOnNavigate, NavLink, SidebarToggle } from "./nav-link";
 
 // Signed-in app shell, desktop-first: a rounded frame on a soft canvas with a
-// top bar (company, search, theme, notifications, invite), a left sidebar of
+// top bar (company, search, theme, notifications, new reminder), a left sidebar of
 // grouped navigation with the user card at the bottom (it opens the account
 // menu), and the page in a tinted panel. Below 768px the frame goes edge to
 // edge, the sidebar becomes a scrollable row and the top-bar avatar opens the
@@ -81,10 +81,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <button popoverTarget="account-menu" className={styles.me} aria-label="Account menu" title={user.name}>
               <Avatar name={user.name} size="large" />
             </button>
-            {can(access, "users.create") && (
-              <Link href="/users/invite" className={styles.invite}>
+            {can(access, "reminders.create") && (
+              <Link href="/reminders/new" className={styles.create} aria-label="New reminder">
                 <Icon name="plus" />
-                <span className={styles.inviteLabel}>Invite</span>
+                <span className={styles.createLabel}>New reminder</span>
               </Link>
             )}
           </div>

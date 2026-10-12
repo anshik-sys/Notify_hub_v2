@@ -242,13 +242,13 @@
 }
 
 .round:active,
-.invite:active {
+.create:active {
   transform: scale(0.94);
 }
 
 .round:focus-visible,
 .me:focus-visible,
-.invite:focus-visible,
+.create:focus-visible,
 .brand:focus-visible,
 .navItem:focus-visible {
   outline: 2px solid var(--fg);
@@ -314,7 +314,7 @@
   cursor: pointer;
 }
 
-.invite {
+.create {
   transition: opacity var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   display: inline-flex;
   align-items: center;
@@ -329,7 +329,7 @@
   text-decoration: none;
 }
 
-.invite:hover {
+.create:hover {
   opacity: 0.9;
 }
 
@@ -579,7 +579,7 @@
   }
 
   .brandText,
-  .inviteLabel,
+  .createLabel,
   .collapse {
     display: none;
   }
@@ -588,7 +588,7 @@
     width: auto;
   }
 
-  .invite {
+  .create {
     padding: 0 12px;
   }
 
