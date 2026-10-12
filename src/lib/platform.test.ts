@@ -10,6 +10,7 @@ import {
   deleteEmptyCompany,
   ipAllowed,
   isOwnerEmail,
+  ownerSignInAllowed,
   platformCompanies,
   platformQueue,
   platformSettingsRow,
@@ -58,6 +59,18 @@ test("cross-company functions need the platform flag and return aggregates", asy
   assert.deepEqual([mine.people, mine.scheduled, mine.sent_24h, mine.suspended_at], [1, 0, 0, null]);
   const q = await platformQueue();
   assert.equal(typeof q.queued, "number");
+});
+
+test("owner accounts are platform-only", async () => {
+  const solo = await s.user({ company: false });
+  const member = await s.user();
+  const email = async (id: string) => (await s.owner.query(`select email from "user" where id = $1`, [id])).rows[0].email as string;
+  const [soloEmail, memberEmail] = [await email(solo), await email(member)];
+  const env = { PLATFORM_OWNER_EMAILS: `${soloEmail},${memberEmail},new@owner.test` };
+  assert.equal(await ownerSignInAllowed(` ${soloEmail.toUpperCase()} `, env), true);
+  assert.equal(await ownerSignInAllowed(memberEmail, env), false); // listed, but in a company
+  assert.equal(await ownerSignInAllowed("new@owner.test", env), true); // no account yet: may sign up
+  assert.equal(await ownerSignInAllowed("eve@x.test", env), false); // not listed
 });
 
 const noContact = { contactEmail: "", contactPhone: "" };

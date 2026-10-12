@@ -48,8 +48,11 @@ Migration 0027: `companies.suspended_at`, `platform_settings`, `platform_alerts`
 `platform_*` SECURITY DEFINER functions (EXECUTE for `notifyhub_app` only).
 
 Platform owners:
-- **`PLATFORM_OWNER_EMAILS`**: comma-separated owner accounts. Sign up as a normal
-  user (no company needed), verify, then turn on 2FA at `/account/security`.
+- **`PLATFORM_OWNER_EMAILS`**: comma-separated owner accounts. Owner accounts are
+  **platform-only**: an address that belongs to a company is never an owner, so
+  use a separate one (e.g. `you+platform@…`). From an allowed IP, open
+  `/platform/sign-up`, create the account, verify the email, then turn on 2FA
+  at `/account/security`. Owners sign in at `/platform/sign-in`.
 - **`PLATFORM_ALLOWED_IPS`**: exact IPs or IPv4 CIDRs. **Required in production**
   when owners are set; the startup check refuses otherwise. It relies on
   `CLIENT_IP_HEADER` being set by your proxy.
@@ -252,7 +255,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] 6 wrong passwords for one account → "Too many attempts". `/api/health` → 200; stop the worker → 503 within 3 minutes.
 - [ ] Company settings: a sender name shows in new emails' From. Named approvers: only they get approval emails, and an admin who isn't named can't decide.
 - [ ] Team → Import CSV with the template: invites arrive, and the accepted person lands in the right department and role. A file with a bad row imports nothing and lists the problems.
-- [ ] `/platform` as an owner (2FA on, from an allowed IP) lists every company with usage and queue health. From another IP, or as a company admin → 404. Suspend a test company → its people see "Account suspended" and nothing sends; unsuspend → it resumes.
+- [ ] `/platform` signed out from an allowed IP → `/platform/sign-in`; from another IP → 404 (sign-in page too). A company account on `/platform/sign-in` is refused like a wrong password. As an owner (2FA on) it lists every company with usage and queue health. Suspend a test company → its people see "Account suspended" and nothing sends; unsuspend → it resumes.
 - [ ] Export a person's data (JSON with every section, no tokens). Deactivate them → Erase permanently → they can't sign in, show as "Deleted person", their comments read "Comment deleted", and the audit log no longer contains their email.
 - [ ] Create a company on `/platform` with a contact email and phone → the first admin's invite arrives → accepting it lands on Home with "Finish setting up"; Settings → Company shows the contact details and saves edits. On the setup checklist, departments, invites and managers tick off as you do them, and Home stops showing "Finish setting up" once it's done.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.

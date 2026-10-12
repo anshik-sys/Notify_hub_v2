@@ -1,8 +1,8 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { db, setCurrentActor, withTenant } from "@/db";
-import { companies, platformSettings } from "@/db/schema";
+import { companies, platformSettings, user } from "@/db/schema";
 import { auth, authDb } from "./auth";
 import { checkContact } from "./company";
 import { createInvitation } from "./invitations";
@@ -12,8 +12,10 @@ import { clientIp, limits } from "./rate-limit";
 
 // The platform-owner console (PRD 9.2). Owners are the accounts listed in
 // PLATFORM_OWNER_EMAILS, with 2FA on, coming from PLATFORM_ALLOWED_IPS
-// (decided with the user). Anything else gets a 404: the console isn't
-// advertised. Cross-company reads go through SECURITY DEFINER functions
+// (decided with the user). Owner accounts are platform-only: one that belongs
+// to a company is not an owner (decided 2026-10-12), and they sign in at
+// /platform/sign-in. From an allowed IP a signed-out visit goes there;
+// anything else gets a 404: the console isn't advertised. Cross-company reads go through SECURITY DEFINER functions
 // (migration 0027) that only run with app.platform = 'on', set here.
 // Never call platform_* functions from anywhere else.
 
@@ -39,11 +41,16 @@ export function ipAllowed(ip: string, env: Env = process.env) {
 
 export type Owner = { id: string; name: string; email: string };
 
-// "ok", or why not. A missing 2FA is the one reason worth telling the owner.
-export async function platformAccess(): Promise<{ owner: Owner } | { reason: "no" | "2fa" }> {
+// "ok", or why not. Every reason but "no" comes only from an allowed IP:
+// "signed-out" and "not-owner" (e.g. a company account) get the sign-in page,
+// "2fa" is told to set it up.
+export async function platformAccess(): Promise<{ owner: Owner } | { reason: "no" | "2fa" | "signed-out" | "not-owner"; email?: string }> {
   const h = await headers();
+  if (!ipAllowed(clientIp(h))) return { reason: "no" };
   const session = await auth.api.getSession({ headers: h });
-  if (!session || session.user.deactivatedAt || !isOwnerEmail(session.user.email) || !ipAllowed(clientIp(h))) return { reason: "no" };
+  if (!session) return { reason: "signed-out" };
+  if (session.user.deactivatedAt) return { reason: "no" };
+  if (session.user.companyId || !isOwnerEmail(session.user.email)) return { reason: "not-owner", email: session.user.email };
   if (!session.user.twoFactorEnabled) return { reason: "2fa" };
   return { owner: { id: session.user.id, name: session.user.name, email: session.user.email } };
 }
@@ -52,9 +59,20 @@ export async function platformAccess(): Promise<{ owner: Owner } | { reason: "no
 // with withTenant afterwards are audited under the owner.
 export async function requirePlatformOwner() {
   const a = await platformAccess();
+  if ("reason" in a && (a.reason === "signed-out" || a.reason === "not-owner")) redirect("/platform/sign-in");
   if (!("owner" in a)) notFound();
   await setCurrentActor(a.owner.id);
   return a.owner;
+}
+
+// Before a /platform/sign-in or /platform/sign-up attempt: a listed email with
+// no company. Callers answer a refusal exactly like a wrong password, so it
+// tells nobody which addresses are owners.
+export async function ownerSignInAllowed(email: string, env: Env = process.env) {
+  email = email.trim().toLowerCase();
+  if (!isOwnerEmail(email, env)) return false;
+  const [u] = await authDb.select({ companyId: user.companyId }).from(user).where(eq(user.email, email));
+  return !u?.companyId;
 }
 
 // Actions also get a rate limit; returns an error message or null.

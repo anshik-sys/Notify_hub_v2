@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { errorUrl } from "@/components/form";
 import {
@@ -11,6 +12,7 @@ import {
   setSuspended,
   setVolumeAlert,
 } from "@/lib/platform";
+import { auth } from "@/lib/auth";
 import { isUuid } from "@/lib/validate";
 
 // Every action re-checks the owner (email, 2FA, IP) and is rate limited.
@@ -27,6 +29,11 @@ const companyId = (fd: FormData) => {
   if (!isUuid(id)) redirect("/platform");
   return id;
 };
+
+export async function platformSignOutAction() {
+  await auth.api.signOut({ headers: await headers() });
+  redirect("/platform/sign-in");
+}
 
 export async function createCompanyAction(fd: FormData) {
   const owner = await gate("/platform");

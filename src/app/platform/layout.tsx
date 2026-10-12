@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { platformAccess } from "@/lib/platform";
-import { signOutAction } from "../(app)/settings/account-actions";
+import { platformSignOutAction } from "./actions";
 import styles from "./layout.module.css";
 
 // The platform-owner console's own shell (PRD 9.2), outside any company.
-// Non-owners get a 404 here and on every page and action.
+// Non-owners get a 404 here and on every page and action. Signed out (from an
+// allowed IP) it renders bare, for the sign-in pages; the console pages
+// themselves redirect to /platform/sign-in.
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
   const a = await platformAccess();
   if ("reason" in a && a.reason === "no") notFound();
@@ -18,7 +20,7 @@ export default async function PlatformLayout({ children }: { children: React.Rea
             <Link href="/platform">Companies</Link>
             <Link href="/platform/settings">Settings</Link>
             <Link href="/account/security">Security</Link>
-            <form action={signOutAction}>
+            <form action={platformSignOutAction}>
               <button className={styles.signOut}>Sign out</button>
             </form>
           </nav>

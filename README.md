@@ -459,6 +459,13 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     2FA on, and must come from `PLATFORM_ALLOWED_IPS` (in dev with no list,
     localhost only). Anything else gets a 404; an owner without 2FA is told
     to set it up at `/account/security`, which works without a company.
+  - **Owner accounts are platform-only.** An account with a `company_id` is
+    never an owner, even if listed. Owners sign in at `/platform/sign-in` and
+    create their account at `/platform/sign-up` (the only sign-up left; it
+    calls `auth.api.signUpEmail`, which `disabledPaths` doesn't block).
+    Both answer a non-owner exactly like a wrong password or a sent link, so
+    they don't reveal who is an owner. From an allowed IP, a signed-out visit
+    to `/platform` redirects to the sign-in; from anywhere else it's still 404.
   - **Cross-company reads don't use the owner connection.** They go through
     `SECURITY DEFINER` functions (`platform_companies`, `platform_queue`,
     `platform_set_member_role`, migration 0027) that return aggregates only,

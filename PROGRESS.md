@@ -2,6 +2,33 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — separate platform sign-in; owner accounts are platform-only
+
+- **User's call:** a signed-out visit to `/platform` should go to a sign-in page,
+  and owners should have their own login so the console and the company app
+  don't mix. Chosen: own sign-in page, **platform-only accounts** (same Better
+  Auth accounts, password, 2FA, reset and rate limits; not a second auth system).
+- `/platform/sign-in` and `/platform/sign-up` (new). An owner is a listed email
+  **with no company**; `ownerSignInAllowed` checks both. A non-owner gets
+  "Invalid email or password" (sign-in) or "if that address is an owner, we
+  sent a link" (sign-up), so neither page reveals who's an owner.
+- From an allowed IP, signed-out `/platform` → `/platform/sign-in`. Signed in
+  to a company account there → "isn't a platform account, sign out". From any
+  other IP everything under `/platform` is still a 404, sign-in included.
+- **Fixed a gap from the previous entry:** owners used to get their account
+  through the public `/sign-up`, which that change closed. `/platform/sign-up`
+  replaces it, for listed emails only.
+- An owner who signs in on the company `/sign-in` lands on `/onboarding`,
+  which now forwards them to `/platform`. Platform sign-out returns to
+  `/platform/sign-in`.
+- **Your `.env`:** `anshik@yougotagift.com` is in a company, so it's no longer
+  an owner. Put a separate address in `PLATFORM_OWNER_EMAILS` and create it at
+  `/platform/sign-up`.
+- **Verified:** 139 tests pass (new: owner accounts are platform-only), lint
+  and typecheck clean. On the dev server, as the allowed IP: `/platform` →
+  307 to `/platform/sign-in`, sign-in and sign-up 200; as another IP all 404.
+  **Not verified:** the sign-up → verify → 2FA → console flow in a browser.
+
 ## 2026-10-12 — companies are created by the platform owner only; company contact details
 
 - **Decision (user):** no more self-signup. The platform owner creates every
