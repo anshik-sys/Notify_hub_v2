@@ -48,7 +48,7 @@
 }
 
 .card:focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
@@ -100,7 +100,7 @@
 .value {
   grid-column: 1 / -1;
   font-size: 2.25rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1;
 }

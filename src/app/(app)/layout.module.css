@@ -22,7 +22,7 @@
 
 .skip:focus {
   transform: none;
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
@@ -192,7 +192,7 @@
 }
 
 .search:focus-within {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
@@ -244,7 +244,7 @@
 .create:focus-visible,
 .brand:focus-visible,
 .navItem:focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
@@ -276,7 +276,7 @@
 }
 
 .collapse:focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
@@ -308,7 +308,7 @@
 }
 
 .create {
-  transition: opacity var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
+  transition: background-color var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -323,7 +323,7 @@
 }
 
 .create:hover {
-  opacity: 0.9;
+  background: var(--primary-hover);
 }
 
 /* Sidebar */
@@ -415,7 +415,7 @@
 
 .user:focus-visible,
 .menuItem:focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 

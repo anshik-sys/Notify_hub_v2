@@ -33,7 +33,7 @@
 }
 
 .apply {
-  transition: opacity var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
+  transition: background-color var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   min-height: 40px;
   padding: 8px 20px;
   border: 0;
@@ -41,12 +41,17 @@
   background: var(--primary-bg);
   color: var(--primary-fg);
   font: inherit;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .apply:hover {
-  opacity: 0.9;
+  background: var(--primary-hover);
+}
+
+.apply:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .apply:active {

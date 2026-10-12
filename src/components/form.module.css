@@ -72,7 +72,7 @@
 .title {
   margin: 0;
   font-size: 2rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.2;
   overflow-wrap: anywhere;
@@ -111,7 +111,7 @@
 .sectionTitle {
   margin: 0;
   font-size: 1.1875rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.01em;
 }
 
@@ -173,7 +173,7 @@
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--brand);
   outline-offset: 1px;
 }
 
@@ -193,7 +193,7 @@
 }
 
 .button:focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
@@ -207,8 +207,8 @@
   color: var(--primary-fg);
 }
 
-.primary:hover {
-  opacity: 0.9;
+.primary:hover:not(:disabled) {
+  background: var(--primary-hover);
 }
 
 .secondary {
@@ -217,13 +217,23 @@
   color: var(--fg);
 }
 
-.secondary:hover {
+.secondary:hover:not(:disabled) {
+  border-color: var(--primary-bg);
   background: var(--surface);
 }
 
 .danger {
   background: var(--danger-bg);
   color: var(--danger-fg);
+}
+
+.danger:hover:not(:disabled) {
+  border-color: var(--danger-fg);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* For actions inside table rows. */
@@ -268,7 +278,7 @@
   width: 16px;
   height: 16px;
   margin: 0;
-  accent-color: var(--primary-bg);
+  accent-color: var(--brand);
 }
 
 .group:disabled .checkbox,
@@ -330,7 +340,7 @@
 }
 
 .banner:focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
@@ -351,7 +361,7 @@
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--success-fg);
+  background: var(--brand);
 }
 
 .bannerCount {
@@ -360,11 +370,16 @@
 }
 
 .bannerAction {
+  transition: background-color var(--duration) var(--ease-out);
   padding: 4px 12px;
   border-radius: 999px;
   background: var(--primary-bg);
   color: var(--primary-fg);
   font-weight: 600;
+}
+
+.banner:hover .bannerAction {
+  background: var(--primary-hover);
 }
 
 /* The * on required fields and sections. */

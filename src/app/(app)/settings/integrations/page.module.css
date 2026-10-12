@@ -1,15 +1,30 @@
 /* Looks like the kit's primary button; it's a plain link to the install route. */
 .connect {
+  transition: background-color var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
   min-height: 40px;
-  padding: 8px 16px;
-  border-radius: var(--radius);
+  padding: 8px 20px;
+  border-radius: 999px;
   background: var(--primary-bg);
   color: var(--primary-fg);
+  font-size: 0.9375rem;
   font-weight: 600;
   text-decoration: none;
+}
+
+.connect:hover {
+  background: var(--primary-hover);
+}
+
+.connect:active {
+  transform: scale(0.97);
+}
+
+.connect:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .warning {

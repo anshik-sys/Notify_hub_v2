@@ -2,6 +2,55 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — full palette + font: violet brand, Plus Jakarta Sans (branch `new-branch`)
+
+- Option A (small violet touches) was rejected: the user wanted the whole
+  palette changed. They picked **Violet brand** and **Plus Jakarta Sans**
+  from four palettes and four fonts.
+- **Font:** `Plus_Jakarta_Sans` via `next/font` as `--font-sans`; Geist and
+  the unused Geist Mono are gone. Page and section titles and stat numbers
+  went 600 → 700 (Jakarta reads lighter). **Bug fixed:** `textarea` wasn't
+  in the `font: inherit` rule, so kit text areas used the browser's default
+  font.
+- **Tokens** (all three blocks; dark ones identical): lavender→sky canvas,
+  lavender `--panel`/`--surface`/borders, violet-black text, **violet
+  `--primary-bg` (`#5b3df5` / dark `#a99bff`)** so every main button, the
+  current nav item, the theme switch, calendar "today" and the stat arrow
+  are violet; new `--primary-hover`; pink unread counts (`#d1306a`);
+  violet-tinted shadows; new `--shadow-pop`; the dark card shadow got its
+  missing second layer. Meaning colours (danger/success/warning/info) kept.
+- **Contrast:** every text pair 4.6–17.6:1, borders/rings ≥3.1:1, light and
+  dark (script output in the session).
+- **States made consistent:** primary fills hover to `--primary-hover`
+  (was opacity) on buttons, Apply, New reminder, the banner action and
+  Slack connect (now a pill with hover/press/focus); `.secondary` hover
+  gets a violet border; `.danger` got a hover; new `.button:disabled`;
+  Tasks/Reports tabs are pills with a violet-tint current tab; dropdown
+  shadows use `--shadow-pop`. No hard-coded colour left in any module
+  except the email preview's intentional white.
+- **Verified:** typecheck, lint, 139 tests; on a throwaway dev server (port
+  3001) Home, Reminders, New, a detail, Calendar, Tasks, Reports, Company,
+  Integrations and `/platform/sign-in` render 200 with the new font and
+  tokens served. **Not verified:** the look; the user's port-3000 server
+  is an older `pnpm start` build.
+
+## 2026-10-12 — palette experiment A: echo the logo quietly (branch `new-branch`)
+
+- The UI was black/white/grey on a peach→mint canvas, unrelated to the new
+  logo (blue→violet→pink→orange). Option A of three: keep black buttons,
+  bring the logo in through small touches only.
+- **Canvas:** light `#e2edff → #f0ebfb → #fde8dd` (pale sky, lavender,
+  peach); dark `#0f1830 → #0e0e10 → #2a1416`.
+- **New `--brand`** (the logo's violet): light `#5b3df5`, dark `#b3a4ff`.
+  Used for all 14 focus rings (were `--fg`), ticked checkboxes and radios
+  (`accent-color`), and the setup progress bar (was green).
+- **`--accent-*`** (avatars, stat icon circles) green → violet tint: light
+  `#ece8ff`/`#4b2fd6`, dark `#231b4a`/`#c9bdff`. Success stays green.
+- Contrast checked: 5.6–9.2:1 for every pair (text needs 4.5, rings 3).
+  Both dark blocks still identical.
+- **Not verified:** the look in a browser; option B (violet primary
+  buttons) not tried yet.
+
 ## 2026-10-12 — the NotifyHub logo
 
 - The user supplied the logo (a colourful calendar mark on a white rounded

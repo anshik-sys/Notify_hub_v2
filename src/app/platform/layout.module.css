@@ -87,7 +87,7 @@
 .navItem:focus-visible,
 .round:focus-visible,
 .signOut:focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
