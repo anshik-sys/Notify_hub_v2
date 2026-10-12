@@ -8,7 +8,7 @@ import styles from "./layout.module.css";
 const LINKS = [
   { href: "/platform", label: "Companies", active: (p: string) => p === "/platform" || p.startsWith("/platform/companies") },
   { href: "/platform/settings", label: "Settings", active: (p: string) => p.startsWith("/platform/settings") },
-  { href: "/account/security", label: "Security", active: () => false },
+  { href: "/platform/security", label: "Security", active: (p: string) => p.startsWith("/platform/security") },
 ];
 
 export function PlatformNav() {

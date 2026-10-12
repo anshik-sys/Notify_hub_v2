@@ -13,9 +13,9 @@ export default async function PlatformHome(props: PageProps<"/platform">) {
   const a = await platformAccess();
   if ("reason" in a && a.reason === "2fa")
     return (
-      <Page center title="Turn on two-factor first">
+      <Page title="Turn on two-factor first">
         <Hint>
-          The platform console needs two-factor authentication on your account. <Link href="/account/security">Set it up</Link>, then come back.
+          The platform console needs two-factor authentication on your account. <Link href="/platform/security">Set it up</Link>, then come back.
         </Hint>
       </Page>
     );

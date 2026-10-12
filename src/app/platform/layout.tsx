@@ -10,11 +10,12 @@ import { PlatformNav } from "./nav";
 // app's look (canvas, white frame, pill nav) with a top bar instead of a
 // sidebar. Non-owners get a 404 here and on every page and action. Anyone who
 // isn't a full owner yet (signed out, a company account, no 2FA) gets the
-// page bare on the canvas, like /sign-in; the pages themselves decide.
+// page bare on the canvas, like /sign-in; the pages themselves decide. An
+// owner still without 2FA gets the frame, to set it up at /platform/security.
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
   const a = await platformAccess();
   if ("reason" in a && a.reason === "no") notFound();
-  if (!("owner" in a)) return children;
+  if (!("owner" in a) && a.reason !== "2fa") return children;
   return (
     <div className={styles.shell}>
       <div className={styles.frame}>

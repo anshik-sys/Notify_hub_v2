@@ -458,7 +458,7 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   - **Owners** are the accounts in `PLATFORM_OWNER_EMAILS`. They must have
     2FA on, and must come from `PLATFORM_ALLOWED_IPS` (in dev with no list,
     localhost only). Anything else gets a 404; an owner without 2FA is told
-    to set it up at `/account/security`, which works without a company.
+    to set it up at `/platform/security`, inside the console (it works without a company).
   - **Owner accounts are platform-only.** An account with a `company_id` is
     never an owner, even if listed. Owners sign in at `/platform/sign-in` and
     create their account at `/platform/sign-up` (the only sign-up left; it

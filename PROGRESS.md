@@ -2,6 +2,20 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — owner security page moved into the console
+
+- `/account/security` rendered the security page bare on the canvas, outside
+  the console, with no way back. Only platform owners used it.
+- **Moved to `/platform/security`**, inside the console frame; the "Security"
+  pill now highlights there. `/account/security` is gone (404). The actions'
+  allowed-pages list, the 2FA prompt's link and the docs point to the new path.
+- An owner still without 2FA now gets the console frame too, so the
+  "Turn on two-factor first" message and the security page sit in it
+  (the message is a normal page again, not a centred card).
+- **Verified:** typecheck and lint; as the allowed IP signed out,
+  `/platform/security` → 307 to `/platform/sign-in`; other IPs 404;
+  `/account/security` 404. **Not verified:** the signed-in page in a browser.
+
 ## 2026-10-12 — platform console in the app's look
 
 - The platform shell predated the redesign: a solid white page (`--bg`) hid

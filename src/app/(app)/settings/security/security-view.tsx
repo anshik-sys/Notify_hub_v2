@@ -21,8 +21,8 @@ const secretOf = (uri: string) => new URL(uri).searchParams.get("secret") ?? "";
 
 // Password, two-factor (PRD 3.1) and signed-in devices. Reachable without 2FA
 // set up, because this is where a company that requires it sends people.
-// Shared by /settings/security (in the app) and /account/security (no
-// company needed, e.g. a platform owner). base = the page's own path, so
+// Shared by /settings/security (in the app) and /platform/security (platform
+// owners, who have no company). base = the page's own path, so
 // the actions come back to it.
 export async function SecurityView({ base, searchParams }: { base: string; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { user, timeZone } = await requireSignedIn();

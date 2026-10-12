@@ -52,7 +52,7 @@ Platform owners:
   **platform-only**: an address that belongs to a company is never an owner, so
   use a separate one (e.g. `you+platform@…`). From an allowed IP, open
   `/platform/sign-up`, create the account, verify the email, then turn on 2FA
-  at `/account/security`. Owners sign in at `/platform/sign-in`.
+  at `/platform/security`. Owners sign in at `/platform/sign-in`.
 - **`PLATFORM_ALLOWED_IPS`**: exact IPs or IPv4 CIDRs. **Required in production**
   when owners are set; the startup check refuses otherwise. It relies on
   `CLIENT_IP_HEADER` being set by your proxy.

@@ -19,7 +19,7 @@ import { requireMember, requireSignedIn } from "@/lib/session";
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "");
 const notice = (path: string, m: string): never => redirect(`${path}?notice=${encodeURIComponent(m)}`);
 const SECURITY = "/settings/security";
-const PAGES = [SECURITY, "/account/security"];
+const PAGES = [SECURITY, "/platform/security"];
 const base = (fd: FormData) => (PAGES.includes(String(fd.get("base"))) ? String(fd.get("base")) : SECURITY);
 
 // Password-checking actions: 5 tries per person per 15 minutes (PRD 11.1).
