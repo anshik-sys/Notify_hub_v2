@@ -2,6 +2,26 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — reminder detail in two columns
+
+- The detail page stacked up to 13 sections in one column. Now it uses the
+  kit's `Columns` (3:2, stacks below 1100px):
+  - **Left, what it is and what happened:** Details (schedule, sender,
+    description, then attachments and links as one list instead of two
+    sections), task progress, Delivery, Discussion.
+  - **Right, what you can do:** Your task (Mark done), Approval, one
+    **Actions** card (Send me a test, Send now, Pause/Resume, Skip, Cancel;
+    was "Send" plus "Series"/"Change"), Recipients (with the "who can see
+    it" line underneath instead of its own section).
+- Earlier occurrences fold under the delivery table in a native `<details>`
+  ("Earlier occurrences (N)"), closed by default.
+- Task progress dropped its Email column; the email is the name's tooltip.
+- Every condition (who sees what, which buttons) is unchanged; only the
+  placement moved.
+- **Verified:** typecheck and lint; signed in as the demo admin, four
+  reminders (one task) render 200 with both columns, Actions, Recipients and
+  the task cards. **Not verified:** the look in a browser.
+
 ## 2026-10-12 — removing repeated UI
 
 From a UI audit the user asked for ("do 1 to 6"):

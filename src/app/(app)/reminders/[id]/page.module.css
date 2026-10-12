@@ -44,10 +44,20 @@
   }
 }
 
-.sendRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* Folded history under the delivery table. */
+.moreToggle {
+  width: fit-content;
+  color: var(--muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.moreToggle:hover {
+  color: var(--fg);
+}
+
+.more[open] > .moreToggle {
+  margin-bottom: 12px;
 }
 
 .tag {
