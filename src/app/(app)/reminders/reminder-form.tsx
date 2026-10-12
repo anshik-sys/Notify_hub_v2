@@ -37,10 +37,11 @@ export type ReminderDefaults = {
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 // Part of the When section. No client JS: all custom fields are always
-// submitted; the server only reads them when "Custom…" is chosen (ruleFromForm).
+// submitted, and CSS (:has) shows only the ones that apply; the server only
+// reads them when "Custom…" is chosen (ruleFromForm).
 function RepeatControls({ r }: { r: RepeatFields }) {
   return (
-    <>
+    <div className={styles.repeat}>
       <SelectField
         label="How often"
         name="repeat"
@@ -55,10 +56,9 @@ function RepeatControls({ r }: { r: RepeatFields }) {
           { value: "custom", label: "Custom…" },
         ]}
       />
-      <details className={styles.more} open={r.repeat === "custom"}>
-        <summary className={styles.summary}>Custom repeat</summary>
+      <div className={styles.custom}>
         <div className={styles.moreRows}>
-          <Hint>Used when Repeat is “Custom…”. Dates are counted from the start above.</Hint>
+          <Hint>Counted from the start above.</Hint>
           <div className={styles.everyRow}>
             <Field label="Every" name="every" type="number" inputMode="numeric" min={1} max={99} defaultValue={r.every} />
             <SelectField
@@ -73,21 +73,25 @@ function RepeatControls({ r }: { r: RepeatFields }) {
               ]}
             />
           </div>
-          <CheckboxGroup
-            legend="On these days (weeks)"
-            name="weekdays"
-            options={WEEKDAYS.map((label, i) => ({ value: String(i), label, checked: r.weekdays.includes(String(i)) }))}
-          />
-          <RadioGroup
-            legend="On (months)"
-            name="monthlyBy"
-            value={r.monthlyBy}
-            options={[
-              { value: "day", label: "The same date, e.g. the 15th (31st → last day in short months)" },
-              { value: "weekday", label: "The same weekday, e.g. the 3rd Tuesday" },
-              { value: "last", label: "The last of that weekday, e.g. the last Friday" },
-            ]}
-          />
+          <div className={styles.weekdays}>
+            <CheckboxGroup
+              legend="On these days"
+              name="weekdays"
+              options={WEEKDAYS.map((label, i) => ({ value: String(i), label, checked: r.weekdays.includes(String(i)) }))}
+            />
+          </div>
+          <div className={styles.monthlyBy}>
+            <RadioGroup
+              legend="On"
+              name="monthlyBy"
+              value={r.monthlyBy}
+              options={[
+                { value: "day", label: "The same date, e.g. the 15th (31st → last day in short months)" },
+                { value: "weekday", label: "The same weekday, e.g. the 3rd Tuesday" },
+                { value: "last", label: "The last of that weekday, e.g. the last Friday" },
+              ]}
+            />
+          </div>
           <RadioGroup
             legend="Ends"
             name="ends"
@@ -98,19 +102,15 @@ function RepeatControls({ r }: { r: RepeatFields }) {
               { value: "count", label: "After a number of times" },
             ]}
           />
-          <Field label="End date (if ending on a date)" name="until" type="date" defaultValue={r.until} />
-          <Field
-            label="Times (if ending after a number)"
-            name="count"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={500}
-            defaultValue={r.count}
-          />
+          <div className={styles.endUntil}>
+            <Field label="End date" name="until" type="date" defaultValue={r.until} />
+          </div>
+          <div className={styles.endCount}>
+            <Field label="Times" name="count" type="number" inputMode="numeric" min={1} max={500} defaultValue={r.count} />
+          </div>
         </div>
-      </details>
-    </>
+      </div>
+    </div>
   );
 }
 
@@ -154,6 +154,12 @@ export function ReminderForm({
   // Your own departments are covered by "My departments"; one already shared
   // by id (an older reminder) stays listed so saving an edit keeps it.
   const shareable = departments.filter((d) => !d.mine || defaults.shareDepartmentIds.includes(d.id));
+  const widerInUse = Boolean(
+    defaults.departmentIds.some((id) => others.some((d) => d.id === id)) ||
+      defaults.groupIds.length ||
+      defaults.slackChannelIds.length ||
+      defaults.emails.trim(),
+  );
   // "More options" opens by itself when editing a reminder that uses one of them.
   const usesOptions = Boolean(
     defaults.tags ||
@@ -184,59 +190,38 @@ export function ReminderForm({
         <Checkbox label="Everyone in the company" name="company" defaultChecked={defaults.company} />
 
         {mine.map((d) => (
-          // Your own departments: pick the whole team or tick individual teammates.
-          <details key={d.id} className={styles.dept} open>
-            <summary className={styles.summary}>
-              {d.name} <span className={styles.count}>· your department, {d.members.length} people</span>
-            </summary>
-            <div className={styles.deptBody}>
-              <Checkbox
-                label={<strong>Everyone in {d.name}</strong>}
-                name="departments"
-                value={d.id}
-                defaultChecked={defaults.departmentIds.includes(d.id)}
-              />
-              {d.members.map((m) => (
-                <Checkbox
-                  key={m.id}
-                  label={
-                    <span className={styles.person}>
-                      {m.name}
-                      <span className={styles.email}>{m.email}</span>
-                    </span>
-                  }
-                  name="users"
-                  value={m.id}
-                  defaultChecked={defaults.userIds.includes(m.id)}
-                />
-              ))}
-            </div>
-          </details>
+          // Your own departments: the whole team, or open the list to tick
+          // individual teammates (open when editing a pick from it).
+          <div key={d.id} className={styles.ownDept}>
+            <Checkbox
+              label={<strong>Everyone in {d.name}</strong>}
+              name="departments"
+              value={d.id}
+              defaultChecked={defaults.departmentIds.includes(d.id)}
+            />
+            <details className={styles.dept} open={d.members.some((m) => defaults.userIds.includes(m.id))}>
+              <summary className={styles.summary}>
+                or pick people <span className={styles.count}>({d.members.length})</span>
+              </summary>
+              <div className={styles.deptBody}>
+                {d.members.map((m) => (
+                  <Checkbox
+                    key={m.id}
+                    label={
+                      <span className={styles.person}>
+                        {m.name}
+                        <span className={styles.email}>{m.email}</span>
+                      </span>
+                    }
+                    name="users"
+                    value={m.id}
+                    defaultChecked={defaults.userIds.includes(m.id)}
+                  />
+                ))}
+              </div>
+            </details>
+          </div>
         ))}
-
-        {others.length > 0 && (
-          <CheckboxGroup
-            legend="Other departments"
-            name="departments"
-            options={others.map((d) => ({
-              value: d.id,
-              label: `${d.name} (${d.members.length})`,
-              checked: defaults.departmentIds.includes(d.id),
-            }))}
-          />
-        )}
-
-        {groups.length > 0 && (
-          <CheckboxGroup
-            legend="Groups"
-            name="groups"
-            options={groups.map((g) => ({
-              value: g.id,
-              label: `${g.name} (${g.members})`,
-              checked: defaults.groupIds.includes(g.id),
-            }))}
-          />
-        )}
 
         {people.length > 0 && (
           <>
@@ -256,20 +241,49 @@ export function ReminderForm({
             </noscript>
           </>
         )}
-        {slackChannels && slackChannels.length > 0 && (
-          <CheckboxGroup
-            legend="Slack channels"
-            name="slackChannels"
-            options={slackChannels.map((c) => ({ value: c.id, label: `#${c.name}`, checked: defaults.slackChannelIds.includes(c.id) }))}
-          />
-        )}
-        <TextArea
-          label="Other emails (comma or one per line)"
-          name="emails"
-          inputMode="email"
-          rows={3}
-          defaultValue={defaults.emails}
-        />
+
+        {/* The wider recipients: folded, open when editing one that's in use. */}
+        <details className={styles.more} open={widerInUse}>
+          <summary className={styles.summary}>Other departments, groups, Slack channels and emails</summary>
+          <div className={styles.moreRows}>
+            {others.length > 0 && (
+              <CheckboxGroup
+                legend="Other departments"
+                name="departments"
+                options={others.map((d) => ({
+                  value: d.id,
+                  label: `${d.name} (${d.members.length})`,
+                  checked: defaults.departmentIds.includes(d.id),
+                }))}
+              />
+            )}
+            {groups.length > 0 && (
+              <CheckboxGroup
+                legend="Groups"
+                name="groups"
+                options={groups.map((g) => ({
+                  value: g.id,
+                  label: `${g.name} (${g.members})`,
+                  checked: defaults.groupIds.includes(g.id),
+                }))}
+              />
+            )}
+            {slackChannels && slackChannels.length > 0 && (
+              <CheckboxGroup
+                legend="Slack channels"
+                name="slackChannels"
+                options={slackChannels.map((c) => ({ value: c.id, label: `#${c.name}`, checked: defaults.slackChannelIds.includes(c.id) }))}
+              />
+            )}
+            <TextArea
+              label="Other emails (comma or one per line)"
+              name="emails"
+              inputMode="email"
+              rows={3}
+              defaultValue={defaults.emails}
+            />
+          </div>
+        </details>
       </Section>
 
       <Section title="Channels" required>
@@ -288,25 +302,33 @@ export function ReminderForm({
       </Section>
 
       <Section title="When" required>
-        <RadioGroup
-          legend="When to send"
-          hideLegend
-          name="when"
-          value={defaults.when}
-          options={[
-            { value: "now", label: "Now" },
-            { value: "later", label: "At a set time" },
-          ]}
-        />
-        <Field label={`Date and time (${timeZone})`} name="sendAt" type="datetime-local" defaultValue={defaults.sendAtLocal} />
-        <Hint>For a repeating reminder, this is the first one.</Hint>
-        <RepeatControls r={defaults.repeat} />
+        <div className={styles.when}>
+          <RadioGroup
+            legend="When to send"
+            hideLegend
+            name="when"
+            value={defaults.when}
+            options={[
+              { value: "now", label: "Now" },
+              { value: "later", label: "At a set time" },
+            ]}
+          />
+          <div className={styles.sendAt}>
+            <Field label={`Date and time (${timeZone})`} name="sendAt" type="datetime-local" defaultValue={defaults.sendAtLocal} />
+            <Hint>For a repeating reminder, this is the first one.</Hint>
+          </div>
+          <RepeatControls r={defaults.repeat} />
+        </div>
       </Section>
 
       <Section title="Task">
-        <Checkbox label="This is a task: everyone must mark it done" name="isTask" defaultChecked={defaults.isTask} />
-        <Field label={`Due (${timeZone}, needed for a task)`} name="due" type="datetime-local" defaultValue={defaults.dueLocal} />
-        <Hint>Anyone not done by then gets a reminder every day until they are.</Hint>
+        <div className={styles.task}>
+          <Checkbox label="This is a task: everyone must mark it done" name="isTask" defaultChecked={defaults.isTask} />
+          <div className={styles.due}>
+            <Field label={`Due (${timeZone})`} name="due" type="datetime-local" defaultValue={defaults.dueLocal} />
+            <Hint>Anyone not done by then gets a reminder every day until they are.</Hint>
+          </div>
+        </div>
       </Section>
 
       {/* Native disclosure, no client JS: the rarely needed settings. */}

@@ -2,6 +2,27 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — reminder form shows only what applies
+
+- Fields that only matter for one choice now hide until it's made, with CSS
+  `:has()` (no client JS): the date unless "At a set time"; Due unless
+  "This is a task"; the custom-repeat block unless "Custom…" (it's no longer
+  a fold to open); inside it, the weekday boxes only for weeks, the month
+  options only for months, End date / Times only for the matching "Ends".
+  The inputs are still submitted and the server already ignores them in
+  those states (`validateInput`, `ruleFromForm`). Browsers without `:has()`
+  show everything, as before.
+- **Recipients:** each own department is "Everyone in X" plus a closed
+  "or pick people (n)" (open when editing a pick from it). Other
+  departments, Groups, Slack channels and Other emails fold under one row,
+  open when editing a reminder that uses any of them. The People search
+  stays visible.
+- **Unchanged:** the 37 field names (diffed on the rendered page), the
+  action, validation.
+- **Verified:** typecheck, lint, 139 tests; new and edit pages 200; the
+  compiled CSS has all seven `:has()` rules. **Not verified:** toggling them
+  in a browser.
+
 ## 2026-10-12 — slimmer New/Edit reminder form
 
 From the form audit ("do it": items 1–5, 7–10):
