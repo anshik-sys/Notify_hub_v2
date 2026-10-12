@@ -187,40 +187,43 @@ export function ReminderForm({
           Sending outside your departments, to the whole company, to Slack channels or to outside emails needs an admin’s
           approval first.
         </Hint>
-        <Checkbox label="Everyone in the company" name="company" defaultChecked={defaults.company} />
-
-        {mine.map((d) => (
-          // Your own departments: the whole team, or open the list to tick
-          // individual teammates (open when editing a pick from it).
-          <div key={d.id} className={styles.ownDept}>
+        {/* The quick picks on one row: your department(s) first, then the company. */}
+        <div className={styles.quickPicks}>
+          {mine.map((d) => (
             <Checkbox
+              key={d.id}
               label={<strong>Everyone in {d.name}</strong>}
               name="departments"
               value={d.id}
               defaultChecked={defaults.departmentIds.includes(d.id)}
             />
-            <details className={styles.dept} open={d.members.some((m) => defaults.userIds.includes(m.id))}>
-              <summary className={styles.summary}>
-                or pick people <span className={styles.count}>({d.members.length})</span>
-              </summary>
-              <div className={styles.deptBody}>
-                {d.members.map((m) => (
-                  <Checkbox
-                    key={m.id}
-                    label={
-                      <span className={styles.person}>
-                        {m.name}
-                        <span className={styles.email}>{m.email}</span>
-                      </span>
-                    }
-                    name="users"
-                    value={m.id}
-                    defaultChecked={defaults.userIds.includes(m.id)}
-                  />
-                ))}
-              </div>
-            </details>
-          </div>
+          ))}
+          <Checkbox label="Everyone in the company" name="company" defaultChecked={defaults.company} />
+        </div>
+
+        {mine.map((d) => (
+          // Or tick individual teammates (open when editing a pick from it).
+          <details key={d.id} className={styles.dept} open={d.members.some((m) => defaults.userIds.includes(m.id))}>
+            <summary className={styles.summary}>
+              Pick people in {d.name}&nbsp;<span className={styles.count}>({d.members.length})</span>
+            </summary>
+            <div className={styles.deptBody}>
+              {d.members.map((m) => (
+                <Checkbox
+                  key={m.id}
+                  label={
+                    <span className={styles.person}>
+                      {m.name}
+                      <span className={styles.email}>{m.email}</span>
+                    </span>
+                  }
+                  name="users"
+                  value={m.id}
+                  defaultChecked={defaults.userIds.includes(m.id)}
+                />
+              ))}
+            </div>
+          </details>
         ))}
 
         {people.length > 0 && (

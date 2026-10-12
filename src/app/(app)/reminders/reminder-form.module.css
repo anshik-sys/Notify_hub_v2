@@ -179,8 +179,7 @@
    Browsers without :has() show everything, as before. */
 .when,
 .task,
-.repeat,
-.ownDept {
+.repeat {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -207,4 +206,11 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding-top: 8px;
+}
+
+/* "Everyone in <dept>" and "Everyone in the company" side by side. */
+.quickPicks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 32px;
 }

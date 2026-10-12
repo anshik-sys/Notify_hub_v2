@@ -17,6 +17,9 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   departments, Groups, Slack channels and Other emails fold under one row,
   open when editing a reminder that uses any of them. The People search
   stays visible.
+- **Follow-up (user):** the quick picks are one row, your department(s)
+  first, then "Everyone in the company"; the member lists below are
+  "Pick people in <dept> (n)".
 - **Unchanged:** the 37 field names (diffed on the rendered page), the
   action, validation.
 - **Verified:** typecheck, lint, 139 tests; new and edit pages 200; the
