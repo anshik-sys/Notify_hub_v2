@@ -2,6 +2,24 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — platform console in the app's look
+
+- The platform shell predated the redesign: a solid white page (`--bg`) hid
+  the canvas, with a grey `--surface` bar on top, even on the sign-in.
+- **Now:** signed-out, company-account and no-2FA visits render bare on the
+  canvas, so `/platform/sign-in` is the same centred card as `/sign-in`, and
+  "Turn on two-factor first" is a centred card too. Owners get the app's
+  white frame on the canvas, with a top bar instead of a sidebar: the "N"
+  logo, "NotifyHub / Platform", a pill nav (Companies, Settings, Security;
+  the current one black, like the sidebar) in a grey track, then the
+  light/dark toggle and a Sign out pill. Below 768px the frame goes
+  full-bleed and the bar wraps.
+- New `src/app/platform/nav.tsx` (client, only for the active link). Only
+  existing tokens are used; `globals.css` is unchanged.
+- **Verified:** typecheck and lint; signed-out `/platform/sign-in` renders
+  only the centred card. **Not verified:** the signed-in console in a browser
+  (the user checks visuals).
+
 ## 2026-10-12 — separate platform sign-in; owner accounts are platform-only
 
 - **User's call:** a signed-out visit to `/platform` should go to a sign-in page,
