@@ -7,40 +7,40 @@
 
 :root {
   color-scheme: light;
-  --canvas: linear-gradient(135deg, #efeaff 0%, #f7f5ff 45%, #e6f1ff 100%); /* lavender to sky, from the logo */
-  --bg: #ffffff; /* the frame and cards */
-  --panel: #f6f4ff; /* lavender tint: hover rows, round buttons, tracks */
-  --fg: #1b1530;
-  --muted: #6b6585; /* 4.6:1 even on --surface */
-  --border: #e6e1fa;
-  --surface: #ece8fb; /* stronger hover, neutral pills */
+  --canvas: linear-gradient(135deg, #c9ccf6 0%, #e4e2f2 45%, #f6e7cf 100%); /* periwinkle to butter, around the cream frame */
+  --bg: #fcfaf8; /* warm off-white: the frame and cards */
+  --panel: #f3eeea; /* warm grey: hover rows, round buttons, tracks */
+  --fg: #22140f;
+  --muted: #6c605a;
+  --border: #ebe4de;
+  --surface: #ebe4df; /* stronger hover, neutral pills */
   --input-bg: #ffffff;
-  --input-border: #8e86a8; /* 3:1 on white and the panel: a field's edge must show (WCAG 1.4.11) */
-  --primary-bg: #5b3df5; /* the logo's violet: main buttons, current page */
+  --input-border: #8c7f78; /* 3:1 on the frame and the panel: a field's edge must show (WCAG 1.4.11) */
+  --primary-bg: #2b1510; /* espresso: main buttons, current page */
   --primary-fg: #ffffff;
-  --primary-hover: #4a2fd9;
-  --brand: #5b3df5; /* focus rings, ticks, progress */
-  --accent-bg: #efebff; /* avatars, icon circles, current tab */
-  --accent-fg: #4a2fd9;
-  --count-bg: #d1306a; /* unread counts, the logo's pink; 4.8:1 with white */
+  --primary-hover: #4a2a21;
+  --brand: #c4553a; /* terracotta: focus rings, ticks, progress */
+  --accent-bg: #e7e8fb; /* periwinkle: avatars, icon circles, current tab */
+  --accent-fg: #4a51b5;
+  --count-bg: #c4472f; /* unread counts; 4.9:1 with white */
   --count-fg: #ffffff;
-  --danger-bg: #fdebe4;
+  --danger-bg: #fbe6de;
   --danger-fg: #b3361a;
   --paper: #ffffff; /* always light: QR codes must be dark on light */
-  --success-bg: #e3f4e7;
-  --success-fg: #1d6b34;
-  --warning-bg: #fdf1d8; /* needs attention soon */
-  --warning-fg: #855400;
-  --info-bg: #e3edff;
-  --info-fg: #1f4fc4;
-  --card-border: #ece8fb; /* hairline round white cards on the white frame */
+  --success-bg: #dcf1e1;
+  --success-fg: #2c7340;
+  --warning-bg: #f8ecc6;
+  --warning-fg: #85600c;
+  --info-bg: #e4e5fb;
+  --info-fg: #4a51b5;
+  --card-border: #ece6e1; /* hairline round cards on the frame */
   --radius: 12px; /* inputs, small boxes */
   --radius-card: 24px;
   --radius-frame: 32px;
-  --shadow: 0 30px 80px -30px rgb(40 20 90 / 0.25);
-  --shadow-hover: 0 12px 28px -18px rgb(40 20 90 / 0.4); /* a card lifting */
-  --shadow-card: 0 1px 2px rgb(40 20 90 / 0.05), 0 8px 24px -16px rgb(40 20 90 / 0.16);
-  --shadow-pop: 0 8px 24px rgb(40 20 90 / 0.14); /* dropdowns */
+  --shadow: 0 30px 80px -30px rgb(60 30 20 / 0.22);
+  --shadow-hover: 0 12px 28px -18px rgb(60 30 20 / 0.35);
+  --shadow-card: 0 1px 2px rgb(60 30 20 / 0.04), 0 8px 24px -16px rgb(60 30 20 / 0.14);
+  --shadow-pop: 0 8px 24px rgb(60 30 20 / 0.14); /* dropdowns */
   /* Motion: short and ease-out, so a hover or press answers at once. */
   --duration: 160ms;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -49,33 +49,33 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --canvas: linear-gradient(135deg, #1c1538 0%, #110e1d 45%, #0f1a33 100%);
-    --bg: #191527;
-    --panel: #120f1f;
-    --fg: #ece9f7;
-    --muted: #a49cc0;
-    --border: #2e2745;
-    --surface: #251f3b;
-    --input-bg: #120f1f;
-    --input-border: #776f98;
-    --primary-bg: #a99bff;
-    --primary-fg: #140f2a;
-    --primary-hover: #bdb2ff;
-    --brand: #a99bff;
-    --accent-bg: #2a2152;
-    --accent-fg: #cfc6ff;
-    --count-bg: #ff7aa8;
-    --count-fg: #1a0f17;
+    --canvas: linear-gradient(135deg, #1e1f3a 0%, #15110f 45%, #2a2214 100%);
+    --bg: #1d1614;
+    --panel: #15100e;
+    --fg: #f4ede9;
+    --muted: #b4a8a1;
+    --border: #352a26;
+    --surface: #2b221e;
+    --input-bg: #15100e;
+    --input-border: #857873;
+    --primary-bg: #f4ede9;
+    --primary-fg: #22140f;
+    --primary-hover: #ffffff;
+    --brand: #f08a6e;
+    --accent-bg: #262848;
+    --accent-fg: #c3c6ff;
+    --count-bg: #f08a6e;
+    --count-fg: #1c0f0a;
     --danger-bg: #3a170c;
     --danger-fg: #fdbb9e;
     --paper: #ffffff;
-    --success-bg: #143222;
-    --success-fg: #9be3b0;
-    --warning-bg: #3a2a08;
-    --warning-fg: #fcd58a;
-    --info-bg: #10244a;
-    --info-fg: #a9c7ff;
-    --card-border: #2b2442;
+    --success-bg: #173322;
+    --success-fg: #9fe0b0;
+    --warning-bg: #3a2c0c;
+    --warning-fg: #f3d27a;
+    --info-bg: #22244a;
+    --info-fg: #b9bcff;
+    --card-border: #302622;
     --shadow: 0 30px 80px -30px rgb(0 0 0 / 0.7);
     --shadow-hover: 0 12px 28px -18px rgb(0 0 0 / 0.8);
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.6);
@@ -85,33 +85,33 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --canvas: linear-gradient(135deg, #1c1538 0%, #110e1d 45%, #0f1a33 100%);
-  --bg: #191527;
-  --panel: #120f1f;
-  --fg: #ece9f7;
-  --muted: #a49cc0;
-  --border: #2e2745;
-  --surface: #251f3b;
-  --input-bg: #120f1f;
-  --input-border: #776f98;
-  --primary-bg: #a99bff;
-  --primary-fg: #140f2a;
-  --primary-hover: #bdb2ff;
-  --brand: #a99bff;
-  --accent-bg: #2a2152;
-  --accent-fg: #cfc6ff;
-  --count-bg: #ff7aa8;
-  --count-fg: #1a0f17;
+  --canvas: linear-gradient(135deg, #1e1f3a 0%, #15110f 45%, #2a2214 100%);
+  --bg: #1d1614;
+  --panel: #15100e;
+  --fg: #f4ede9;
+  --muted: #b4a8a1;
+  --border: #352a26;
+  --surface: #2b221e;
+  --input-bg: #15100e;
+  --input-border: #857873;
+  --primary-bg: #f4ede9;
+  --primary-fg: #22140f;
+  --primary-hover: #ffffff;
+  --brand: #f08a6e;
+  --accent-bg: #262848;
+  --accent-fg: #c3c6ff;
+  --count-bg: #f08a6e;
+  --count-fg: #1c0f0a;
   --danger-bg: #3a170c;
   --danger-fg: #fdbb9e;
   --paper: #ffffff;
-  --success-bg: #143222;
-  --success-fg: #9be3b0;
-  --warning-bg: #3a2a08;
-  --warning-fg: #fcd58a;
-  --info-bg: #10244a;
-  --info-fg: #a9c7ff;
-  --card-border: #2b2442;
+  --success-bg: #173322;
+  --success-fg: #9fe0b0;
+  --warning-bg: #3a2c0c;
+  --warning-fg: #f3d27a;
+  --info-bg: #22244a;
+  --info-fg: #b9bcff;
+  --card-border: #302622;
   --shadow: 0 30px 80px -30px rgb(0 0 0 / 0.7);
   --shadow-hover: 0 12px 28px -18px rgb(0 0 0 / 0.8);
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.6);

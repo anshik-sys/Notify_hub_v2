@@ -2,6 +2,27 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — palette from the user's reference: espresso, cream, terracotta, periwinkle (branch `new-branch`)
+
+- Rejected on looks today: A (small violet touches), the full violet
+  palette, and four more on a comparison artifact (sky blue, coral, teal,
+  navy + orange). Then the user sent a reference screenshot ("Threadly",
+  a seller dashboard) and asked for its colours only.
+- **Mapped:** espresso `#2b1510` main buttons / current page (dark mode:
+  cream `#f4ede9` with espresso text); warm off-white frame `#fcfaf8`, warm
+  grey `#f3eeea` / `#ebe4df` hovers and tracks; espresso-black text;
+  terracotta `#c4553a` focus rings, ticks, progress; terracotta counts;
+  periwinkle avatars, icon circles, current tab and "info"; butter
+  "warning", mint "success"; periwinkle → butter canvas; warm-tinted shadows.
+- Values only: same token names, same interactive-state rules and the same
+  Plus Jakarta Sans font from the violet pass.
+- **Contrast:** two light values failed the first check (muted on the hover
+  tint 4.1, input border on the warm grey 2.8); darkened to `#6c605a` and
+  `#8c7f78`. Every pair now ≥4.5 (text) / ≥3 (borders, rings), both themes;
+  dark blocks identical.
+- **Verified:** typecheck, lint; on a temp dev server Home, Reminders and New
+  render 200 with the new tokens. **Not verified:** the look.
+
 ## 2026-10-12 — full palette + font: violet brand, Plus Jakarta Sans (branch `new-branch`)
 
 - Option A (small violet touches) was rejected: the user wanted the whole
