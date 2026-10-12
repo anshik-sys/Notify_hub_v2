@@ -2,6 +2,32 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-12 — slimmer New/Edit reminder form
+
+From the form audit ("do it": items 1–5, 7–10):
+
+- **Order:** Title, Description, Recipients \*, Channels \*, When \* (now
+  with Repeat inside it), Task, **More options** (folded), Preview. Repeat
+  used to sit two sections away from When.
+- **More options** (native `<details>`): Tags, Links, Attachments, Who can
+  see it, Sender name. Closed on New; opens by itself when editing a
+  reminder that uses any of them.
+- **No double headings:** `CheckboxGroup`/`RadioGroup` got `hideLegend` (the
+  legend stays for screen readers); Channels and When use it; the repeat
+  select is "How often".
+- "Needs approval" is said once (the Recipients hint) instead of in four
+  legends. "(optional)" labels went (the red \* marks what's required).
+- "Who can see it": the second "Everyone in the company" is now "Share with
+  the whole company"; your own departments aren't listed again under "My
+  departments", **except** one an older reminder already shares by id, so
+  saving an edit doesn't silently drop that share.
+- Shorter hints (When, Task, Attachments, Who can see it).
+- **Unchanged:** every field name (same 37 `name`s before and after, diffed
+  on the rendered page), the action and validation.
+- **Verified:** typecheck, lint, 139 tests; `/reminders/new` and an edit page
+  render 200; "More options" closed on new, open on an edit with tags.
+  **Not verified:** the look in a browser.
+
 ## 2026-10-12 — required fields marked with *
 
 - The user couldn't tell what the new-reminder form needs. Now:

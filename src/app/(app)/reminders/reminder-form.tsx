@@ -35,13 +35,13 @@ export type ReminderDefaults = {
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-// No client JS: all custom fields are always submitted; the server only reads
-// them when "Custom…" is chosen (ruleFromForm).
-function RepeatSection({ r }: { r: RepeatFields }) {
+// Part of the When section. No client JS: all custom fields are always
+// submitted; the server only reads them when "Custom…" is chosen (ruleFromForm).
+function RepeatControls({ r }: { r: RepeatFields }) {
   return (
-    <Section title="Repeat">
+    <>
       <SelectField
-        label="Repeat"
+        label="How often"
         name="repeat"
         defaultValue={r.repeat}
         options={[
@@ -109,7 +109,7 @@ function RepeatSection({ r }: { r: RepeatFields }) {
           />
         </div>
       </details>
-    </Section>
+    </>
   );
 }
 
@@ -119,7 +119,7 @@ function LinkRow({ index, link }: { index: number; link?: { label: string; url: 
   return (
     <div className={styles.linkRow}>
       <Field label={`Link ${index + 1}`} name="linkUrl" type="url" inputMode="url" placeholder="https://…" defaultValue={link?.url} />
-      <Field label="Label (optional)" name="linkLabel" maxLength={100} defaultValue={link?.label} />
+      <Field label="Label" name="linkLabel" maxLength={100} defaultValue={link?.label} />
     </div>
   );
 }
@@ -150,6 +150,21 @@ export function ReminderForm({
   // Teammates already show as ticks above, so the people picker only pre-fills the rest.
   const teammates = new Set(mine.flatMap((d) => d.members.map((m) => m.id)));
 
+  // Your own departments are covered by "My departments"; one already shared
+  // by id (an older reminder) stays listed so saving an edit keeps it.
+  const shareable = departments.filter((d) => !d.mine || defaults.shareDepartmentIds.includes(d.id));
+  // "More options" opens by itself when editing a reminder that uses one of them.
+  const usesOptions = Boolean(
+    defaults.tags ||
+      defaults.links.length ||
+      attachments.length ||
+      defaults.shareMine ||
+      defaults.shareDepartmentIds.length ||
+      defaults.shareGroupIds.length ||
+      defaults.shareCompany ||
+      defaults.senderName,
+  );
+
   return (
     <Form action={saveReminder}>
       {defaults.id && <input type="hidden" name="id" value={defaults.id} />}
@@ -158,39 +173,12 @@ export function ReminderForm({
         Fields marked <span aria-hidden="true">*</span> are required. Everything else can be left as it is.
       </Hint>
       <Field label="Title" name="title" maxLength={200} required defaultValue={defaults.title} />
-      <TextArea label="Description (optional)" name="description" maxLength={5000} defaultValue={defaults.description} />
-      <Field label="Tags (optional, comma separated)" name="tags" maxLength={400} placeholder="payroll, q3" defaultValue={defaults.tags} />
-
-      <Section title="Links">
-        <LinkRow index={0} link={defaults.links[0]} />
-        {/* Native disclosure: no client JS for the other nine rows. */}
-        <details className={styles.more} open={defaults.links.length > 1}>
-          <summary className={styles.summary}>More links</summary>
-          <div className={styles.moreRows}>
-            {Array.from({ length: LINK_ROWS - 1 }, (_, i) => (
-              <LinkRow key={i + 1} index={i + 1} link={defaults.links[i + 1]} />
-            ))}
-          </div>
-        </details>
-      </Section>
-
-      <Section title="Channels" required>
-        <CheckboxGroup
-          legend="Send by"
-          name="channels"
-          options={[
-            { value: "email", label: "Email", checked: defaults.channels.includes("email") },
-            ...(slackChannels
-              ? [{ value: "slack", label: "Slack (direct messages, and any channels picked below)", checked: defaults.channels.includes("slack") }]
-              : []),
-          ]}
-        />
-        {!slackChannels && <Hint>Slack isn’t connected. An admin can connect it under Integrations.</Hint>}
-      </Section>
+      <TextArea label="Description" name="description" maxLength={5000} defaultValue={defaults.description} />
 
       <Section title="Recipients" required>
         <Hint>
-          Sending outside your departments, to the whole company or to outside emails needs an admin’s approval first.
+          Sending outside your departments, to the whole company, to Slack channels or to outside emails needs an admin’s
+          approval first.
         </Hint>
         <Checkbox label="Everyone in the company" name="company" defaultChecked={defaults.company} />
 
@@ -227,7 +215,7 @@ export function ReminderForm({
 
         {others.length > 0 && (
           <CheckboxGroup
-            legend="Other departments (need approval)"
+            legend="Other departments"
             name="departments"
             options={others.map((d) => ({
               value: d.id,
@@ -239,7 +227,7 @@ export function ReminderForm({
 
         {groups.length > 0 && (
           <CheckboxGroup
-            legend="Groups (need approval if they include people outside your departments)"
+            legend="Groups"
             name="groups"
             options={groups.map((g) => ({
               value: g.id,
@@ -269,7 +257,7 @@ export function ReminderForm({
         )}
         {slackChannels && slackChannels.length > 0 && (
           <CheckboxGroup
-            legend="Slack channels (need approval unless you’re an admin)"
+            legend="Slack channels"
             name="slackChannels"
             options={slackChannels.map((c) => ({ value: c.id, label: `#${c.name}`, checked: defaults.slackChannelIds.includes(c.id) }))}
           />
@@ -283,31 +271,25 @@ export function ReminderForm({
         />
       </Section>
 
-      <Section title="Who can see it">
-        <Hint>Always: you, your managers, admins and everyone it’s sent to. Share it to let others see it too (not receive it).</Hint>
-        {mine.length > 0 && (
-          <Checkbox label={`My departments (${mine.map((d) => d.name).join(", ")})`} name="shareMine" defaultChecked={defaults.shareMine} />
-        )}
-        {departments.length > 0 && (
-          <CheckboxGroup
-            legend="Departments"
-            name="shareDepartments"
-            options={departments.map((d) => ({ value: d.id, label: d.name, checked: defaults.shareDepartmentIds.includes(d.id) }))}
-          />
-        )}
-        {groups.length > 0 && (
-          <CheckboxGroup
-            legend="Groups"
-            name="shareGroups"
-            options={groups.map((g) => ({ value: g.id, label: g.name, checked: defaults.shareGroupIds.includes(g.id) }))}
-          />
-        )}
-        <Checkbox label="Everyone in the company" name="shareCompany" defaultChecked={defaults.shareCompany} />
+      <Section title="Channels" required>
+        <CheckboxGroup
+          legend="Send by"
+          hideLegend
+          name="channels"
+          options={[
+            { value: "email", label: "Email", checked: defaults.channels.includes("email") },
+            ...(slackChannels
+              ? [{ value: "slack", label: "Slack (direct messages, and any channels picked above)", checked: defaults.channels.includes("slack") }]
+              : []),
+          ]}
+        />
+        {!slackChannels && <Hint>Slack isn’t connected. An admin can connect it under Integrations.</Hint>}
       </Section>
 
       <Section title="When" required>
         <RadioGroup
-          legend="Send"
+          legend="When to send"
+          hideLegend
           name="when"
           value={defaults.when}
           options={[
@@ -316,36 +298,77 @@ export function ReminderForm({
           ]}
         />
         <Field label={`Date and time (${timeZone})`} name="sendAt" type="datetime-local" defaultValue={defaults.sendAtLocal} />
-        <Hint>For a repeating reminder, this is the first time; later ones follow from it.</Hint>
+        <Hint>For a repeating reminder, this is the first one.</Hint>
+        <RepeatControls r={defaults.repeat} />
       </Section>
-
-      <Section title="Attachments">
-        {attachments.length > 0 && (
-          <CheckboxGroup
-            legend="Attached (tick to remove)"
-            name="removeAttachments"
-            options={attachments.map((a) => ({ value: a.id, label: `${a.fileName} (${formatSize(a.size)})` }))}
-          />
-        )}
-        <label className={styles.fileField}>
-          Add files (up to {MAX_FILES_PER_SAVE} at a time, 10 MB each)
-          <input type="file" name="files" multiple accept={ACCEPT} className={styles.fileInput} />
-        </label>
-        <Hint>PDF, Office documents, CSV/TXT, images and ZIP. Emails carry up to 20 MB of files; larger ones are linked instead.</Hint>
-      </Section>
-
-      <RepeatSection r={defaults.repeat} />
 
       <Section title="Task">
         <Checkbox label="This is a task: everyone must mark it done" name="isTask" defaultChecked={defaults.isTask} />
         <Field label={`Due (${timeZone}, needed for a task)`} name="due" type="datetime-local" defaultValue={defaults.dueLocal} />
-        <Hint>
-          Anyone not done by then gets a reminder every day until they are. For repeating tasks, each one is due the
-          same time after it’s sent.
-        </Hint>
+        <Hint>Anyone not done by then gets a reminder every day until they are.</Hint>
       </Section>
 
-      <Field label="Sender name" name="senderName" maxLength={100} placeholder={defaultSender} defaultValue={defaults.senderName} />
+      {/* Native disclosure, no client JS: the rarely needed settings. */}
+      <details className={styles.options} open={usesOptions}>
+        <summary className={styles.optionsSummary}>More options</summary>
+        <div className={styles.optionsBody}>
+          <Field label="Tags, comma separated" name="tags" maxLength={400} placeholder="payroll, q3" defaultValue={defaults.tags} />
+
+          <div className={styles.block}>
+            <h3 className={styles.blockTitle}>Links</h3>
+            <LinkRow index={0} link={defaults.links[0]} />
+            <details className={styles.more} open={defaults.links.length > 1}>
+              <summary className={styles.summary}>More links</summary>
+              <div className={styles.moreRows}>
+                {Array.from({ length: LINK_ROWS - 1 }, (_, i) => (
+                  <LinkRow key={i + 1} index={i + 1} link={defaults.links[i + 1]} />
+                ))}
+              </div>
+            </details>
+          </div>
+
+          <div className={styles.block}>
+            <h3 className={styles.blockTitle}>Attachments</h3>
+            {attachments.length > 0 && (
+              <CheckboxGroup
+                legend="Attached (tick to remove)"
+                name="removeAttachments"
+                options={attachments.map((a) => ({ value: a.id, label: `${a.fileName} (${formatSize(a.size)})` }))}
+              />
+            )}
+            <label className={styles.fileField}>
+              Add files
+              <input type="file" name="files" multiple accept={ACCEPT} className={styles.fileInput} />
+            </label>
+            <Hint>PDF, Office, CSV/TXT, images or ZIP. 10 MB each, up to {MAX_FILES_PER_SAVE} at a time.</Hint>
+          </div>
+
+          <div className={styles.block}>
+            <h3 className={styles.blockTitle}>Who can see it</h3>
+            <Hint>You, your managers, admins and recipients can always see it. Share it so others can view it too.</Hint>
+            {mine.length > 0 && (
+              <Checkbox label={`My departments (${mine.map((d) => d.name).join(", ")})`} name="shareMine" defaultChecked={defaults.shareMine} />
+            )}
+            {shareable.length > 0 && (
+              <CheckboxGroup
+                legend="Other departments"
+                name="shareDepartments"
+                options={shareable.map((d) => ({ value: d.id, label: d.name, checked: defaults.shareDepartmentIds.includes(d.id) }))}
+              />
+            )}
+            {groups.length > 0 && (
+              <CheckboxGroup
+                legend="Groups"
+                name="shareGroups"
+                options={groups.map((g) => ({ value: g.id, label: g.name, checked: defaults.shareGroupIds.includes(g.id) }))}
+              />
+            )}
+            <Checkbox label="Share with the whole company" name="shareCompany" defaultChecked={defaults.shareCompany} />
+          </div>
+
+          <Field label="Sender name" name="senderName" maxLength={100} placeholder={defaultSender} defaultValue={defaults.senderName} />
+        </div>
+      </details>
 
       <Section title="Preview">
         <ReminderPreview defaultSender={defaultSender} timeZone={timeZone} />

@@ -170,20 +170,24 @@ export function Checkbox({ label, ...props }: { label: React.ReactNode } & React
   );
 }
 
+// hideLegend: the section heading already says it; the legend stays for
+// screen readers.
 export function CheckboxGroup({
   legend,
   name,
   options,
   disabled,
+  hideLegend,
 }: {
   legend: string;
   name: string;
   options: { value: string; label: string; checked?: boolean; disabled?: boolean }[];
   disabled?: boolean;
+  hideLegend?: boolean;
 }) {
   return (
     <fieldset className={styles.group} disabled={disabled}>
-      <legend className={styles.legend}>{legend}</legend>
+      <legend className={hideLegend ? styles.hidden : styles.legend}>{legend}</legend>
       {options.map((o) => (
         <Checkbox key={o.value} label={o.label} name={name} value={o.value} defaultChecked={o.checked} disabled={o.disabled} />
       ))}
@@ -196,15 +200,17 @@ export function RadioGroup({
   name,
   options,
   value,
+  hideLegend,
 }: {
   legend: string;
   name: string;
   options: { value: string; label: string }[];
   value: string;
+  hideLegend?: boolean;
 }) {
   return (
     <fieldset className={styles.group}>
-      <legend className={styles.legend}>{legend}</legend>
+      <legend className={hideLegend ? styles.hidden : styles.legend}>{legend}</legend>
       {options.map((o) => (
         <label key={o.value} className={styles.checkbox}>
           <input type="radio" className={styles.checkboxInput} name={name} value={o.value} defaultChecked={o.value === value} />

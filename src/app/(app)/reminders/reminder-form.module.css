@@ -83,3 +83,37 @@
   font: inherit;
   font-weight: 400;
 }
+
+/* "More options": the rarely needed settings, folded under one row. */
+.options {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.optionsSummary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.optionsBody {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 8px;
+}
+
+/* A group inside "More options": a small heading, no card of its own. */
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.blockTitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
