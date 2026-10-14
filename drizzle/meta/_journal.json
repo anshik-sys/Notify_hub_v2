@@ -232,6 +232,13 @@
       "when": 1791967627521,
       "tag": "0032_email_suppressions",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791969849883,
+      "tag": "0033_daily_email_limit",
+      "breakpoints": true
     }
   ]
 }

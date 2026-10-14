@@ -483,3 +483,52 @@ test("unsubscribe then subscribe again: the address is sent to again", async () 
   await dispatchDue(async () => {}, s.companyId, new Date(Date.now() + 2 * 3_600_000));
   assert.deepEqual((await q("select address from deliveries where reminder_id = $1", [id])).map((r) => r.address), [back]);
 });
+
+test("daily email limit: over it, emails are held (queued, no attempt used), admins told once; room frees -> sent", async () => {
+  const sentSoFar = Number((await q("select count(*) from deliveries where company_id = $1 and channel = 'email' and status = 'sent' and sent_at > now() - interval '24 hours'", [s.companyId]))[0].count);
+  await q("update companies set daily_email_limit = $2 where id = $1", [s.companyId, sentSoFar + 1]); // room for exactly one more
+  const admin = await s.user({ roles: ["00000000-0000-4000-8000-000000000001"] });
+
+  const [{ id }] = await q(
+    `insert into reminders (company_id, short_id, created_by, title, description, sender_name, send_at, status, time_zone, anchor_local)
+     values ($1, $2, $3, 'Capped', '', 'HR', now() + interval '1 hour', 'scheduled', 'UTC', '2026-01-01T00:00') returning id`,
+    [s.companyId, `C-${s.companyId.slice(0, 6).toUpperCase()}`, creator],
+  );
+  const [one, two, three] = ["one", "two", "three"].map((n) => `${n}@cap-${s.companyId}.test`);
+  await q("insert into reminder_targets values ($1, $2, 'email', $3), ($1, $2, 'email', $4), ($1, $2, 'email', $5)", [id, s.companyId, one, two, three]);
+  await dispatchDue(async () => {}, s.companyId, new Date(Date.now() + 2 * 3_600_000));
+  const rows = await q("select id from deliveries where reminder_id = $1 order by address", [id]);
+
+  const results = [];
+  for (const r of rows) results.push(await deliverOne(r.id, async () => ({}) as never));
+  assert.deepEqual(results.sort(), ["held", "held", "sent"]);
+  const held = await q("select status, attempts, last_error from deliveries where reminder_id = $1 and status = 'queued'", [id]);
+  assert.equal(held.length, 2);
+  assert.ok(held.every((h) => h.attempts === 0 && h.last_error.startsWith("Held:")));
+  const notes = await q("select text from notifications where user_id = $1 and dedupe_key like 'held:%'", [admin]);
+  assert.equal(notes.length, 1); // once a day, however many were held
+  assert.match(notes[0].text, /Daily email limit reached/);
+  assert.equal(await mailpit(`${admin}@${s.domain}`), 1);
+
+  // The limit is raised (or the window moves on): the held ones go out, once each.
+  await q("update companies set daily_email_limit = 2000 where id = $1", [s.companyId]);
+  for (const h of await q("select id from deliveries where reminder_id = $1 and status = 'queued'", [id])) assert.equal(await deliverOne(h.id, async () => ({}) as never), "sent");
+  assert.deepEqual((await q("select status, last_error from deliveries where reminder_id = $1", [id])).map((r) => [r.status, r.last_error]), [["sent", null], ["sent", null], ["sent", null]]);
+});
+
+test("the daily email limit doesn't hold Slack", async () => {
+  await q("update companies set daily_email_limit = 1 where id = $1", [s.companyId]);
+  const [{ id: rid }] = await q(
+    `insert into reminders (company_id, short_id, created_by, title, description, sender_name, send_at, status, time_zone, anchor_local, channels)
+     values ($1, $2, $3, 'Slack only', '', 'HR', now() + interval '1 hour', 'sending', 'UTC', '2026-01-01T00:00', '{slack}') returning id`,
+    [s.companyId, `S-${s.companyId.slice(0, 6).toUpperCase()}`, creator],
+  );
+  const [{ id: occ }] = await q("insert into reminder_occurrences (company_id, reminder_id, occurs_at, status) values ($1, $2, now(), 'sending') returning id", [s.companyId, rid]);
+  const [{ id }] = await q(
+    "insert into deliveries (company_id, reminder_id, occurrence_id, channel, address) values ($1, $2, $3, 'slack', 'C-NOPE') returning id",
+    [s.companyId, rid, occ],
+  );
+  // No Slack connection in this company: it fails for that reason, never "held".
+  assert.notEqual(await deliverOne(id), "held");
+  await q("update companies set daily_email_limit = 2000 where id = $1", [s.companyId]);
+});

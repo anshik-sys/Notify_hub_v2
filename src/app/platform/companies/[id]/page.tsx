@@ -15,7 +15,7 @@ export default async function PlatformCompany(props: PageProps<"/platform/compan
   if (!isUuid(id)) notFound();
   const c = (await platformCompanies()).find((x) => x.id === id);
   if (!c) notFound();
-  const { contactEmail, contactPhone } = await companySettings(id);
+  const { contactEmail, contactPhone, dailyEmailLimit } = await companySettings(id);
   const sp = await props.searchParams;
   const tz = "UTC";
   const hidden = <input type="hidden" name="companyId" value={c.id} />;
@@ -44,6 +44,8 @@ export default async function PlatformCompany(props: PageProps<"/platform/compan
           <SelectField label="Time zone" name="timeZone" defaultValue={c.time_zone} options={TIME_ZONES} />
           <Field label="Contact email (optional)" name="contactEmail" type="email" autoComplete="off" maxLength={254} defaultValue={contactEmail ?? ""} />
           <Field label="Contact phone (optional)" name="contactPhone" type="tel" autoComplete="off" maxLength={30} defaultValue={contactPhone ?? ""} />
+          <Field label="Daily email limit" name="dailyEmailLimit" type="number" min={1} max={1000000} required defaultValue={String(dailyEmailLimit)} />
+          <Hint>Reminder emails per rolling 24 hours. Over it, emails wait and go out as room frees up; the company&rsquo;s admins are told.</Hint>
           <Button>Save</Button>
         </Form>
       </Section>

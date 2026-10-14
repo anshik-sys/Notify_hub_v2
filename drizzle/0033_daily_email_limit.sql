@@ -1,0 +1,3 @@
+ALTER TABLE "companies" ADD COLUMN "daily_email_limit" integer DEFAULT 2000 NOT NULL;--> statement-breakpoint
+CREATE INDEX "deliveries_email_sent_idx" ON "deliveries" USING btree ("company_id","sent_at") WHERE "deliveries"."channel" = 'email';--> statement-breakpoint
+ALTER TABLE "companies" ADD CONSTRAINT "companies_daily_email_limit_valid" CHECK ("companies"."daily_email_limit" between 1 and 1000000);

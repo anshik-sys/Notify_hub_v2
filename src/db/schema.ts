@@ -42,6 +42,9 @@ export const companies = pgTable(
     approvalMode: text().$type<"any" | "named">().notNull().default("any"),
     // Finished history older than this is deleted daily (worker). Null = keep.
     retentionDays: integer(),
+    // PRD 7.1: reminder emails per rolling 24 hours. Over it, the worker holds
+    // deliveries (still queued) until there's room. Set by the platform owner.
+    dailyEmailLimit: integer().notNull().default(2000),
     // PRD 9.2: set by the platform owner. Members are locked out and the
     // worker sends nothing for the company until it's cleared.
     suspendedAt: ts(),
@@ -54,6 +57,7 @@ export const companies = pgTable(
     authPolicy,
     check("companies_approval_mode_valid", sql`${t.approvalMode} in ('any','named')`),
     check("companies_retention_min", sql`${t.retentionDays} is null or ${t.retentionDays} >= 90`),
+    check("companies_daily_email_limit_valid", sql`${t.dailyEmailLimit} between 1 and 1000000`),
     check("companies_follow_up_time_valid", sql`${t.followUpTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
   ],
 ).enableRLS();
@@ -412,6 +416,8 @@ export const deliveries = pgTable(
     check("deliveries_channel_valid", sql`${t.channel} in ('email','slack')`),
     index().on(t.reminderId),
     index().on(t.status, t.updatedAt),
+    // The daily email limit counts a company's recent email sends.
+    index("deliveries_email_sent_idx").on(t.companyId, t.sentAt).where(sql`${t.channel} = 'email'`),
     // "Sent to me" in lists (src/lib/views.ts).
     index().on(t.userId),
     check("deliveries_status_valid", sql`${t.status} in ('queued','sending','sent','failed')`),

@@ -73,6 +73,7 @@ export async function companySettings(companyId: string) {
         defaultSenderName: companies.defaultSenderName,
         approvalMode: companies.approvalMode,
         retentionDays: companies.retentionDays,
+        dailyEmailLimit: companies.dailyEmailLimit,
       })
       .from(companies)
       .where(eq(companies.id, companyId)),

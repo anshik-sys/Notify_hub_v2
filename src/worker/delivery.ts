@@ -1,5 +1,6 @@
 import { type AnyColumn, and, asc, eq, inArray, lt, lte, sql } from "drizzle-orm";
-import { attachments, deliveries, emailSuppressions, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user } from "@/db/schema";
+import { attachments, deliveries, emailSuppressions, notifications, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user, userRoles } from "@/db/schema";
+import { COMPANY_ADMIN_ROLE_ID } from "@/lib/permissions";
 import { emailFiles } from "@/lib/attachments";
 import { renderReminderEmail } from "@/lib/email-render";
 import { getBlob } from "@/lib/storage";
@@ -330,7 +331,66 @@ async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
 }
 
 // slackFetch is for tests (a fake Slack); production uses the real fetch.
+// --- Daily email limit (PRD 7.1) ---------------------------------------------
+// Every company sends from the same domain, so one company's burst can hurt
+// delivery for all. Reminder emails per rolling 24 hours are capped per
+// company (companies.daily_email_limit). Over it, a delivery stays queued
+// with a "Held" note and no attempt used; sweep re-enqueues it every couple of
+// minutes until there's room. Nothing is dropped and nothing sends twice.
+// ponytail: a soft cap; parallel sends (10 per worker) can overshoot by that
+// many. Count under a per-company lock if it ever needs to be exact.
+// Other mail (invites, approvals, follow-ups) isn't counted: it goes to members.
+async function emailCapReached(companyId: string) {
+  const { rows } = await ownerDb.execute<{ full: boolean; cap: number }>(sql`
+    select c.daily_email_limit as cap,
+           (select count(*) from deliveries d
+             where d.company_id = c.id and d.channel = 'email'
+               and (d.status = 'sending' or (d.status = 'sent' and d.sent_at > now() - interval '24 hours'))) >= c.daily_email_limit as full
+      from companies c where c.id = ${companyId}`);
+  return rows[0]?.full ? rows[0].cap : null;
+}
+
+// Company Admins hear about it once a day: in the app, and by email.
+async function noticeHeld(companyId: string, reminderId: string, cap: number) {
+  const day = new Date().toISOString().slice(0, 10);
+  const admins = await ownerDb
+    .select({ id: user.id, email: user.email })
+    .from(userRoles)
+    .innerJoin(user, eq(user.id, userRoles.userId))
+    .where(and(eq(userRoles.companyId, companyId), eq(userRoles.roleId, COMPANY_ADMIN_ROLE_ID), sql`${user.deactivatedAt} is null`));
+  if (!admins.length) return;
+  const text = `Daily email limit reached (${cap} in 24 hours): emails are held and go out as room frees up`;
+  const fresh = await ownerDb
+    .insert(notifications)
+    .values(admins.map((a) => ({ companyId, userId: a.id, kind: "failed", reminderId, text, dedupeKey: `held:${day}` })))
+    .onConflictDoNothing()
+    .returning({ userId: notifications.userId });
+  for (const a of admins.filter((x) => fresh.some((f) => f.userId === x.id)))
+    await sendMail({
+      to: a.email,
+      subject: "Your company reached its daily email limit",
+      text: `${text}. Nothing is lost: each held email is sent automatically once the last 24 hours drop below ${cap}. To raise the limit, contact the NotifyHub team.`,
+      links: [{ label: "Open the reminder", url: `${process.env.BETTER_AUTH_URL}/reminders/${reminderId}` }],
+    }).catch((e) => console.error("held notice email failed", e));
+}
+
 export async function deliverOne(deliveryId: string, send: typeof sendMail = sendMail, slackFetch?: typeof fetch) {
+  const [pending] = await ownerDb
+    .select({ companyId: deliveries.companyId, reminderId: deliveries.reminderId, channel: deliveries.channel })
+    .from(deliveries)
+    .where(and(eq(deliveries.id, deliveryId), eq(deliveries.status, "queued")));
+  if (pending?.channel === "email") {
+    const cap = await emailCapReached(pending.companyId);
+    if (cap !== null) {
+      await ownerDb
+        .update(deliveries)
+        .set({ lastError: `Held: the company's daily email limit (${cap}) is reached. It goes out as room frees up.`, updatedAt: new Date() })
+        .where(and(eq(deliveries.id, deliveryId), eq(deliveries.status, "queued")));
+      await noticeHeld(pending.companyId, pending.reminderId, cap);
+      return "held";
+    }
+  }
+
   const [d] = await ownerDb
     .update(deliveries)
     .set({ status: "sending", attempts: sql`${deliveries.attempts} + 1` })

@@ -167,7 +167,9 @@ export async function createCompanyForCustomer(owner: Owner, input: { name: stri
   return error ? { id, error: `Company created, but: ${error}` } : { id };
 }
 
-export async function editCompany(companyId: string, input: { name: string; domain: string; timeZone: string } & Contact) {
+export async function editCompany(companyId: string, input: { name: string; domain: string; timeZone: string; dailyEmailLimit: string } & Contact) {
+  const limit = Number(input.dailyEmailLimit);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 1_000_000) return "Daily email limit must be a whole number from 1 to 1,000,000.";
   const name = input.name.trim();
   const domain = input.domain.trim().toLowerCase();
   if (!name || name.length > 100) return "Company name must be 1–100 characters.";
@@ -178,7 +180,7 @@ export async function editCompany(companyId: string, input: { name: string; doma
   if (bad) return bad;
   try {
     const done = await withTenant(companyId, (tx) =>
-      tx.update(companies).set({ name, domain, timeZone: input.timeZone, contactEmail: c.contactEmail || null, contactPhone: c.contactPhone || null }).where(sql`${companies.id} = ${companyId}`).returning({ id: companies.id }),
+      tx.update(companies).set({ name, domain, timeZone: input.timeZone, contactEmail: c.contactEmail || null, contactPhone: c.contactPhone || null, dailyEmailLimit: limit }).where(sql`${companies.id} = ${companyId}`).returning({ id: companies.id }),
     );
     return done.length ? null : "Company not found.";
   } catch (e) {

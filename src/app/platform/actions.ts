@@ -60,6 +60,7 @@ export async function editCompanyAction(fd: FormData) {
       timeZone: str(fd, "timeZone"),
       contactEmail: str(fd, "contactEmail"),
       contactPhone: str(fd, "contactPhone"),
+      dailyEmailLimit: str(fd, "dailyEmailLimit"),
     }),
   );
 }

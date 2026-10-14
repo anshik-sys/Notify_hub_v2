@@ -2,6 +2,40 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-14 — daily email limit per company (PRD 7.1)
+
+- Last item before a first deploy: every company sends from the same domain,
+  and the volume alert only warns after the fact, so one company's burst
+  could hurt delivery for all.
+- **How:** `companies.daily_email_limit` (migration 0033, default 2,000, 1 to
+  1,000,000), checked in `deliverOne` before a delivery is claimed: email
+  reminder deliveries sent in the last 24 hours plus those mid-send. Over
+  it, the row stays **queued** with a "Held: …" note and no attempt used.
+  The existing `sweep` re-enqueues queued rows every ~2 minutes, so held
+  emails go out by themselves as the window frees up (or the limit is
+  raised), exactly once. The reminder's log shows **Held**. Company Admins
+  get one in-app notice and one email per UTC day. The platform owner sets
+  it on `/platform/companies/<id>`.
+- **Rejected:**
+  - marking held rows `failed`: the email would be lost, and the PRD says
+    deliver;
+  - throwing so pg-boss retries: it uses attempts, so a long hold would
+    end in "failed" after 5;
+  - a per-company lock for an exact count: a soft cap that can overshoot
+    by the worker's concurrency (10) is fine for protecting reputation.
+    `ponytail:` comment on it.
+  - a calendar-day window in the company's zone: rolling 24 hours needs no
+    zone maths and matches the volume alert.
+- **Not counted:** Slack (its own per-workspace limits) and the app's own
+  mail (invites, approvals, follow-ups), which goes to members.
+- **Verified:** 160 tests, including: room for one more → 1 sent, 2 held,
+  queued with 0 attempts, the admin gets exactly one notification and one
+  email (Mailpit); limit raised → both send, notes cleared; Slack is never
+  held; the platform limit is validated and saved. Typecheck, lint;
+  migrated locally. **Not verified in the browser:** the platform field,
+  the "Held" badge, and the held email going out on its own via `sweep`
+  (the test calls `deliverOne` directly).
+
 ## 2026-10-14 — unsubscribes are visible to the company, undoable by the person
 
 - The user flagged two gaps in the first unsubscribe version: nobody in

@@ -198,6 +198,20 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     the same UPDATE that selects. That stamp is the once-a-day guarantee, so
     don't split it into a SELECT and then an UPDATE;
   - email only (there's no in-app notification centre yet).
+- **Daily email limit per company (PRD 7.1, `emailCapReached` in
+  `src/worker/delivery.ts`):**
+  - every company shares one sending domain, so reminder emails per rolling
+    24 hours are capped per company (`companies.daily_email_limit`, set by
+    the platform owner; default 2,000);
+  - over it, `deliverOne` leaves the row **queued** with a `Held:` note and
+    **doesn't use an attempt**, so a held email can never run out of retries.
+    `sweep` re-enqueues queued rows every couple of minutes, which is the
+    whole "send later" mechanism. Don't make held rows `failed`;
+  - a **soft** cap: up to the worker's concurrency (10) can slip over it;
+  - only reminder deliveries by email count; Slack and the app's own mail
+    (invites, approvals, follow-ups) don't;
+  - Company Admins get one notice a day (`held:<date>` dedupe), in the app
+    and by email.
 - **Exactly-once delivery (`src/worker/delivery.ts`):**
   - dispatch turns a due reminder into one `deliveries` row per person.
     `FOR UPDATE SKIP LOCKED` keeps overlapping runs off the same reminder, and

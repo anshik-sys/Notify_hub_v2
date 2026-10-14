@@ -8,6 +8,7 @@ import { loadAccess, MEMBER_ROLE_ID } from "./permissions";
 import {
   createCompanyForCustomer,
   deleteEmptyCompany,
+  editCompany,
   ipAllowed,
   isOwnerEmail,
   ownerSignInAllowed,
@@ -112,4 +113,12 @@ test("settings: volume alert and the Member role", async () => {
     await setMemberPermissions(before.memberPermissions);
   }
   assert.deepEqual((await platformSettingsRow()).memberPermissions.sort(), before.memberPermissions.sort());
+});
+
+test("the daily email limit: whole numbers 1 to 1,000,000, saved per company", async () => {
+  const edit = (dailyEmailLimit: string) =>
+    editCompany(s.companyId, { name: "Test Co", domain: s.domain, timeZone: "UTC", contactEmail: "", contactPhone: "", dailyEmailLimit });
+  for (const bad of ["0", "-5", "2.5", "abc", "", "1000001"]) assert.match((await edit(bad))!, /whole number/, bad);
+  assert.equal(await edit("500"), null);
+  assert.equal((await s.owner.query("select daily_email_limit from companies where id = $1", [s.companyId])).rows[0].daily_email_limit, 500);
 });

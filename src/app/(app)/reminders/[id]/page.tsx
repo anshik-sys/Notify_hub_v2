@@ -183,10 +183,11 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                       d.channel === "slack" && d.userName ? d.userName : d.address,
                       d.channel === "slack" ? (d.address.startsWith("C") ? "Slack channel" : "Slack DM") : "Email",
                       <Badge key="s" tone={d.status === "failed" ? "danger" : d.status === "sent" ? "success" : "neutral"}>
-                        {DELIVERY_LABELS[d.status]}
+                        {/* Held by the daily email limit: still queued, nothing tried yet. */}
+                        {d.status === "queued" && d.lastError?.startsWith("Held:") ? "Held" : DELIVERY_LABELS[d.status]}
                       </Badge>,
                       d.sentAt ? formatInZone(d.sentAt, tz) : "—",
-                      d.lastError ? <Muted key="n">{`${d.lastError} (attempt ${d.attempts})`}</Muted> : "",
+                      d.lastError ? <Muted key="n">{d.attempts ? `${d.lastError} (attempt ${d.attempts})` : d.lastError}</Muted> : "",
                     ],
                   }))}
                 />

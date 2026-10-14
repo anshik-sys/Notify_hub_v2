@@ -38,6 +38,13 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0033: `companies.daily_email_limit` (default 2,000 reminder emails
+per rolling 24 hours, 1–1,000,000) and a partial index on `deliveries`
+for counting them. Every existing company gets 2,000; raise it per company
+on `/platform/companies/<id>` before onboarding a big customer. Size it
+against your SES sending quota too: the sum over all companies can exceed
+it.
+
 Migration 0032: `email_suppressions` (outside addresses that unsubscribed,
 per company; tenant RLS). Unsubscribe links are signed with `ENCRYPTION_KEY`:
 **rotating it breaks every unsubscribe link already emailed** (as well as
@@ -269,7 +276,8 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Export a person's data (JSON with every section, no tokens). Deactivate them → Erase permanently → they can't sign in, show as "Deleted person", their comments read "Comment deleted", and the audit log no longer contains their email.
 - [ ] Create a company on `/platform` with a contact email and phone → the first admin's invite arrives → accepting it lands on Home with "Finish setting up"; Settings → Company shows the contact details and saves edits. On the setup checklist, departments, invites and managers tick off as you do them, and Home stops showing "Finish setting up" once it's done.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
-- [ ] A reminder to an outside address: the email ends with "Unsubscribe", and Gmail shows its own Unsubscribe next to the sender. Clicking it → the confirm page names the company; confirm → the next reminder to that address isn't sent. A member's copy has no unsubscribe link. Settings → Unsubscribed lists the address; the reminder marks it "Unsubscribed"; "Subscribe again" on the same link brings delivery back.
+- [ ] A reminder to an outside address: the email ends with "Unsubscribe", and Gmail shows its own Unsubscribe next to the sender. Clicking it → the confirm page names the company; confirm → the next reminder to that address isn't sent. A member's copy has no unsubscribe link.
+- [ ] Daily email limit: on `/platform/companies/<id>` set a test company's limit to 1, send a reminder to two people → one sent, the other shows "Held" in the reminder's log; its admins get one notice (in the app and by email); raise the limit → the held one goes out within a couple of minutes, once. Settings → Unsubscribed lists the address; the reminder marks it "Unsubscribed"; "Subscribe again" on the same link brings delivery back.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
 - [ ] Deactivate that person → their open tab is bounced to sign-in, and signing in says "deactivated".
 - [ ] Signing in before verifying shows "Verify your email first" and sends a new link.
