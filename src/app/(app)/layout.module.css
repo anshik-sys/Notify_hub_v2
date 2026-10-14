@@ -529,6 +529,10 @@
 
 /* The page panel */
 .content {
+  /* Contains absolutely positioned descendants (screen-reader-only labels
+     use position: absolute). Without it they escape this scrolling panel and
+     stretch the whole page past the frame. */
+  position: relative;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;

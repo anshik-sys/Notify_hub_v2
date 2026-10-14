@@ -154,12 +154,14 @@
 }
 
 /* Sticks inside the shell's scrolling page panel. The max height leaves room
-   for the frame around that panel (~120px), so the aside never runs off it. */
+   for everything above and below that panel (canvas margin, frame padding, top
+   bar, panel padding: 160px, measured), so the aside never runs off it. Change
+   it with the shell's spacing. */
 .stepsAside {
   position: sticky;
   top: 0;
   min-width: 0;
-  max-height: calc(100dvh - 120px);
+  max-height: calc(100dvh - 160px);
   overflow: auto;
 }
 

@@ -23,9 +23,25 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   `overflow: hidden` between the aside and `.content` (checked). The aside's
   max height leaves ~120px for the frame (a guess from the shell's CSS).
 - **Verified:** 160 tests, typecheck, lint; both pages compile with no
-  errors on a temp dev server. **Not verified:** the look and the sticky
-  behaviour (the user's call). I couldn't get a signed-in render from curl:
-  the auth API path 404s and the sign-in action needs more than a plain post.
+  errors on a temp dev server.
+- **Follow-up, the same day: empty canvas below the frame (user's
+  screenshot).** Measured in Chrome (Playwright from the scratchpad, signed in
+  with a throwaway session row, deleted afterwards): `/reminders/new` was
+  1173px tall in a 755px window. The cause: screen-reader-only labels
+  (`.hidden`, `position: absolute`: "(required)", hidden legends) had no
+  positioned ancestor, so they escaped the shell's scrolling `.content`
+  and stretched the whole document. Latent on any long page; the card
+  layout put them low enough to show. **Fix:** `.content { position:
+  relative }` in the shell. Now eight app pages measure exactly the window
+  height.
+  - The sticky aside's height allowance was a guess (120px) and ran 40px past
+    the panel; measured 160px and set it, with a comment saying to change it
+    with the shell's spacing. After scrolling, the preview stays at the panel
+    top and ends exactly at its bottom.
+  - The small box top-left in dev screenshots is Next's dev-tools portal;
+    it isn't in production.
+  - **Not verified:** below 1100px (one column), and the look itself (the
+    user's call).
 
 ## 2026-10-14 — daily email limit per company (PRD 7.1)
 
