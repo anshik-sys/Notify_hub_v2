@@ -2,6 +2,16 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-14 — real Slack test passes; palette approved
+
+- The user tested against a real Slack workspace (ngrok) and reports
+  Slack works. **Attachments uploaded to a channel only after the bot was
+  invited into it.** The auto-join on `not_in_channel` (public channels,
+  `channels:join`) evidently didn't cover their case. Not investigated: it
+  could be a private channel or a connection made before the scope was
+  added. The workaround is to invite the bot. Revisit if customers hit it.
+- The espresso/terracotta palette is approved in the browser.
+
 ## 2026-10-12 — palette from the user's reference: espresso, cream, terracotta, periwinkle (branch `new-branch`)
 
 - Rejected on looks today: A (small violet touches), the full violet
@@ -21,7 +31,8 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   `#8c7f78`. Every pair now ≥4.5 (text) / ≥3 (borders, rings), both themes;
   dark blocks identical.
 - **Verified:** typecheck, lint; on a temp dev server Home, Reminders and New
-  render 200 with the new tokens. **Not verified:** the look.
+  render 200 with the new tokens. The user approved the look in the
+  browser on 2026-10-14.
 
 ## 2026-10-12 — full palette + font: violet brand, Plus Jakarta Sans (branch `new-branch`)
 

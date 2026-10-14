@@ -208,7 +208,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - The worker runs via `tsx`, with no compiled build.
 - No deploy target chosen.
 - No virus scanning of uploads (not in the PRD). Files are content-checked and only ever served as downloads.
-- Slack has only been tested against the fake (`scripts/fake-slack.ts`). A real workspace test waits on a real Slack app (steps above).
+- Slack was tested against a real workspace on 2026-10-14 (through ngrok). File uploads to a channel worked only after the bot was invited to it, so add the bot to the channels you send to.
 - Slack: private channels aren't offered (they'd need the bot invited and `groups:read`); channel scope isn't member-based.
 - No bounce or complaint handling (SES → SNS). Bounced addresses aren't suppressed (PRD 7.1).
 - A failed verification email is only logged. The user gets a new link by signing in again.
