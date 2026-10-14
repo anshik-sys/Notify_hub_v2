@@ -64,6 +64,47 @@ export type RawReminder = {
   shareCompany: boolean;
 };
 
+// The New/Edit form's post (reminder-form.tsx) -> RawReminder. The field names
+// here must match the form's; reminder-form.test.ts checks that they do.
+// Unticked checkboxes aren't sent at all, hence `=== "on"`.
+export function formToRaw(fd: FormData): RawReminder {
+  const str = (k: string) => String(fd.get(k) ?? "");
+  const all = (k: string) => fd.getAll(k).map(String);
+  return {
+    title: str("title"),
+    description: str("description"),
+    senderName: str("senderName"),
+    linkLabels: all("linkLabel"),
+    linkUrls: all("linkUrl"),
+    company: fd.get("company") === "on",
+    departmentIds: all("departments"),
+    groupIds: all("groups"),
+    userIds: all("users"),
+    emails: str("emails"),
+    when: str("when"),
+    sendAtLocal: str("sendAt"),
+    channels: all("channels"),
+    slackChannelIds: all("slackChannels"),
+    tags: str("tags"),
+    shareMine: fd.get("shareMine") === "on",
+    shareDepartmentIds: all("shareDepartments"),
+    shareGroupIds: all("shareGroups"),
+    shareCompany: fd.get("shareCompany") === "on",
+    isTask: fd.get("isTask") === "on",
+    dueLocal: str("due"),
+    repeat: {
+      repeat: str("repeat"),
+      every: str("every"),
+      unit: str("unit"),
+      weekdays: all("weekdays"),
+      monthlyBy: str("monthlyBy"),
+      ends: str("ends"),
+      until: str("until"),
+      count: str("count"),
+    },
+  };
+}
+
 // slack: the company's public channels when Slack is connected, else null.
 export function validateInput(
   raw: RawReminder,

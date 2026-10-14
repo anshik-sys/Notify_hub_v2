@@ -2,6 +2,30 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-14 — a test for the New reminder form
+
+- The user asked for the form to be tested. Rendering `ReminderForm` in
+  a Node test was rejected: it imports the server action, the session and
+  CSS modules, so most of Next would need mocking. A browser test
+  (Playwright) was also rejected for now: a new dependency and browser
+  download for one form.
+- **Instead:** the post → `RawReminder` mapping moved out of `saveReminder`
+  into `formToRaw` (`src/lib/reminders.ts`), so the action is thinner and the
+  mapping is testable. `src/lib/reminder-form.test.ts`:
+  - **field contract:** records every field `formToRaw` reads and checks
+    each is a `name="…"` in `reminder-form.tsx` / `people-picker.tsx`.
+    Checked that it bites: renaming the form's `due` to `dueAt` fails it,
+    naming `due`;
+  - **a task to my department**, posted like the browser does: saved
+    scheduled (no approval), due offset 180 min, the send time, target,
+    tags, link and channel;
+  - **an announcement** ignores a leftover due date;
+  - **mistakes** (no title, task without due, no recipients, no channel)
+    come back as messages, and nothing is saved.
+- **Still not covered:** what the browser does in between (CSS `:has`
+  show/hide, the people picker's JS, the preview). That's the click-through.
+- **Verified:** 154 tests, typecheck, lint.
+
 ## 2026-10-14 — styled emails; why the unsubscribe link didn't show
 
 - **"No unsubscribe link" in the user's test was the worker, not the

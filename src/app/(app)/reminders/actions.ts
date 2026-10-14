@@ -8,6 +8,7 @@ import {
   cancelReminder,
   createReminder,
   decideReminder,
+  formToRaw,
   pauseReminder,
   resumeReminder,
   skipNextOccurrence,
@@ -31,51 +32,17 @@ export async function saveReminder(fd: FormData) {
   if (!can(access, "reminders.create")) notFound();
   const id = str(fd, "id");
   if (id && !isUuid(id)) notFound();
-  const departmentIds = all(fd, "departments");
-  const groupIds = all(fd, "groups");
-  const [shareDepartmentIds, shareGroupIds] = [all(fd, "shareDepartments"), all(fd, "shareGroups")];
-  if (![...departmentIds, ...groupIds, ...shareDepartmentIds, ...shareGroupIds].every(isUuid)) notFound();
+  const raw = formToRaw(fd);
+  if (![...raw.departmentIds, ...raw.groupIds, ...raw.shareDepartmentIds, ...raw.shareGroupIds].every(isUuid)) notFound();
   const back = id ? `/reminders/${id}/edit` : "/reminders/new";
 
   const parsed = validateInput(
-    {
-      title: str(fd, "title"),
-      description: str(fd, "description"),
-      senderName: str(fd, "senderName"),
-      linkLabels: all(fd, "linkLabel"),
-      linkUrls: all(fd, "linkUrl"),
-      company: fd.get("company") === "on",
-      departmentIds,
-      groupIds,
-      userIds: all(fd, "users"),
-      emails: str(fd, "emails"),
-      when: str(fd, "when"),
-      sendAtLocal: str(fd, "sendAt"),
-      channels: all(fd, "channels"),
-      slackChannelIds: all(fd, "slackChannels"),
-      tags: str(fd, "tags"),
-      shareMine: fd.get("shareMine") === "on",
-      shareDepartmentIds,
-      shareGroupIds,
-      shareCompany: fd.get("shareCompany") === "on",
-      isTask: fd.get("isTask") === "on",
-      dueLocal: str(fd, "due"),
-      repeat: {
-        repeat: str(fd, "repeat"),
-        every: str(fd, "every"),
-        unit: str(fd, "unit"),
-        weekdays: all(fd, "weekdays"),
-        monthlyBy: str(fd, "monthlyBy"),
-        ends: str(fd, "ends"),
-        until: str(fd, "until"),
-        count: str(fd, "count"),
-      },
-    },
+    raw,
     company.timeZone,
     senderDefault(company),
     new Date(),
     // Only ask Slack for the channel list when the form uses Slack.
-    all(fd, "channels").includes("slack") || all(fd, "slackChannels").length ? await channelChoices(companyId) : null,
+    raw.channels.includes("slack") || raw.slackChannelIds.length ? await channelChoices(companyId) : null,
   );
   if (parsed.error !== undefined) redirect(errorUrl(back, parsed.error));
 
