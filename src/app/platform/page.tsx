@@ -4,8 +4,8 @@ import { StatCards } from "@/components/stats";
 import { Badge, Muted, Table } from "@/components/table";
 import { platformAccess, platformCompanies, platformQueue, requirePlatformOwner } from "@/lib/platform";
 import { createCompanyAction } from "./actions";
+import { TIME_ZONES } from "@/lib/time";
 
-const TIME_ZONES = ["UTC", ...Intl.supportedValuesOf("timeZone")];
 const age = (s: number | null) => (s === null ? "—" : s < 120 ? `${s}s` : s < 7200 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`);
 
 // PRD 9.2: every company's usage and the delivery queue's health.

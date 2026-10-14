@@ -38,6 +38,10 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0034: `company_logos` (logo bytes, one per company, audited without
+the bytes). `/api/logo/<id>` is public and cacheable: if a CDN sits in front,
+let it cache `/api/logo/*`.
+
 Migration 0033: `companies.daily_email_limit` (default 2,000 reminder emails
 per rolling 24 hours, 1–1,000,000) and a partial index on `deliveries`
 for counting them. Every existing company gets 2,000; raise it per company
@@ -234,6 +238,9 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - Tests need Mailpit running: `createInvitation` sends real mail.
 - **SAML SSO (PRD 3.1) isn't built.** It's deferred until a customer needs it (decided
   2026-10-08). Email/password, Google, 2FA and invites cover sign-in meanwhile.
+- **Deferred (decided 2026-10-14):** PWA install and browser push (PRD 1.3);
+  verified company sending domains (PRD 7.1 tier 2); bring-your-own SMTP;
+  custom domains (PRD 7.4); Jira (phase 2).
 
 ## Verification checklist
 

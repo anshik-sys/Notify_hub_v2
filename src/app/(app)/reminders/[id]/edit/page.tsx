@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { Button, firstParam, Page } from "@/components/form";
 import { getReminder, listAttachments, mayChange } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
-import { senderDefault } from "@/lib/company";
+import { companyBrand, senderDefault } from "@/lib/company";
+import { brandFor } from "@/lib/email-render";
 import { toLocalInput } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
 import { fieldsFromRule } from "@/lib/recurrence";
@@ -33,6 +34,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
   return (
     <Page title="Edit reminder" back={{ href: `/reminders/${r.id}`, label: r.title }} error={error} actions={<Button form={REMINDER_FORM_ID}>Save reminder</Button>}>
       <ReminderForm
+        brand={brandFor("", companyId, company.name, (await companyBrand(companyId)).logoVersion)}
         {...choices}
         slackChannels={slackChannels}
         attachments={files}

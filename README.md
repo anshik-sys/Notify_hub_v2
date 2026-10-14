@@ -228,6 +228,11 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   transaction that schedules a due reminder (create, edit, approve). The
   worker `LISTEN`s and dispatches at once; the minute tick is only a safety
   net. pg-boss's own queue `notify` wakes the deliver workers.
+- **Company logo (`company_logos`, `/api/logo/<company id>`):** public on
+  purpose, because mail clients load it without a session. That's only safe because
+  uploads are raster images checked by their bytes: **never allow SVG**
+  (scripts) or skip `checkFile`. URLs carry `?v=<updated_at>` and the
+  route caches for a year; build them with `brandFor`.
 - **Theme comes from a cookie, read on the server** (`src/lib/theme.ts`). The
   root layout puts `data-theme` on `<html>`, so the first paint is right: no
   flash, no client JS. No attribute means following the device. This is why
@@ -283,7 +288,13 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   a role whose permissions they all hold.
 - **Department actions are checked two ways on purpose:**
   - member add/remove calls `can(access, "departments.manage_members", departmentId)`,
-    so a manager passes for the departments they manage and nowhere else;
+    so a manager passes for the departments they manage and nowhere else.
+    Adding also applies `canGrant` to the person's roles: a manager can't
+    pull an admin (or anyone above them) into their department, because
+    managers see their members' reminders. Unlike groups, there's no
+    re-check of upcoming reminders: a new member is in scope for the
+    department's own members by definition, and an approved "to department X"
+    covers X's membership at send time;
   - rename, delete and make-manager call `can()` *without* a department, so only
     company-wide (admin) permissions count. Passing the department id there
     would not grant managers anything today (those keys aren't in

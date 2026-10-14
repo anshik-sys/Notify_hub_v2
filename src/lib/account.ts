@@ -2,21 +2,14 @@ import { and, desc, eq } from "drizzle-orm";
 import QRCode from "qrcode";
 import { account, session, twoFactor, user } from "@/db/schema";
 import { authDb } from "./auth";
+import { isTimeZone } from "./time";
 
 // The signed-in person's own account (PRD 3.3, 8 "Settings"). Sessions,
 // accounts and 2FA rows are auth tables the app role can't read, so this goes
 // through authDb, and every query is filtered by the person's own id.
 
-export const isValidTimeZone = (tz: string) => {
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: tz });
-    return tz.length <= 64;
-  } catch {
-    return false;
-  }
-};
+export const isValidTimeZone = (tz: string) => tz.length <= 64 && isTimeZone(tz);
 
-export const TIME_ZONES = Intl.supportedValuesOf("timeZone");
 
 // null clears it (back to the company's zone).
 export async function setTimeZone(userId: string, tz: string | null) {

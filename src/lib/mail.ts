@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { mailBody } from "./email-render";
+import { type Brand, mailBody } from "./email-render";
 
 if (!process.env.SMTP_URL) throw new Error("SMTP_URL is not set");
 if (!process.env.MAIL_FROM) throw new Error("MAIL_FROM is not set");
@@ -30,8 +30,9 @@ export async function sendMail(m: {
   heading?: string;
   footer?: string;
   footerLinks?: Link[];
+  brand?: Brand;
 }) {
-  const { text: body, html } = mailBody(m.text, m.links, { heading: m.heading ?? m.subject, footer: m.footer, footerLinks: m.footerLinks });
+  const { text: body, html } = mailBody(m.text, m.links, { heading: m.heading ?? m.subject, footer: m.footer, footerLinks: m.footerLinks, brand: m.brand });
   const sender = m.fromName ? { name: m.fromName, address: fromAddress } : from;
   return transport.sendMail({
     from: sender,

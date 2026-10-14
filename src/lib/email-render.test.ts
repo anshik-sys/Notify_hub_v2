@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mailBody, renderReminderEmail } from "./email-render";
+import { brandFor, mailBody, renderReminderEmail } from "./email-render";
 
 const base = { title: "Pay <rent>", description: "Line 1\nLine 2 & more", links: [{ label: "Doc", url: "https://x.test/?a=1&b=2" }], senderName: "HR", appUrl: "https://app.test/r/1" };
 
@@ -30,4 +30,12 @@ test("layout: heading, last link is the button, footer links, plain text keeps e
   const generic = mailBody("Hi,\n\nUse the link.", [{ label: "Reset password", url: "https://app.test/reset" }], { heading: "Reset" });
   assert.match(generic.text, /Reset password: https:\/\/app\.test\/reset\n\nSent by NotifyHub\.$/);
   assert.match(generic.html, /<p style="[^"]*">Hi,<\/p><p style="[^"]*">Use the link\.<\/p>/);
+});
+
+test("branding: the company's logo (alt = name), its name, or NotifyHub", () => {
+  const withLogo = renderReminderEmail({ ...base, brand: brandFor("https://app.test", "c1", "Acme <Ltd>", "123") });
+  assert.match(withLogo.html, /<img src="https:\/\/app\.test\/api\/logo\/c1\?v=123" alt="Acme &lt;Ltd&gt;"/);
+  const nameOnly = renderReminderEmail({ ...base, brand: brandFor("https://app.test", "c1", "Acme", null) });
+  assert.ok(!nameOnly.html.includes("<img") && nameOnly.html.includes(">Acme</td>"));
+  assert.ok(mailBody("x").html.includes(">NotifyHub</td>"));
 });

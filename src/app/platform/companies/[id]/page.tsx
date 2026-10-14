@@ -3,11 +3,10 @@ import { Button, Checkbox, Field, firstParam, Form, Hint, Page, Section, SelectF
 import { StatCards } from "@/components/stats";
 import { companySettings } from "@/lib/company";
 import { platformCompanies, requirePlatformOwner } from "@/lib/platform";
-import { formatInZone } from "@/lib/time";
+import { formatInZone, TIME_ZONES } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
 import { deleteCompanyAction, editCompanyAction, suspendAction } from "../../actions";
 
-const TIME_ZONES = ["UTC", ...Intl.supportedValuesOf("timeZone")];
 
 export default async function PlatformCompany(props: PageProps<"/platform/companies/[id]">) {
   await requirePlatformOwner();

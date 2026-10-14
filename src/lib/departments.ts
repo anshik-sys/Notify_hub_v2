@@ -1,6 +1,9 @@
 import { aliasedTable, and, eq, isNull, notInArray, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { departmentMembers, departments, user } from "@/db/schema";
+import { departmentMembers, departments, roles, user, userRoles } from "@/db/schema";
+import { type Access, canGrant } from "./permissions";
+
+type Actor = { id: string; access: Access };
 
 class Refused extends Error {}
 
@@ -81,7 +84,15 @@ export const deleteDepartment = (companyId: string, id: string) =>
     }),
   );
 
-export const addMember = (companyId: string, departmentId: string, userId: string) =>
+// Escalation rule, as for people management (canGrant): you can only add
+// someone whose every role you could grant. A manager adding the CEO to their
+// department would otherwise see everything the CEO creates (managers see
+// their members' reminders) and reach them without approval. Admins hold every
+// permission, so this never stops them.
+// No re-check of upcoming reminders (unlike groups): a new member is, by
+// definition, in scope for that department's own members, and an approved
+// "to the X department" covers X's membership as it is at send time (PRD 5.2).
+export const addMember = (actor: Actor, companyId: string, departmentId: string, userId: string) =>
   refusals(() =>
     withTenant(companyId, async (tx) => {
       // RLS: another company's department or user is simply not found.
@@ -90,6 +101,13 @@ export const addMember = (companyId: string, departmentId: string, userId: strin
       const [u] = await tx.select({ deactivatedAt: user.deactivatedAt }).from(user).where(eq(user.id, userId));
       if (!u) throw new Refused("User not found.");
       if (u.deactivatedAt) throw new Refused("That person is deactivated.");
+      const held = await tx
+        .select({ id: roles.id, name: roles.name, permissions: roles.permissions })
+        .from(userRoles)
+        .innerJoin(roles, eq(roles.id, userRoles.roleId))
+        .where(eq(userRoles.userId, userId));
+      const above = held.find((r) => !canGrant(actor.access, r));
+      if (above) throw new Refused(`You can't add someone with the ${above.name} role.`);
       const added = await tx.insert(departmentMembers).values({ companyId, departmentId, userId }).onConflictDoNothing().returning();
       if (!added.length) throw new Refused("Already a member.");
     }),

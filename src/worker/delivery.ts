@@ -1,8 +1,8 @@
 import { type AnyColumn, and, asc, eq, inArray, lt, lte, sql } from "drizzle-orm";
-import { attachments, deliveries, emailSuppressions, notifications, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user, userRoles } from "@/db/schema";
+import { attachments, companies, companyLogos, deliveries, emailSuppressions, notifications, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user, userRoles } from "@/db/schema";
 import { COMPANY_ADMIN_ROLE_ID } from "@/lib/permissions";
 import { emailFiles } from "@/lib/attachments";
-import { renderReminderEmail } from "@/lib/email-render";
+import { brandFor, renderReminderEmail } from "@/lib/email-render";
 import { getBlob } from "@/lib/storage";
 import { decrypt } from "@/lib/crypto";
 import { lookupByEmail, openDm, postMessage, reminderMessage, SlackError, uploadFile } from "@/lib/slack";
@@ -250,6 +250,12 @@ async function sendEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
   // ponytail: bytes are re-read per recipient; cache per dispatch if large
   // company-wide sends with files get slow.
   const { attached, tooBig } = await emailFiles(await filesOf(r.reminder.id), (id) => getBlob(ownerDb, id));
+  const [co] = await ownerDb
+    .select({ name: companies.name, logoAt: companyLogos.updatedAt })
+    .from(companies)
+    .leftJoin(companyLogos, eq(companyLogos.companyId, companies.id))
+    .where(eq(companies.id, r.reminder.companyId));
+  const brand = brandFor(process.env.BETTER_AUTH_URL ?? "", r.reminder.companyId, co?.name ?? "", co?.logoAt ? String(co.logoAt.getTime()) : null);
   // No user id: an outside address. Members can't unsubscribe (PRD 7.1).
   const unsub = d.userId ? null : unsubscribeUrls(r.reminder.companyId, d.address);
   const email = renderReminderEmail({
@@ -261,6 +267,7 @@ async function sendEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
     due: r.reminder.isTask && r.dueAt ? `${formatInZone(r.dueAt, r.reminder.timeZone)} (${r.reminder.timeZone})` : undefined,
     tooBig,
     unsubscribeUrl: unsub?.page,
+    brand,
   });
   // RFC 8058 one-click, so mail apps show their own Unsubscribe button.
   const headers = unsub && { "List-Unsubscribe": `<${unsub.oneClick}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" };

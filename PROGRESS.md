@@ -2,6 +2,64 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-14 — company admins edit their profile and logo; emails carry the brand
+
+- PRD 9.1/4/7.1 gap from the audit: only the platform owner could change a
+  company's name or time zone, there was no logo, and emails said
+  "NotifyHub" at the top.
+- **Settings → Company:**
+  - **Profile:** name and time zone (`setProfile`). The domain stays with
+    the platform owner (invites and sign-in depend on it); the page says so.
+  - **Logo:** PNG/JPEG/GIF/WebP up to 256 KB, checked by its bytes
+    (`checkFile`). **No SVG:** it can carry scripts, and it's served publicly.
+    Replace or remove; uploads share the per-person upload limit.
+- **Storage:** new `company_logos` (migration 0034: one row per company,
+  tenant RLS, cascade on company delete, audited with the bytes excluded),
+  only through `putLogo`/`getLogo`/`deleteLogo` in `storage.ts`.
+- **`GET /api/logo/<company id>`** is **public on purpose**: mail clients
+  fetch it without a session, and a logo isn't secret. `nosniff`, served
+  as the sniffed type, cached for a year; URLs carry `?v=<updated_at>`, so a
+  new logo shows at once.
+- **Emails:** the header shows the company's logo (alt = its name, for
+  clients that block images) or its name; the app's own mail keeps
+  "NotifyHub". Real sends (worker), "Send me a test" and the form's preview all
+  use `brandFor`.
+- **Clean-ups on the way** (from the ponytail audit): one `TIME_ZONES` in
+  `time.ts`, which adds the "UTC" the profile picker was missing;
+  `isValidTimeZone` reuses `isTimeZone`; new kit `FileField`, used by the logo
+  and the reminder form's attachments.
+- **Verified:** 164 tests (profile validation and domain untouched; logo:
+  text, SVG, oversize and PDF refused, PNG stored, replace keeps one row with
+  a new version, remove; email header logo/name/NotifyHub with escaping),
+  typecheck, lint. On a temp server: the route serves the PNG with
+  `image/png`, `nosniff` and the cache header; unknown or malformed ids
+  get 404. **Not verified:** the settings page and the email in a browser or
+  mail app.
+
+## 2026-10-14 — managers can't pull people above them into their department
+
+- The audit finding parked earlier today (high). `addMember` accepted any
+  active person, so a manager could add the CEO and then read everything
+  the CEO creates (managers get full access to their members' reminders).
+- **Fix:** `addMember` takes the actor and applies `canGrant` to every role
+  the person holds, the same rule as role changes and deactivation. Admins
+  hold everything, so it never stops them. The setup checklist's "make
+  manager" passes the admin through.
+- **Dropped from the agreed fix: the department version of
+  `recheckGroupReminders`.** Writing its test showed it can't flip a
+  "my department" reminder: a new member is in scope for the department's
+  own members by definition. And for approved reminders from outside
+  ("to the Sales department"), it would send them back for approval on every
+  hire, against PRD 5.2 (current membership at send time). The guard alone
+  closes the hole.
+- **Not done:** the department page still lists everyone as a candidate;
+  picking someone above you shows the error on save.
+- **Decided with the user, same day:** PWA/browser push (PRD 1.3) deferred;
+  bounce handling, verified company domains, SAML, Jira, BYO SMTP and
+  custom domains stay deferred.
+- **Verified:** 161 tests (Company Admin and a custom role above the manager
+  refused; peers and admin adds fine), typecheck, lint.
+
 ## 2026-10-14 — New/Edit reminder form: numbered cards and a side preview
 
 - On a laptop the form was one long 640px card with the live preview at
@@ -103,8 +161,10 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   lint. On a temp dev server with curl, row counts at each step: one-click →
   1 (again → still 1), the page's Subscribe again → 0, Unsubscribe → 1; the
   settings page signed out → sign-in. A 404 on the very first request after
-  the dev server started didn't repeat; not explained, probably first
-  compile. **Not verified in the browser:** the settings page, the badge and
+  the dev server started didn't repeat. **Corrected later the same day:** it
+  wasn't Next. Port 3001 is also taken by another local app (an OpenHands
+  canvas, on 127.0.0.1) that forwards `/api/*` elsewhere; that request reached
+  it. Temp servers use port 3107 from now on. **Not verified in the browser:** the settings page, the badge and
   the save notice.
 
 ## 2026-10-14 — a test for the New reminder form

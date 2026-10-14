@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { Button, firstParam, Page } from "@/components/form";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
-import { senderDefault } from "@/lib/company";
+import { companyBrand, senderDefault } from "@/lib/company";
+import { brandFor } from "@/lib/email-render";
 import { fieldsFromRule } from "@/lib/recurrence";
 import { channelChoices } from "@/lib/slack-installations";
 import { recipientChoices } from "../form-data";
@@ -17,6 +18,7 @@ export default async function NewReminder(props: PageProps<"/reminders/new">) {
   return (
     <Page title="New reminder" back={{ href: "/reminders", label: "Reminders" }} error={error} actions={<Button form={REMINDER_FORM_ID}>Create reminder</Button>}>
       <ReminderForm
+        brand={brandFor("", companyId, company.name, (await companyBrand(companyId)).logoVersion)}
         {...choices}
         slackChannels={slackChannels}
         timeZone={company.timeZone}

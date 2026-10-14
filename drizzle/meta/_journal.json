@@ -239,6 +239,13 @@
       "when": 1791969849883,
       "tag": "0033_daily_email_limit",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791979348501,
+      "tag": "0034_company_logos",
+      "breakpoints": true
     }
   ]
 }

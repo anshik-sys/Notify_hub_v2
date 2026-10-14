@@ -458,3 +458,9 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* A file input inside a label (FileField). The browser draws the button. */
+.fileInput {
+  font: inherit;
+  font-weight: 400;
+}

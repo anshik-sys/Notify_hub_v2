@@ -59,8 +59,8 @@ export async function setManagerAction(formData: FormData) {
 
 export async function addMemberAction(formData: FormData) {
   const id = String(formData.get("departmentId"));
-  const { companyId } = await requirePermission("departments.manage_members", id);
-  done(`/departments/${id}`, await addMember(companyId, id, userIdFrom(formData)));
+  const { user, companyId, access } = await requirePermission("departments.manage_members", id);
+  done(`/departments/${id}`, await addMember({ id: user.id, access }, companyId, id, userIdFrom(formData)));
 }
 
 export async function removeMemberAction(formData: FormData) {

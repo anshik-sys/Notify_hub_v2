@@ -2,7 +2,8 @@ import { eq, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { attachments, reminders } from "@/db/schema";
 import { emailFiles } from "./attachments";
-import { renderReminderEmail } from "./email-render";
+import { brandFor, renderReminderEmail } from "./email-render";
+import { companyBrand } from "./company";
 import { sendMail } from "./mail";
 import type { Access } from "./permissions";
 import { mayChange, reminderAccess } from "./reminders";
@@ -64,7 +65,9 @@ export async function sendTest(
         .orderBy(attachments.createdAt),
     );
     const { attached, tooBig } = await emailFiles(files, (fid) => withTenant(companyId, (tx) => getBlob(tx, fid)));
-    const email = renderReminderEmail({ ...r, appUrl, due, tooBig, test: true });
+    const b = await companyBrand(companyId);
+    const brand = brandFor(process.env.BETTER_AUTH_URL ?? "", companyId, b.name, b.logoVersion);
+    const email = renderReminderEmail({ ...r, appUrl, due, tooBig, test: true, brand });
     await (deps.send ?? sendMail)({ to: actor.email, ...email, attachments: attached });
     sent.push("email");
   }

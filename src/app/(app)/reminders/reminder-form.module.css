@@ -71,19 +71,6 @@
   gap: 12px;
 }
 
-.fileField {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.fileInput {
-  font: inherit;
-  font-weight: 400;
-}
-
 /* "More options": the rarely needed settings, a card like the numbered
    sections whose header row opens it (hover, a chevron that turns when open). */
 .options {

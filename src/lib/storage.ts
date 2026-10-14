@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { PgTransaction } from "drizzle-orm/pg-core";
-import { attachmentBlobs } from "@/db/schema";
+import { attachmentBlobs, companyLogos } from "@/db/schema";
 
 // File bytes. The only code that reads or writes attachment_blobs.
 // ponytail: Postgres bytea (decided with the user: no new service, RLS + backups
@@ -21,3 +21,17 @@ export async function getBlob(tx: Tx, attachmentId: string) {
 
 // Deleting the attachment row cascades; this is for an explicit blob-only delete.
 export const deleteBlob = (tx: Tx, attachmentId: string) => tx.delete(attachmentBlobs).where(eq(attachmentBlobs.attachmentId, attachmentId));
+
+// The company logo (one per company; replacing overwrites).
+export const putLogo = (tx: Tx, companyId: string, contentType: string, data: Buffer) =>
+  tx
+    .insert(companyLogos)
+    .values({ companyId, contentType, data })
+    .onConflictDoUpdate({ target: companyLogos.companyId, set: { contentType, data, updatedAt: new Date() } });
+
+export async function getLogo(tx: Tx, companyId: string) {
+  const [row] = await tx.select({ contentType: companyLogos.contentType, data: companyLogos.data, updatedAt: companyLogos.updatedAt }).from(companyLogos).where(eq(companyLogos.companyId, companyId));
+  return row ?? null;
+}
+
+export const deleteLogo = (tx: Tx, companyId: string) => tx.delete(companyLogos).where(eq(companyLogos.companyId, companyId));

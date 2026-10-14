@@ -47,10 +47,10 @@ export async function invitePeopleAction(fd: FormData) {
 
 // Any active person can be picked; they're added to the department first.
 export async function setManagerAction(fd: FormData) {
-  const { companyId } = await admin("departments.edit");
+  const { user, companyId, access } = await admin("departments.edit");
   const [dept, userId] = [String(fd.get("departmentId") ?? ""), String(fd.get("userId") ?? "")];
   if (!isUuid(dept) || !userId || userId.length > 64) notFound();
-  const added = await addMember(companyId, dept, userId);
+  const added = await addMember({ id: user.id, access }, companyId, dept, userId);
   if (added && added !== "Already a member.") back("", added);
   const error = await setManager(companyId, dept, userId, true);
   back("Manager set.", error ?? undefined);

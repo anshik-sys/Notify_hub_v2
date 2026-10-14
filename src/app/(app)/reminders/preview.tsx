@@ -5,7 +5,7 @@
 // whatever is in the form right now. The email HTML goes in a sandboxed iframe
 // (no scripts, no access to this page); Slack blocks render as plain text.
 import { useEffect, useRef, useState } from "react";
-import { renderReminderEmail } from "@/lib/email-render";
+import { type Brand, renderReminderEmail } from "@/lib/email-render";
 import { reminderMessage } from "@/lib/slack";
 import styles from "./preview.module.css";
 
@@ -50,7 +50,7 @@ const unSlack = (t: string) =>
 
 type Block = { type: string; text?: { text: string }; elements?: { text: string | { text: string } }[] };
 
-export function ReminderPreview({ defaultSender, timeZone }: { defaultSender: string; timeZone: string }) {
+export function ReminderPreview({ defaultSender, timeZone, brand }: { defaultSender: string; timeZone: string; brand?: Brand }) {
   const ref = useRef<HTMLDivElement>(null);
   const [v, setV] = useState<Values | null>(null);
 
@@ -68,7 +68,7 @@ export function ReminderPreview({ defaultSender, timeZone }: { defaultSender: st
   }, [defaultSender, timeZone]);
 
   const appUrl = "https://notifyhub.app/reminders/…";
-  const email = v && renderReminderEmail({ ...v, appUrl });
+  const email = v && renderReminderEmail({ ...v, appUrl, brand });
   const slack = v?.slack
     ? (reminderMessage({ ...v, appUrl, task: v.due ? { occurrenceId: "preview", dm: true } : undefined }).blocks as Block[])
     : null;

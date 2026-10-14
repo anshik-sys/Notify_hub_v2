@@ -6,6 +6,13 @@ export const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 type Link = { label: string; url: string };
+// The sending company, for the email header (PRD 4 branding).
+export type Brand = { name: string; logoUrl?: string };
+// base = the app's public origin; version busts caches when the logo changes.
+export const brandFor = (base: string, companyId: string, name: string, logoVersion: string | null): Brand => ({
+  name,
+  logoUrl: logoVersion ? `${base}/api/logo/${companyId}?v=${logoVersion}` : undefined,
+});
 
 // Email clients don't do CSS variables or <style> reliably (Gmail strips
 // most of it), so the palette is repeated here as plain values and everything
@@ -36,16 +43,21 @@ const a = (l: Link, style: string) => `<a href="${escapeHtml(l.url)}" style="${s
 export function mailBody(
   text: string,
   links: Link[] = [],
-  extra: { heading?: string; footer?: string; footerLinks?: Link[] } = {},
+  extra: { heading?: string; footer?: string; footerLinks?: Link[]; brand?: Brand } = {},
 ) {
-  const { heading, footer = "Sent by NotifyHub.", footerLinks = [] } = extra;
+  const { heading, footer = "Sent by NotifyHub.", footerLinks = [], brand } = extra;
+  // The company's logo (alt: its name, for clients that block images), or its
+  // name, or NotifyHub's for the app's own mail.
+  const top = brand?.logoUrl
+    ? `<img src="${escapeHtml(brand.logoUrl)}" alt="${escapeHtml(brand.name)}" height="40" style="display:block;height:40px;max-width:240px;border:0">`
+    : escapeHtml(brand?.name || "NotifyHub");
   const main = links.at(-1);
   const others = links.slice(0, -1);
   const html = `<div style="margin:0;padding:0;background:${C.canvas}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.canvas};font-family:${FONT}">
 <tr><td align="center" style="padding:32px 16px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px">
-<tr><td style="padding:0 4px 16px;font-size:15px;font-weight:700;color:${C.text};letter-spacing:-0.01em">NotifyHub</td></tr>
+<tr><td style="padding:0 4px 16px;font-size:15px;font-weight:700;color:${C.text};letter-spacing:-0.01em">${top}</td></tr>
 <tr><td style="background:${C.card};border:1px solid ${C.border};border-radius:16px;padding:32px;color:${C.text};font-size:15px;line-height:1.6">
 ${heading ? `<h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;font-weight:700;color:${C.text}">${escapeHtml(heading)}</h1>` : ""}
 ${paragraphs(text)}
@@ -73,6 +85,7 @@ export function renderReminderEmail(r: {
   tooBig?: string[]; // attachments left out of the email
   test?: boolean;
   unsubscribeUrl?: string; // outside recipients only (PRD 7.1)
+  brand?: Brand;
 }) {
   const subject = `${r.test ? "[Test] " : ""}${r.due ? "Task: " : ""}${r.title}`;
   let text = r.description || r.title;
@@ -84,6 +97,7 @@ export function renderReminderEmail(r: {
     heading: r.title,
     footer: `Sent by ${r.senderName} through NotifyHub.`,
     footerLinks: r.unsubscribeUrl ? [{ label: "Unsubscribe", url: r.unsubscribeUrl }] : [],
+    brand: r.brand,
   };
   return { subject, text, links, ...extra, fromName: `${r.senderName} via NotifyHub`, html: mailBody(text, links, extra).html };
 }

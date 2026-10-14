@@ -1,7 +1,10 @@
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { companies, companyApprovers, roles, user, userRoles } from "@/db/schema";
+import { companies, companyApprovers, companyLogos, roles, user, userRoles } from "@/db/schema";
+import { checkFile } from "./attachments";
 import { COMPANY_ADMIN_ROLE_ID } from "./permissions";
+import { deleteLogo, getLogo, putLogo } from "./storage";
+import { isTimeZone } from "./time";
 
 // Both optional ("" clears). Shared with the platform console.
 export function checkContact(email: string, phone: string) {
@@ -20,6 +23,48 @@ export async function setContact(companyId: string, email: string, phone: string
     tx.update(companies).set({ contactEmail: email || null, contactPhone: phone || null }).where(eq(companies.id, companyId)),
   );
   return null;
+}
+
+// PRD 9.1: admins edit their company's name and time zone. The domain stays
+// with the platform owner: invites and sign-in are tied to it.
+export async function setProfile(companyId: string, name: string, timeZone: string) {
+  name = name.trim();
+  if (!name || name.length > 100) return "Company name must be 1–100 characters.";
+  if (!isTimeZone(timeZone)) return "Choose a valid time zone.";
+  await withTenant(companyId, (tx) => tx.update(companies).set({ name, timeZone }).where(eq(companies.id, companyId)));
+  return null;
+}
+
+// PRD 4 branding. Raster images only (no SVG: it can carry scripts), checked
+// by their bytes, small enough for an email header.
+export const LOGO_MAX_BYTES = 256 * 1024;
+const LOGO_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+export async function setLogo(companyId: string, fileName: string, bytes: Uint8Array) {
+  if (bytes.length > LOGO_MAX_BYTES) return "The logo must be 256 KB or smaller.";
+  const checked = checkFile(fileName, bytes);
+  if ("error" in checked) return checked.error;
+  if (!LOGO_TYPES.includes(checked.file.contentType)) return "Use a PNG, JPEG, GIF or WebP image.";
+  await withTenant(companyId, (tx) => putLogo(tx, companyId, checked.file.contentType, checked.file.data));
+  return null;
+}
+
+export const removeLogo = (companyId: string) => withTenant(companyId, (tx) => deleteLogo(tx, companyId));
+
+// For /api/logo/<company id>. Public on purpose: mail clients load it.
+export const logoFile = (companyId: string) => withTenant(companyId, (tx) => getLogo(tx, companyId));
+
+// Name and logo version for the shell and emails. `logoVersion` changes when
+// the logo does, so URLs carrying it bust caches; null = no logo.
+export async function companyBrand(companyId: string) {
+  const [row] = await withTenant(companyId, (tx) =>
+    tx
+      .select({ name: companies.name, logoAt: companyLogos.updatedAt })
+      .from(companies)
+      .leftJoin(companyLogos, eq(companyLogos.companyId, companies.id))
+      .where(eq(companies.id, companyId)),
+  );
+  return { name: row?.name ?? "", logoVersion: row?.logoAt ? String(row.logoAt.getTime()) : null };
 }
 
 // HH:MM, 24-hour, in the company's time zone (also a DB CHECK).
@@ -67,6 +112,7 @@ export async function companySettings(companyId: string) {
   const [c] = await withTenant(companyId, (tx) =>
     tx
       .select({
+        domain: companies.domain,
         contactEmail: companies.contactEmail,
         contactPhone: companies.contactPhone,
         followUpTime: companies.followUpTime,

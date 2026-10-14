@@ -151,6 +151,15 @@ export function Field({ label, ...props }: { label: string } & React.InputHTMLAt
   );
 }
 
+export function FileField({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className={styles.field}>
+      <span>{label}</span>
+      <input type="file" className={styles.fileInput} {...props} />
+    </label>
+  );
+}
+
 export function TextArea({ label, ...props }: { label: string } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <label className={styles.field}>

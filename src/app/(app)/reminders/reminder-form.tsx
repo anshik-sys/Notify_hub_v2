@@ -1,7 +1,8 @@
-import { Button, Checkbox, CheckboxGroup, Field, Hint, RadioGroup, Section, SelectField, StepsForm, TextArea } from "@/components/form";
+import { Button, Checkbox, CheckboxGroup, Field, FileField, Hint, RadioGroup, Section, SelectField, StepsForm, TextArea } from "@/components/form";
 import { Icon } from "@/components/icon";
 import { ACCEPT, MAX_FILES_PER_SAVE } from "@/lib/attachments";
 import { formatSize } from "@/lib/format";
+import type { Brand } from "@/lib/email-render";
 import type { RepeatFields } from "@/lib/recurrence";
 import { saveReminder } from "./actions";
 import type { DepartmentChoice, Person } from "./form-data";
@@ -137,6 +138,7 @@ export function ReminderForm({
   defaultSender,
   slackChannels,
   attachments = [],
+  brand,
 }: {
   defaults: ReminderDefaults;
   departments: DepartmentChoice[];
@@ -148,6 +150,8 @@ export function ReminderForm({
   slackChannels: { id: string; name: string }[] | null;
   /** Edit: files already on the reminder. */
   attachments?: { id: string; fileName: string; size: number }[];
+  /** The company's name and logo, for the email preview's header. */
+  brand?: Brand;
 }) {
   const mine = departments.filter((d) => d.mine);
   const others = departments.filter((d) => !d.mine);
@@ -182,7 +186,7 @@ export function ReminderForm({
       aside={
         // Inside the form: the preview reads the fields as you type.
         <Section title="Preview">
-          <ReminderPreview defaultSender={defaultSender} timeZone={timeZone} />
+          <ReminderPreview defaultSender={defaultSender} timeZone={timeZone} brand={brand} />
         </Section>
       }
     >
@@ -390,10 +394,7 @@ export function ReminderForm({
                 options={attachments.map((a) => ({ value: a.id, label: `${a.fileName} (${formatSize(a.size)})` }))}
               />
             )}
-            <label className={styles.fileField}>
-              Add files
-              <input type="file" name="files" multiple accept={ACCEPT} className={styles.fileInput} />
-            </label>
+            <FileField label="Add files" name="files" multiple accept={ACCEPT} />
             <Hint>PDF, Office, CSV/TXT, images or ZIP. 10 MB each, up to {MAX_FILES_PER_SAVE} at a time.</Hint>
           </div>
 

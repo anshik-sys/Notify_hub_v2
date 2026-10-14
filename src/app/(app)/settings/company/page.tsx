@@ -1,8 +1,13 @@
 import { notFound, redirect } from "next/navigation";
-import { Button, Checkbox, CheckboxGroup, errorUrl, Field, firstParam, Form, Hint, LinkButton, Page, RadioGroup, Section, SelectField } from "@/components/form";
+import { Button, Checkbox, CheckboxGroup, errorUrl, Field, FileField, firstParam, Form, Hint, LinkButton, Page, RadioGroup, Section, SelectField } from "@/components/form";
 import {
+  companyBrand,
   companySettings,
   eligibleApprovers,
+  LOGO_MAX_BYTES,
+  removeLogo,
+  setLogo,
+  setProfile,
   RETENTION_CHOICES,
   senderDefault,
   setApprovers,
@@ -13,7 +18,9 @@ import {
   setRetention,
 } from "@/lib/company";
 import { can } from "@/lib/permissions";
+import { limits } from "@/lib/rate-limit";
 import { requireMember } from "@/lib/session";
+import { TIME_ZONES } from "@/lib/time";
 
 // PRD 9.1 company settings. Every action re-checks company.edit.
 async function admin() {
@@ -22,6 +29,24 @@ async function admin() {
   return m;
 }
 const done = (error: string | null): never => redirect(error ? errorUrl("/settings/company", error) : "/settings/company?notice=Saved.");
+
+async function saveProfile(fd: FormData) {
+  "use server";
+  const { companyId } = await admin();
+  done(await setProfile(companyId, String(fd.get("name") ?? ""), String(fd.get("timeZone") ?? "")));
+}
+
+async function saveLogo(fd: FormData) {
+  "use server";
+  const { user, companyId } = await admin();
+  if (fd.get("remove") === "on") return done((await removeLogo(companyId), null));
+  const file = fd.get("logo");
+  if (!(file instanceof File) || file.size === 0) done("Choose an image to upload.");
+  const limited = await limits([[`upload:user:${user.id}`, 30, 3600]]);
+  if (limited) done(limited);
+  const f = file as File;
+  done(await setLogo(companyId, f.name, new Uint8Array(await f.arrayBuffer())));
+}
 
 async function saveContact(fd: FormData) {
   "use server";
@@ -63,7 +88,7 @@ async function saveRetention(fd: FormData) {
 export default async function CompanySettings(props: PageProps<"/settings/company">) {
   const { companyId, company, access } = await requireMember();
   if (!can(access, "company.edit")) notFound();
-  const [settings, eligible] = await Promise.all([companySettings(companyId), eligibleApprovers(companyId)]);
+  const [settings, eligible, brand] = await Promise.all([companySettings(companyId), eligibleApprovers(companyId), companyBrand(companyId)]);
   const { error, notice } = await props.searchParams;
 
   return (
@@ -77,6 +102,33 @@ export default async function CompanySettings(props: PageProps<"/settings/compan
         </LinkButton>
       }
     >
+      <Section title="Profile">
+        <Form action={saveProfile}>
+          <Field label="Company name" name="name" maxLength={100} required defaultValue={company.name} />
+          <SelectField label="Time zone" name="timeZone" defaultValue={company.timeZone} options={TIME_ZONES} />
+          <Hint>
+            New reminders use this time zone, and so do the task follow-up and digest times. The domain ({settings.domain}) can only be changed by the
+            NotifyHub team.
+          </Hint>
+          <Button>Save</Button>
+        </Form>
+      </Section>
+
+      <Section title="Logo">
+        <Form action={saveLogo}>
+          {brand.logoVersion && (
+            <div>
+              {/* eslint-disable-next-line @next/next/no-img-element -- a small same-origin image; next/image adds nothing here */}
+              <img src={`/api/logo/${companyId}?v=${brand.logoVersion}`} alt={`${company.name} logo`} height={48} />
+            </div>
+          )}
+          <FileField label={brand.logoVersion ? "Replace the logo" : "Upload a logo"} name="logo" accept="image/png,image/jpeg,image/gif,image/webp" />
+          {brand.logoVersion && <Checkbox label="Remove the logo" name="remove" />}
+          <Hint>PNG, JPEG, GIF or WebP, up to {LOGO_MAX_BYTES / 1024} KB. Shown at the top of your company’s reminder emails.</Hint>
+          <Button>Save</Button>
+        </Form>
+      </Section>
+
       <Section title="Contact">
         <Form action={saveContact}>
           <Field label="Contact email" name="contactEmail" type="email" autoComplete="email" maxLength={254} defaultValue={settings.contactEmail ?? ""} />

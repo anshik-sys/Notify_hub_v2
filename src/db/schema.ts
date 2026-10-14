@@ -520,6 +520,22 @@ export const attachments = pgTable(
   (t) => [index().on(t.reminderId), tenantPolicy("company_id")],
 ).enableRLS();
 
+// PRD 4/7.1: the company's logo, shown in the app and in emails. Served
+// publicly (/api/logo/<company id>) so mail clients can load it. Bytes only via
+// src/lib/storage.ts. Cascade: a logo never blocks deleting an empty company.
+export const companyLogos = pgTable(
+  "company_logos",
+  {
+    companyId: uuid()
+      .primaryKey()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    contentType: text().notNull(),
+    data: bytea().notNull(),
+    updatedAt: ts().notNull().defaultNow(),
+  },
+  () => [tenantPolicy("company_id")],
+).enableRLS();
+
 export const attachmentBlobs = pgTable(
   "attachment_blobs",
   {

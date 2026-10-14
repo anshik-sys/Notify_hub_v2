@@ -50,6 +50,9 @@ export function formatInZone(date: Date, tz: string) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: tz }).format(date);
 }
 
+// Every zone the runtime knows, plus "UTC" (Intl leaves it out). One list for every picker.
+export const TIME_ZONES = ["UTC", ...Intl.supportedValuesOf("timeZone")];
+
 export function isTimeZone(tz: string) {
   try {
     new Intl.DateTimeFormat("en", { timeZone: tz });

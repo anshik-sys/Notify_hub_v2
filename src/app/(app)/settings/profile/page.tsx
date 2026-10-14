@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Button, Field, firstParam, Form, Hint, Page, Section, SelectField } from "@/components/form";
 import { List, ListRow } from "@/components/list";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { TIME_ZONES } from "@/lib/account";
+import { TIME_ZONES } from "@/lib/time";
 import { managersOfMyDepartments } from "@/lib/departments";
 import { groupsOf } from "@/lib/groups";
 import { visibleRoles } from "@/lib/permissions";
