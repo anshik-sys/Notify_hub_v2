@@ -2,6 +2,39 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-14 — styled emails; why the unsubscribe link didn't show
+
+- **"No unsubscribe link" in the user's test was the worker, not the
+  code:** their `pnpm worker` had been running since 12 Oct 12:50, and
+  `tsx` doesn't reload, so it still ran the old `delivery.ts`. The
+  outside delivery at 14:25 went out through it. **After changing worker
+  code, restart `pnpm worker`.**
+- **Every email now uses one layout** (`mailBody` in `email-render.ts`):
+  - a NotifyHub wordmark on the warm canvas, then a white card with
+    rounded corners holding the heading, paragraphs and links;
+  - the **last link becomes the main button** (espresso pill); every email
+    already put its action last: Accept invite, Reset password, Review it,
+    Mark it done. Earlier links form a terracotta list;
+  - a small footer ("Sent by HR through NotifyHub.") holds Unsubscribe,
+    which moved out of the links into `footerLinks`;
+  - reminders use their title as the heading; every other email uses its
+    subject. Invites, resets, verification, approvals, follow-ups and the
+    volume alert change with no edits of their own.
+- **Built for email clients:** tables and inline styles only, because
+  Gmail strips most `<style>` and Outlook needs tables. The palette is
+  repeated as plain hex in `email-render.ts`, because CSS variables don't
+  work in email. That's the one deliberate exception to "no hard-coded
+  colours". Keep it in step with `globals.css`. Plus Jakarta Sans falls back
+  to system fonts where it isn't installed (no web font is loaded). No logo
+  image: remote images are blocked by default and localhost isn't
+  reachable from Gmail.
+- The form's preview iframe went 220 → 440px tall to fit the card.
+- **Verified:** 150 tests (layout: heading, button, list, footer
+  unsubscribe, plain text keeps every link), typecheck, lint; two samples
+  (a task with links + unsubscribe, an invite) delivered to Mailpit.
+  **Not verified:** the look (the user's call), Gmail/Outlook rendering, dark
+  mode in mail apps.
+
 ## 2026-10-14 — unsubscribe for outside recipients (PRD 7.1)
 
 - Top PRD gap from today's audit: reminder emails to outside addresses had

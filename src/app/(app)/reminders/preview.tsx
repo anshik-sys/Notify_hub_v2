@@ -92,7 +92,7 @@ export function ReminderPreview({ defaultSender, timeZone }: { defaultSender: st
               title="Email body preview"
               sandbox=""
               className={styles.frame}
-              srcDoc={`<!doctype html><meta charset="utf-8"><body style="font:15px/1.5 system-ui,sans-serif;margin:12px;color:#171717">${email.html}</body>`}
+              srcDoc={`<!doctype html><meta charset="utf-8"><body style="margin:0">${email.html}</body>`}
             />
           </div>
           {slack && (

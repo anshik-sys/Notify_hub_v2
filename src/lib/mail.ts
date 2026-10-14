@@ -26,8 +26,12 @@ export async function sendMail(m: {
   replyTo?: string;
   attachments?: { filename: string; content: Buffer; contentType: string }[];
   headers?: Record<string, string>;
+  // Layout extras (see mailBody). The heading defaults to the subject.
+  heading?: string;
+  footer?: string;
+  footerLinks?: Link[];
 }) {
-  const { text: body, html } = mailBody(m.text, m.links);
+  const { text: body, html } = mailBody(m.text, m.links, { heading: m.heading ?? m.subject, footer: m.footer, footerLinks: m.footerLinks });
   const sender = m.fromName ? { name: m.fromName, address: fromAddress } : from;
   return transport.sendMail({
     from: sender,

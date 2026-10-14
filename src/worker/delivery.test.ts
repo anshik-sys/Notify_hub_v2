@@ -465,7 +465,7 @@ test("unsubscribe (PRD 7.1): suppressed outside addresses get nothing; others ge
   const toMember = sent.find((m) => m.to !== stays)!;
   assert.match(toOutside.headers!["List-Unsubscribe"], /^<.*\/api\/unsubscribe\/[^>]+>$/);
   assert.equal(toOutside.headers!["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
-  assert.ok(toOutside.links!.some((l) => l.label === "Unsubscribe" && l.url.includes("/unsubscribe/")));
+  assert.ok(toOutside.footerLinks!.some((l) => l.label === "Unsubscribe" && l.url.includes("/unsubscribe/")));
   assert.equal(toMember.headers, undefined);
-  assert.ok(!toMember.links!.some((l) => l.label === "Unsubscribe"));
+  assert.deepEqual(toMember.footerLinks, []);
 });
