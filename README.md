@@ -31,6 +31,7 @@ One package, two processes, one Postgres:
 | `scripts/fake-slack.ts` | **Dev/test only** fake Slack (`pnpm fake-slack`). Never deployed. |
 | `src/lib/attachments.ts`, `src/lib/storage.ts` | File rules (content sniffing, CSV formula check, names, limits); the only code touching file bytes. |
 | `src/app/api/attachments/[id]` | Download (always as an attachment). |
+| `src/lib/unsubscribe.ts`, `src/app/unsubscribe/[token]`, `src/app/api/unsubscribe/[token]` | Outside recipients unsubscribing (PRD 7.1): signed link, confirm page, one-click endpoint. |
 | `src/lib/comments.ts` | Reminder discussion: comments, replies, mentions, notifications. |
 | `src/lib/tasks.ts` | Task completion (`setDone`), progress, my open tasks. |
 | `src/lib/time.ts` | Company-time-zone wall clock ↔ UTC (Intl only, DST-tested). |
@@ -313,6 +314,21 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     that into one extra occurrence at exactly that time and clears it.
     `send_at` (the next scheduled one) is never touched. The unique
     `(reminder_id, occurs_at)` makes a double run harmless.
+- **Unsubscribe (PRD 7.1) is for outside addresses only, per company:**
+  - only reminder emails to an address with no account (`deliveries.user_id`
+    null) carry the link and the `List-Unsubscribe` + `List-Unsubscribe-Post`
+    headers (RFC 8058). Members can't unsubscribe from their company;
+  - the link is a **signed** company id + address (HMAC keyed from
+    `ENCRYPTION_KEY`, `signToken` in `src/lib/crypto.ts`), with no stored token
+    and no expiry, so old emails keep working. Rotating `ENCRYPTION_KEY`
+    invalidates every link already sent;
+  - the page asks for a click before unsubscribing, because mail scanners
+    open links. The one-click endpoint is POST only, the way mail apps call it;
+  - the worker leaves suppressed addresses out **at dispatch**, so they never
+    get a delivery row, and the sender's log simply doesn't list them;
+  - `src/lib/unsubscribe.ts` imports `@/db` lazily, inside the web-only
+    functions: the worker imports the file for the URLs and must never load
+    the web DB client. Keep it that way.
 - **"Send me a test" isn't a delivery.** It sends from the web process, to the
   clicking user only, and writes no `deliveries`, occurrences or task rows, so
   it never shows in counts, history or follow-ups.

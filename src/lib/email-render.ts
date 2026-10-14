@@ -26,6 +26,7 @@ export function renderReminderEmail(r: {
   due?: string; // tasks: formatted due time
   tooBig?: string[]; // attachments left out of the email
   test?: boolean;
+  unsubscribeUrl?: string; // outside recipients only (PRD 7.1)
 }) {
   const subject = `${r.test ? "[Test] " : ""}${r.due ? "Task: " : ""}${r.title}`;
   let text = r.description || r.title;
@@ -33,5 +34,6 @@ export function renderReminderEmail(r: {
   if (r.due) text += `\n\nDue ${r.due}.`;
   if (r.test) text = `This is a test, sent only to you.\n\n${text}`;
   const links = [...r.links, { label: r.due ? "Mark it done in NotifyHub" : "Open in NotifyHub", url: r.appUrl }];
+  if (r.unsubscribeUrl) links.push({ label: "Unsubscribe", url: r.unsubscribeUrl });
   return { subject, text, links, fromName: `${r.senderName} via NotifyHub`, html: mailBody(text, links).html };
 }

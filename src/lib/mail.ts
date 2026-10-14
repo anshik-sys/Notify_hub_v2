@@ -25,6 +25,7 @@ export async function sendMail(m: {
   fromName?: string;
   replyTo?: string;
   attachments?: { filename: string; content: Buffer; contentType: string }[];
+  headers?: Record<string, string>;
 }) {
   const { text: body, html } = mailBody(m.text, m.links);
   const sender = m.fromName ? { name: m.fromName, address: fromAddress } : from;
@@ -36,5 +37,6 @@ export async function sendMail(m: {
     text: body,
     html,
     attachments: m.attachments,
+    headers: m.headers,
   });
 }

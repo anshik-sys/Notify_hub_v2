@@ -1,5 +1,5 @@
-import { type AnyColumn, and, asc, eq, lt, lte, sql } from "drizzle-orm";
-import { attachments, deliveries, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user } from "@/db/schema";
+import { type AnyColumn, and, asc, eq, inArray, lt, lte, sql } from "drizzle-orm";
+import { attachments, deliveries, emailSuppressions, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user } from "@/db/schema";
 import { emailFiles } from "@/lib/attachments";
 import { renderReminderEmail } from "@/lib/email-render";
 import { getBlob } from "@/lib/storage";
@@ -10,6 +10,7 @@ import { formatInZone } from "@/lib/time";
 import { sendMail } from "@/lib/mail";
 import { addNotifications } from "@/lib/notifications";
 import { resolveRecipients } from "@/lib/recipients";
+import { unsubscribeUrls } from "@/lib/unsubscribe";
 import { ownerDb } from "./db";
 
 // Exactly once per (occurrence, person), in three steps:
@@ -56,7 +57,15 @@ async function createOccurrence(tx: Tx, r: Reminder, occursAt: Date) {
     .select({ kind: reminderTargets.kind, ref: reminderTargets.ref })
     .from(reminderTargets)
     .where(eq(reminderTargets.reminderId, r.id));
-  const { users, external } = await resolveRecipients(tx, r.companyId, targets);
+  const { users, external: typed } = await resolveRecipients(tx, r.companyId, targets);
+  // Outside addresses that unsubscribed from this company get nothing (PRD 7.1).
+  const gone = typed.length
+    ? await tx
+        .select({ email: emailSuppressions.email })
+        .from(emailSuppressions)
+        .where(and(eq(emailSuppressions.companyId, r.companyId), inArray(emailSuppressions.email, typed)))
+    : [];
+  const external = typed.filter((e) => !gone.some((g) => g.email === e));
   type Row = { channel: "email" | "slack"; address: string; userId: string | null };
   const rows: Row[] = [];
   if (r.channels.includes("email"))
@@ -240,6 +249,8 @@ async function sendEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
   // ponytail: bytes are re-read per recipient; cache per dispatch if large
   // company-wide sends with files get slow.
   const { attached, tooBig } = await emailFiles(await filesOf(r.reminder.id), (id) => getBlob(ownerDb, id));
+  // No user id: an outside address. Members can't unsubscribe (PRD 7.1).
+  const unsub = d.userId ? null : unsubscribeUrls(r.reminder.companyId, d.address);
   const email = renderReminderEmail({
     title: r.reminder.title,
     description: r.reminder.description,
@@ -248,8 +259,11 @@ async function sendEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
     appUrl: `${process.env.BETTER_AUTH_URL}/reminders/${r.reminder.id}`,
     due: r.reminder.isTask && r.dueAt ? `${formatInZone(r.dueAt, r.reminder.timeZone)} (${r.reminder.timeZone})` : undefined,
     tooBig,
+    unsubscribeUrl: unsub?.page,
   });
-  await send({ to: d.address, ...email, replyTo: r.creatorEmail, attachments: attached });
+  // RFC 8058 one-click, so mail apps show their own Unsubscribe button.
+  const headers = unsub && { "List-Unsubscribe": `<${unsub.oneClick}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" };
+  await send({ to: d.address, ...email, replyTo: r.creatorEmail, attachments: attached, ...(headers ? { headers } : {}) });
   return {};
 }
 

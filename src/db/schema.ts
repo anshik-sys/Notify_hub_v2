@@ -620,6 +620,22 @@ export const notificationMutes = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.event, t.channel] }), tenantPolicy("company_id")],
 ).enableRLS();
 
+// Outside addresses that unsubscribed from a company's reminders (PRD 7.1).
+// Members can't unsubscribe; only external addresses land here. The worker
+// leaves these out when it dispatches.
+export const emailSuppressions = pgTable(
+  "email_suppressions",
+  {
+    // Cascade: an unsubscribe shouldn't stop an otherwise empty company being deleted.
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    email: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.companyId, t.email] }), tenantPolicy("company_id")],
+).enableRLS();
+
 // Custom distribution lists (PRD 4). Anyone with groups.create makes one; the
 // creator or groups.manage edits it. Resolved to members at send time.
 export const groups = pgTable(

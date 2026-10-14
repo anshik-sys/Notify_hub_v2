@@ -444,3 +444,28 @@ test("send now on a repeating task: one extra occurrence, schedule untouched", a
   assert.equal(await dispatchManual(enqueue, s.companyId), 0); // nothing left
   await q("update reminders set status = 'cancelled' where id = $1", [id]);
 });
+
+test("unsubscribe (PRD 7.1): suppressed outside addresses get nothing; others get the link and headers, members don't", async () => {
+  const [{ id }] = await q(
+    `insert into reminders (company_id, short_id, created_by, title, description, sender_name, send_at, status, time_zone, anchor_local)
+     values ($1, $2, $3, 'Newsletter', '', 'HR', now() + interval '1 hour', 'scheduled', 'UTC', '2026-01-01T00:00') returning id`,
+    [s.companyId, `U-${s.companyId.slice(0, 6).toUpperCase()}`, creator],
+  );
+  const [stays, left] = [`stays@out-${s.companyId}.test`, `left@out-${s.companyId}.test`];
+  await q("insert into reminder_targets values ($1, $2, 'user', $3), ($1, $2, 'email', $4), ($1, $2, 'email', $5)", [id, s.companyId, alice, stays, left]);
+  await q("insert into email_suppressions (company_id, email) values ($1, $2)", [s.companyId, left]);
+
+  await dispatchDue(async () => {}, s.companyId, new Date(Date.now() + 2 * 3_600_000));
+  const rows = await q("select id, address from deliveries where reminder_id = $1 order by address", [id]);
+  assert.deepEqual(rows.map((r) => r.address).sort(), [`${alice}@${s.domain}`, stays].sort());
+
+  const sent: Parameters<typeof import("@/lib/mail").sendMail>[0][] = [];
+  for (const r of rows) await deliverOne(r.id, async (m) => void sent.push(m) as never);
+  const toOutside = sent.find((m) => m.to === stays)!;
+  const toMember = sent.find((m) => m.to !== stays)!;
+  assert.match(toOutside.headers!["List-Unsubscribe"], /^<.*\/api\/unsubscribe\/[^>]+>$/);
+  assert.equal(toOutside.headers!["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
+  assert.ok(toOutside.links!.some((l) => l.label === "Unsubscribe" && l.url.includes("/unsubscribe/")));
+  assert.equal(toMember.headers, undefined);
+  assert.ok(!toMember.links!.some((l) => l.label === "Unsubscribe"));
+});

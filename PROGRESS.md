@@ -2,6 +2,57 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-14 — unsubscribe for outside recipients (PRD 7.1)
+
+- Top PRD gap from today's audit: reminder emails to outside addresses had
+  no way out, which is a CAN-SPAM/GDPR and spam-complaint risk on the shared
+  sending domain. Must exist before the first real deploy.
+- **How:** a signed link (HMAC of company id + address, keyed from
+  `ENCRYPTION_KEY`; new `signToken`/`readToken` in `crypto.ts`), a confirm
+  page, an RFC 8058 one-click POST endpoint, and the `List-Unsubscribe`
+  headers. A new `email_suppressions` table (per company, tenant RLS) is
+  checked by the worker at dispatch, so a suppressed address gets no
+  delivery row at all. Only outside addresses get the link: members can't
+  unsubscribe (PRD 7.1).
+- **Rejected:**
+  - stored random tokens: a table and a lookup for no gain; the signed
+    link can't be forged and needs nothing stored;
+  - expiring links: an unsubscribe link in a year-old email should still
+    work;
+  - unsubscribing on page load: mail scanners open links, so it would
+    unsubscribe people who never clicked;
+  - checking at send time as well as dispatch: retries of rows created
+    before the click could still go out, but that's minutes. Revisit if it
+    matters.
+- **Trade-offs, on purpose:**
+  - per company, not per reminder: one click stops everything from that
+    company;
+  - no admin view of who unsubscribed and no way to re-subscribe; the
+    sender's log just doesn't list them;
+  - rotating `ENCRYPTION_KEY` breaks links already sent (DEPLOYMENT notes
+    it);
+  - the FK cascades on company delete, so an unsubscribe never blocks
+    deleting an empty company.
+- **Rules not applied, and why:**
+  - **no audit trigger:** unsubscribes have no signed-in actor, and the
+    trigger records nothing without one;
+  - **not in `erase_person`/`exportPerson`:** those cover accounts, and
+    these are addresses with no account. If an outside address later
+    becomes a member, their old suppression row stays but is never read.
+- **Verified:**
+  - tests (149): tokens (round trip, forged, other purpose), unsubscribe
+    (idempotent, right company only, forged/oversized tokens do nothing),
+    RLS isolation, and the worker (a suppressed address gets no delivery;
+    the outside email has the link and both headers; the member's has
+    neither);
+  - typecheck, lint;
+  - on a temp dev server with curl: the page names the company and
+    address, one-click returns 200 and writes the row, bad tokens get "Link
+    not valid" / 400, GET on the endpoint is 405.
+- **Not verified:** the confirm button in the browser (its logic is the
+  tested `unsubscribe()`), and how Gmail shows the header (needs real
+  SES).
+
 ## 2026-10-14 — security: role editors can't escalate to admin
 
 - From a read-only audit (PRD coverage, security, ponytail) run today.
