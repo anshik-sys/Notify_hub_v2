@@ -42,6 +42,11 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
     it isn't in production.
   - **Not verified:** below 1100px (one column), and the look itself (the
     user's call).
+  - The user still saw it afterwards: their `pnpm start` build was from
+    15:06, before the 15:14 fix. Reproduced their steps (click, then wheel,
+    End/PageDown/Space, wheel over the preview) at 1280×720, 1333×755,
+    1440×900 and 1680×1050: with the fix the window never scrolls; with the
+    line removed it scrolls 418px (page 1173px tall in 755). Needs a rebuild.
 
 ## 2026-10-14 — daily email limit per company (PRD 7.1)
 
