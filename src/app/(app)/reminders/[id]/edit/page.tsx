@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { firstParam, Page } from "@/components/form";
-import { can } from "@/lib/permissions";
-import { getReminder, listAttachments } from "@/lib/reminders";
+import { getReminder, listAttachments, mayChange } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { senderDefault } from "@/lib/company";
 import { toLocalInput } from "@/lib/time";
@@ -20,8 +19,8 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
   if (!isUuid(id)) notFound();
   const { user, companyId, company, access } = await requireMember();
   const r = await getReminder(companyId, id);
-  // Same rule as updateReminder: creator or reminders.edit, and not yet sent.
-  if (!r || !(user.id === r.createdBy || can(access, "reminders.edit"))) notFound();
+  // Same rule as updateReminder, and not yet sent.
+  if (!r || !(await mayChange(companyId, { id: user.id, access }, r.createdBy))) notFound();
   if (!["pending_approval", "rejected", "scheduled", "paused"].includes(r.status)) notFound();
   const [choices, slackChannels, files] = await Promise.all([
     recipientChoices(companyId, user.id, access),

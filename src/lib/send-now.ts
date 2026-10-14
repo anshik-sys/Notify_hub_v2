@@ -4,8 +4,8 @@ import { attachments, reminders } from "@/db/schema";
 import { emailFiles } from "./attachments";
 import { renderReminderEmail } from "./email-render";
 import { sendMail } from "./mail";
-import { type Access, can } from "./permissions";
-import { reminderAccess } from "./reminders";
+import type { Access } from "./permissions";
+import { mayChange, reminderAccess } from "./reminders";
 import { lookupByEmail, openDm, postMessage, reminderMessage } from "./slack";
 import { getInstallation } from "./slack-installations";
 import { getBlob } from "./storage";
@@ -17,11 +17,11 @@ type Actor = { id: string; email: string; access: Access };
 // Send now. One-time: its send time becomes now (the normal dispatch sends it,
 // once). Repeating: one extra occurrence now (send_now_at, picked up by the
 // worker's dispatchManual); the next scheduled one stays where it is.
-// The creator, or anyone with reminders.send_now.
+// The creator, or anyone with reminders.send_now who can see it in full.
 export async function sendNow(actor: Actor, companyId: string, id: string) {
   return withTenant(companyId, async (tx) => {
     const [r] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update");
-    if (!r || (r.createdBy !== actor.id && !can(actor.access, "reminders.send_now"))) return { error: "Reminder not found." };
+    if (!r || !(await mayChange(companyId, actor, r.createdBy, "reminders.send_now"))) return { error: "Reminder not found." };
     const allowed = r.status === "scheduled" || (r.recurrence && r.status === "paused");
     if (!allowed)
       return {

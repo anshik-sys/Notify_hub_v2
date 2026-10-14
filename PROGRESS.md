@@ -39,7 +39,18 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   Now it also runs as the editor when that's someone else, and the stricter
   answer wins. An approver editing changes nothing. **Verified:** the new
   test fails without the fix and passes with it; 143 tests, typecheck, lint.
-- **Still open from the audit, to discuss one at a time:** four lows.
+- **Edit, cancel, series controls and Send now ignored visibility (low,
+  fixed):** `reminders.edit` (or `send_now`) alone opened any reminder in
+  the company by id, content included. Now `mayChange` (exported from
+  `src/lib/reminders.ts`, used by the edit page and `sendNow`) also needs
+  full access (`canSeeReminder`). The detail page's buttons use the same
+  rule through its existing `seeAs`, so no extra query. The earlier
+  editor test now gives its editor `view_all`. **Verified:** a new test
+  (a user with edit + send_now who can't see the reminder gets "not found"
+  on all three, and nothing changes); 144 tests, typecheck, lint. The new
+  test couldn't be seen failing on the old code (that file doesn't load
+  without the new export). **Not verified in the browser.**
+- **Still open from the audit, to discuss one at a time:** three lows.
 
 ## 2026-10-14 — real Slack test passes; palette approved
 

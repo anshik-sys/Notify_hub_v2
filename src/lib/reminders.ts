@@ -423,9 +423,18 @@ export async function createReminder(actor: Actor, companyId: string, input: Rem
 
 const targetKey = (t: Target) => `${t.kind}:${t.ref}`;
 
-// Creator, or anyone with reminders.edit company-wide.
-function mayChange(actor: Actor, createdBy: string) {
-  return actor.id === createdBy || can(actor.access, "reminders.edit");
+// Creator, or anyone with the permission (reminders.edit, or send_now for Send
+// now) who can also see the reminder in full. Without that, the permission
+// alone would open any reminder in the company by id. The edit and detail
+// pages use this too, so the buttons match the rule.
+export async function mayChange(
+  companyId: string,
+  actor: Actor,
+  createdBy: string,
+  permission: "reminders.edit" | "reminders.send_now" = "reminders.edit",
+) {
+  if (actor.id === createdBy) return true;
+  return can(actor.access, permission) && canSeeReminder(companyId, actor, createdBy);
 }
 
 export async function updateReminder(
@@ -439,7 +448,7 @@ export async function updateReminder(
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
       const [current] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update");
-      if (!current || !mayChange(actor, current.createdBy)) throw new Refused("Reminder not found.");
+      if (!current || !(await mayChange(companyId, actor, current.createdBy))) throw new Refused("Reminder not found.");
       if (!EDITABLE.includes(current.status)) throw new Refused("This reminder can no longer be edited.");
 
       // The scope check runs as the creator (it's their send) and, when someone
@@ -522,7 +531,7 @@ export async function cancelReminder(actor: Actor, companyId: string, id: string
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
       const [current] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update");
-      if (!current || !mayChange(actor, current.createdBy)) throw new Refused("Reminder not found.");
+      if (!current || !(await mayChange(companyId, actor, current.createdBy))) throw new Refused("Reminder not found.");
       if (!EDITABLE.includes(current.status)) throw new Refused("This reminder can no longer be cancelled.");
       await tx.update(reminders).set({ status: "cancelled" }).where(eq(reminders.id, id));
       return null;
@@ -797,7 +806,7 @@ async function seriesChange(
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
       const [r] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update");
-      if (!r || !mayChange(actor, r.createdBy)) throw new Refused("Reminder not found.");
+      if (!r || !(await mayChange(companyId, actor, r.createdBy))) throw new Refused("Reminder not found.");
       if (!r.recurrence) throw new Refused("Only repeating reminders can do that.");
       const set = await change(tx, { ...r, recurrence: r.recurrence });
       await tx.update(reminders).set(set).where(eq(reminders.id, id));

@@ -333,6 +333,8 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   - **full** (`canSeeReminder` / `overseeWhere`): the creator, everyone with
     `view_all`/`approve`, and managers of the creator's departments. They see
     the delivery log and owner actions. Dashboard counts use this.
+    Editing, cancelling, series controls and Send now need **full** access
+    plus the permission (`mayChange`); `reminders.edit` alone opens nothing.
   - **viewer** (`reminderAccess` = "viewer" / `canViewWhere`): also anyone it
     was sent to, or shared with (the whole company, a department or a group
     they're in). They can read, download attachments and comment. Lists,

@@ -50,11 +50,13 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
 
   const editable = ["pending_approval", "rejected", "scheduled", "paused"].includes(r.status);
   const tz = r.timeZone;
-  const mayChange = editable && (user.id === r.createdBy || can(access, "reminders.edit"));
+  // Same rule as mayChange in src/lib/reminders.ts: "full" already means they can see it in full.
+  const owner = user.id === r.createdBy;
+  const mayChange = editable && (owner || (can(access, "reminders.edit") && seeAs === "full"));
   const mayDecide = r.status === "pending_approval" && (await canDecide(companyId, { id: user.id, access }));
   const maySendNow =
     (r.status === "scheduled" || (r.recurrence && r.status === "paused")) &&
-    (user.id === r.createdBy || can(access, "reminders.send_now"));
+    (owner || (can(access, "reminders.send_now") && seeAs === "full"));
 
   return (
     <Page

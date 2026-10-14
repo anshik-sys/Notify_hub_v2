@@ -21,7 +21,9 @@ import {
   parseTags,
   type Share,
   mayDecide,
+  mayChange,
 } from "./reminders";
+import { sendNow } from "./send-now";
 import { checkFile } from "./attachments";
 import { resolveRecipients } from "./recipients";
 import { setMutes } from "./notifications";
@@ -200,7 +202,7 @@ test("lifecycle: create, approve, reject, edit, widen, cancel", async () => {
 
 test("an editor without approve can't widen an approver's reminder unchecked", async () => {
   const input = (targets: Target[]) => ({ title: "T", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets });
-  const { rows } = await s.owner.query("insert into roles (company_id, name, permissions) values ($1, 'Editors', '{reminders.edit}') returning id", [s.companyId]);
+  const { rows } = await s.owner.query("insert into roles (company_id, name, permissions) values ($1, 'Editors', '{reminders.edit,reminders.view_all}') returning id", [s.companyId]);
   const editor = await s.user({ roles: [MEMBER_ROLE_ID, rows[0].id] });
 
   const r = await createReminder(await actor(admin), s.companyId, input([{ kind: "user", ref: alice }]));
@@ -213,6 +215,23 @@ test("an editor without approve can't widen an approver's reminder unchecked", a
   assert.ok("id" in own);
   assert.equal(await updateReminder(await actor(admin), s.companyId, own.id, input([{ kind: "department", ref: ops }])), null);
   assert.equal((await getReminder(s.companyId, own.id))!.status, "scheduled");
+});
+
+test("edit, cancel and send now need the reminder to be visible, not just the permission", async () => {
+  const input = (targets: Target[]) => ({ title: "T", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets });
+  const { rows } = await s.owner.query("insert into roles (company_id, name, permissions) values ($1, 'Blind editors', '{reminders.edit,reminders.send_now}') returning id", [s.companyId]);
+  const blind = await actor(await s.user({ roles: [MEMBER_ROLE_ID, rows[0].id] }));
+  const r = await createReminder(await actor(carol), s.companyId, input([{ kind: "user", ref: carol }]));
+  assert.ok("id" in r);
+
+  assert.equal(await mayChange(s.companyId, blind, carol), false);
+  assert.match((await updateReminder(blind, s.companyId, r.id, input([{ kind: "user", ref: carol }])))!, /not found/);
+  assert.match((await cancelReminder(blind, s.companyId, r.id))!, /not found/);
+  assert.match((await sendNow({ ...blind, email: "x@x.test" }, s.companyId, r.id)).error!, /not found/);
+  assert.equal((await getReminder(s.companyId, r.id))!.status, "scheduled");
+  // The creator and an admin still can.
+  assert.equal(await mayChange(s.companyId, await actor(carol), carol), true);
+  assert.equal(await mayChange(s.companyId, await actor(admin), carol), true);
 });
 
 test("reminderAccess: owners full, recipients via delivery row, others none", async () => {
