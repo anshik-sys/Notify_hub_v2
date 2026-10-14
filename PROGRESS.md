@@ -2,6 +2,28 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-14 — security: role editors can't escalate to admin
+
+- From a read-only audit (PRD coverage, security, ponytail) run today.
+  **Found:** `saveRole`/`deleteRole` checked only `roles.manage`. A
+  non-admin holding it could tick every permission on their own custom role,
+  which made `canGrant(Company Admin)` pass, and then assign themselves Company
+  Admin; they could also strip or delete roles held by more senior people.
+- **Fix:** the logic moved to `src/lib/roles.ts` (the actions are thin now).
+  New permissions must be ones the editor holds, and the role being changed or
+  deleted must be within their permissions too (`canGrant`). Admins are
+  unaffected.
+- **Rejected:** also blocking edits to a role you hold. With the rule above,
+  editing your own role can't add anything you lack, so it would only
+  add friction.
+- **Not done:** the role form still offers every checkbox; ticking one you
+  don't hold gives an error on save. The server is the boundary.
+- **Verified:** `roles.test.ts` (the exploit is refused and the stored role is
+  unchanged), 142 tests, typecheck, lint. **Not verified in the browser.**
+- **Still open from the audit, to discuss one at a time:** managers adding
+  anyone to their department (high), no rate limit on send now / test /
+  comments / single invites (medium), and five lows.
+
 ## 2026-10-14 — real Slack test passes; palette approved
 
 - The user tested against a real Slack workspace (ngrok) and reports

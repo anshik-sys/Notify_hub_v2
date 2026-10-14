@@ -260,7 +260,9 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   Don't remove one because "the other covers it".
 - **Escalation rule (`canGrant`):** you can grant, remove, or act on a person
   holding a role only if you hold every permission in it. Only admins make or
-  unmake admins.
+  unmake admins. The same rule covers editing custom roles (`src/lib/roles.ts`):
+  a role manager can only add permissions they hold, and only change or delete
+  a role whose permissions they all hold.
 - **Department actions are checked two ways on purpose:**
   - member add/remove calls `can(access, "departments.manage_members", departmentId)`,
     so a manager passes for the departments they manage and nowhere else;
