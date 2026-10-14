@@ -20,8 +20,12 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   don't hold gives an error on save. The server is the boundary.
 - **Verified:** `roles.test.ts` (the exploit is refused and the stored role is
   unchanged), 142 tests, typecheck, lint. **Not verified in the browser.**
-- **Still open from the audit, to discuss one at a time:** managers adding
-  anyone to their department (high), no rate limit on send now / test /
+- **Deferred by the user (2026-10-14):** managers can add anyone to their
+  department, admins included, then read that person's reminders. A
+  scheduled "my department" reminder also widens silently. Agreed fix when
+  picked up: managers may only add people whose roles they could grant
+  (`canGrant`), plus a department version of `recheckGroupReminders`.
+- **Still open from the audit, to discuss one at a time:** no rate limit on send now / test /
   comments / single invites (medium), and five lows.
 
 ## 2026-10-14 — real Slack test passes; palette approved
