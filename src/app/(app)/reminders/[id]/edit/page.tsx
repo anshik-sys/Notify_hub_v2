@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { firstParam, Page } from "@/components/form";
+import { Button, firstParam, Page } from "@/components/form";
 import { getReminder, listAttachments, mayChange } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { senderDefault } from "@/lib/company";
@@ -8,7 +8,7 @@ import { isUuid } from "@/lib/validate";
 import { fieldsFromRule } from "@/lib/recurrence";
 import { channelChoices } from "@/lib/slack-installations";
 import { recipientChoices } from "../../form-data";
-import { ReminderForm } from "../../reminder-form";
+import { REMINDER_FORM_ID, ReminderForm } from "../../reminder-form";
 
 // Server-rendered per request, so "now" is the request time.
 const isPast = (d: Date) => d.getTime() <= Date.now();
@@ -31,7 +31,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
   const refs = (kind: string) => r.targets.filter((t) => t.kind === kind).map((t) => t.ref!);
 
   return (
-    <Page title="Edit reminder" back={{ href: `/reminders/${r.id}`, label: r.title }} error={error}>
+    <Page title="Edit reminder" back={{ href: `/reminders/${r.id}`, label: r.title }} error={error} actions={<Button form={REMINDER_FORM_ID}>Save reminder</Button>}>
       <ReminderForm
         {...choices}
         slackChannels={slackChannels}

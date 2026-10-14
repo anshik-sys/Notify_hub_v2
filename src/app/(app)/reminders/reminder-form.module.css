@@ -84,11 +84,13 @@
   font-weight: 400;
 }
 
-/* "More options": the rarely needed settings behind one clickable row that
-   looks like a control (border, hover, a chevron that turns when open). */
+/* "More options": the rarely needed settings, a card like the numbered
+   sections whose header row opens it (hover, a chevron that turns when open). */
 .options {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: var(--shadow-card);
 }
 
 .optionsSummary {
@@ -97,9 +99,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 56px;
-  padding: 8px 16px;
-  border-radius: var(--radius);
+  min-height: 64px;
+  padding: 12px 24px;
+  border-radius: var(--radius-card);
   cursor: pointer;
   list-style: none; /* Safari's marker; ours is the chevron */
 }
@@ -121,7 +123,9 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-weight: 600;
+  font-size: 1.1875rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .optionsHint {
@@ -150,15 +154,15 @@
 }
 
 .options[open] > .optionsSummary {
-  border-bottom: 1px solid var(--border);
-  border-radius: var(--radius) var(--radius) 0 0;
+  border-bottom: 1px solid var(--card-border);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
 }
 
 .optionsBody {
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 16px;
+  padding: 20px 24px 24px;
 }
 
 /* A group inside "More options": a small heading, no card of its own. */

@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
-import { firstParam, Page } from "@/components/form";
+import { Button, firstParam, Page } from "@/components/form";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { senderDefault } from "@/lib/company";
 import { fieldsFromRule } from "@/lib/recurrence";
 import { channelChoices } from "@/lib/slack-installations";
 import { recipientChoices } from "../form-data";
-import { ReminderForm } from "../reminder-form";
+import { REMINDER_FORM_ID, ReminderForm } from "../reminder-form";
 
 export default async function NewReminder(props: PageProps<"/reminders/new">) {
   const { user, companyId, company, access } = await requireMember();
@@ -15,7 +15,7 @@ export default async function NewReminder(props: PageProps<"/reminders/new">) {
   const error = firstParam((await props.searchParams).error);
 
   return (
-    <Page title="New reminder" back={{ href: "/reminders", label: "Reminders" }} error={error}>
+    <Page title="New reminder" back={{ href: "/reminders", label: "Reminders" }} error={error} actions={<Button form={REMINDER_FORM_ID}>Create reminder</Button>}>
       <ReminderForm
         {...choices}
         slackChannels={slackChannels}

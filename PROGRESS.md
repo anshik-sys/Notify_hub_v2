@@ -2,6 +2,31 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-14 — New/Edit reminder form: numbered cards and a side preview
+
+- On a laptop the form was one long 640px card with the live preview at
+  the very bottom, far from the fields being typed. The user chose
+  "steps + side preview" from three options (also offered: section cards
+  only; a step-by-step wizard, which I advised against because it needs
+  client JS to keep input between steps, and errors already lose the form).
+- **Kit, not per page:**
+  - `Section` takes `step` (a periwinkle number circle);
+  - new `StepsForm`: section cards in a 640px column, plus an `aside` that
+    sticks inside the shell's scrolling panel. Below 1100px it's one column
+    with the aside underneath. Unlike `Form`, sections stay cards here.
+- **The form:** ① What (title, description), ② Who, ③ How (channels), ④ When,
+  ⑤ Task, then More options as a card of the same style; the preview sits in
+  the aside, still inside the `<form>` so it reads the fields as you type.
+  The page's main button is also top right (`form="reminder-form"`, no JS),
+  and stays at the bottom too.
+- Field names unchanged (the form-contract test passes). Sticky needs no
+  `overflow: hidden` between the aside and `.content` (checked). The aside's
+  max height leaves ~120px for the frame (a guess from the shell's CSS).
+- **Verified:** 160 tests, typecheck, lint; both pages compile with no
+  errors on a temp dev server. **Not verified:** the look and the sticky
+  behaviour (the user's call). I couldn't get a signed-in render from curl:
+  the auth API path 404s and the sign-in action needs more than a plain post.
+
 ## 2026-10-14 — daily email limit per company (PRD 7.1)
 
 - Last item before a first deploy: every company sends from the same domain,

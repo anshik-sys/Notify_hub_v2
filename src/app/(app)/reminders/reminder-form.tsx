@@ -1,4 +1,4 @@
-import { Button, Checkbox, CheckboxGroup, Field, Form, Hint, RadioGroup, Section, SelectField, TextArea } from "@/components/form";
+import { Button, Checkbox, CheckboxGroup, Field, Hint, RadioGroup, Section, SelectField, StepsForm, TextArea } from "@/components/form";
 import { Icon } from "@/components/icon";
 import { ACCEPT, MAX_FILES_PER_SAVE } from "@/lib/attachments";
 import { formatSize } from "@/lib/format";
@@ -33,6 +33,9 @@ export type ReminderDefaults = {
   shareGroupIds: string[];
   shareCompany: boolean;
 };
+
+// The pages put a second submit button top right (form="…"), outside the form.
+export const REMINDER_FORM_ID = "reminder-form";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -173,16 +176,27 @@ export function ReminderForm({
   );
 
   return (
-    <Form action={saveReminder}>
+    <StepsForm
+      id={REMINDER_FORM_ID}
+      action={saveReminder}
+      aside={
+        // Inside the form: the preview reads the fields as you type.
+        <Section title="Preview">
+          <ReminderPreview defaultSender={defaultSender} timeZone={timeZone} />
+        </Section>
+      }
+    >
       {defaults.id && <input type="hidden" name="id" value={defaults.id} />}
 
-      <Hint>
-        Fields marked <span aria-hidden="true">*</span> are required. Everything else can be left as it is.
-      </Hint>
-      <Field label="Title" name="title" maxLength={200} required defaultValue={defaults.title} />
-      <TextArea label="Description" name="description" maxLength={5000} defaultValue={defaults.description} />
+      <Section title="What" step={1}>
+        <Hint>
+          Fields marked <span aria-hidden="true">*</span> are required. Everything else can be left as it is.
+        </Hint>
+        <Field label="Title" name="title" maxLength={200} required defaultValue={defaults.title} />
+        <TextArea label="Description" name="description" maxLength={5000} defaultValue={defaults.description} />
+      </Section>
 
-      <Section title="Recipients" required>
+      <Section title="Who" step={2} required>
         <Hint>
           Sending outside your departments, to the whole company or to outside emails needs an admin’s approval first.
         </Hint>
@@ -281,7 +295,7 @@ export function ReminderForm({
         </details>
       </Section>
 
-      <Section title="Channels" required>
+      <Section title="How" step={3} required>
         <div className={styles.channels}>
           <CheckboxGroup
             legend="Send by"
@@ -310,7 +324,7 @@ export function ReminderForm({
         {!slackChannels && <Hint>Slack isn’t connected. An admin can connect it under Integrations.</Hint>}
       </Section>
 
-      <Section title="When" required>
+      <Section title="When" step={4} required>
         <div className={styles.when}>
           <RadioGroup
             legend="When to send"
@@ -330,7 +344,7 @@ export function ReminderForm({
         </div>
       </Section>
 
-      <Section title="Task">
+      <Section title="Task" step={5}>
         <div className={styles.task}>
           <Checkbox label="This is a task: everyone must mark it done" name="isTask" defaultChecked={defaults.isTask} />
           <div className={styles.due}>
@@ -410,11 +424,7 @@ export function ReminderForm({
         </div>
       </details>
 
-      <Section title="Preview">
-        <ReminderPreview defaultSender={defaultSender} timeZone={timeZone} />
-      </Section>
-
       <Button>{defaults.id ? "Save reminder" : "Create reminder"}</Button>
-    </Form>
+    </StepsForm>
   );
 }

@@ -62,10 +62,26 @@ const Star = () => (
   </span>
 );
 
-export function Section({ title, required, children }: { title: string; required?: boolean; children: React.ReactNode }) {
+export function Section({
+  title,
+  required,
+  step,
+  children,
+}: {
+  title: string;
+  required?: boolean;
+  /** A numbered step in a StepsForm: shown as a small circle before the title. */
+  step?: number;
+  children: React.ReactNode;
+}) {
   return (
     <section className={styles.section} data-card>
       <h2 className={styles.sectionTitle}>
+        {step !== undefined && (
+          <span className={styles.step} aria-hidden="true">
+            {step}
+          </span>
+        )}
         {title}
         {required && (
           <>
@@ -109,6 +125,18 @@ export function Banner({ href, title, done, total, action }: { href: string; tit
 
 export function Form(props: React.FormHTMLAttributes<HTMLFormElement>) {
   return <form className={styles.form} data-card {...props} />;
+}
+
+// A long form in numbered Section cards (640px column), with an aside that
+// stays in view while scrolling, e.g. a live preview. Below 1100px wide the
+// aside drops under the form. Sections stay cards here (unlike in Form).
+export function StepsForm({ aside, children, ...props }: { aside: React.ReactNode } & React.FormHTMLAttributes<HTMLFormElement>) {
+  return (
+    <form className={styles.steps} {...props}>
+      <div className={styles.stepsMain}>{children}</div>
+      <aside className={styles.stepsAside}>{aside}</aside>
+    </form>
+  );
 }
 
 export function Field({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {

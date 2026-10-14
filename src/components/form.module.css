@@ -115,6 +115,66 @@
   letter-spacing: -0.01em;
 }
 
+/* Section's step number: a small periwinkle circle before the title. */
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 10px;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent-fg);
+  font-size: 0.875rem;
+  font-weight: 700;
+  vertical-align: 0.1em;
+  letter-spacing: 0;
+}
+
+/* StepsForm: section cards on the left, a sticky aside on the right. */
+.steps {
+  display: grid;
+  grid-template-columns: minmax(0, 640px) minmax(320px, 1fr);
+  gap: 24px;
+  align-items: start;
+  width: 100%;
+}
+
+.stepsMain {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Buttons size to their label. */
+.stepsMain > button {
+  align-self: flex-start;
+}
+
+/* Sticks inside the shell's scrolling page panel. The max height leaves room
+   for the frame around that panel (~120px), so the aside never runs off it. */
+.stepsAside {
+  position: sticky;
+  top: 0;
+  min-width: 0;
+  max-height: calc(100dvh - 120px);
+  overflow: auto;
+}
+
+@media (max-width: 1099px) {
+  .steps {
+    grid-template-columns: minmax(0, 640px);
+  }
+
+  .stepsAside {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
 .form {
   display: flex;
   flex-direction: column;
