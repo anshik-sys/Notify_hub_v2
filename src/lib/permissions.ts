@@ -7,9 +7,7 @@ import { departmentMembers, roles, userRoles } from "@/db/schema";
 export const PERMISSION_GROUPS = {
   Reminders: {
     "reminders.create": "Create",
-    "reminders.view": "View",
     "reminders.edit": "Edit",
-    "reminders.delete": "Delete",
     "reminders.send_now": "Send now",
     "reminders.view_all": "View all in company",
     "reminders.approve": "Approve out-of-scope sends",
@@ -64,9 +62,7 @@ export const MANAGER_PERMISSIONS: readonly Permission[] = [
   "departments.manage_members",
   "users.view",
   "reminders.create",
-  "reminders.view",
   "reminders.edit",
-  "reminders.delete",
   "reminders.send_now",
 ];
 

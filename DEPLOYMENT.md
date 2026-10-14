@@ -38,6 +38,10 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0031: removes `reminders.view` and `reminders.delete` from every
+stored role (they were never enforced and are gone from the catalogue).
+Data-only.
+
 Migration 0029: `companies.setup_dismissed_at`.
 
 Migration 0028: `user.erased_at` and the `erase_person()` function (EXECUTE for

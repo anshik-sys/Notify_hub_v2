@@ -50,7 +50,15 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   on all three, and nothing changes); 144 tests, typecheck, lint. The new
   test couldn't be seen failing on the old code (that file doesn't load
   without the new export). **Not verified in the browser.**
-- **Still open from the audit, to discuss one at a time:** three lows.
+- **Two permissions did nothing (low, fixed):** `reminders.view` and
+  `reminders.delete` were offered in the role editor but never checked
+  (visibility decides what you see; cancelling needs `reminders.edit`).
+  Removed from the catalogue and from `MANAGER_PERMISSIONS`; migration 0031
+  strips them from stored roles, the Member system role included. Rejected:
+  making Delete mean cancel (more to explain, nobody asked). **Verified:**
+  migrated locally (Member is now create, departments.view, users.view,
+  groups.create), 144 tests, typecheck, lint.
+- **Still open from the audit, to discuss one at a time:** two lows.
 
 ## 2026-10-14 — real Slack test passes; palette approved
 

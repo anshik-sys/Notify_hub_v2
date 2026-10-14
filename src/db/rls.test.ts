@@ -145,7 +145,7 @@ test("loadAccess: admin gets everything, member its role, manager its department
   assert.equal(adminAccess.permissions.size, ALL_PERMISSIONS.length);
 
   const memberAccess = await loadAccess(a, member);
-  assert.deepEqual([...memberAccess.permissions].sort(), ["departments.view", "groups.create", "reminders.create", "reminders.view", "users.view"]);
+  assert.deepEqual([...memberAccess.permissions].sort(), ["departments.view", "groups.create", "reminders.create", "users.view"]);
   assert.deepEqual([...memberAccess.managedDepartments], [rows[0].id]);
 
   // Same user id asked under another tenant: nothing.
