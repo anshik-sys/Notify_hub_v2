@@ -3,6 +3,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createInvitation, revokeInvitation } from "@/lib/invitations";
 import { can, type Permission } from "@/lib/permissions";
+import { limits } from "@/lib/rate-limit";
 import { requireMember } from "@/lib/session";
 import { adminResetTwoFactor, erasePerson, setActive, setUserRoles } from "@/lib/users";
 import { isUuid } from "@/lib/validate";
@@ -20,6 +21,8 @@ export async function inviteUser(formData: FormData) {
   const roleIds = formData.getAll("roles").map(String);
   const departmentIds = formData.getAll("departments").map(String);
   if (![...roleIds, ...departmentIds].every(isUuid)) notFound();
+  const limited = await limits([[`invite:user:${user.id}`, 20, 3600]]);
+  if (limited) redirect(errorUrl("/users/invite", limited));
   const error = await createInvitation({ id: user.id, name: user.name, access }, companyId, email, roleIds, departmentIds);
   if (error) redirect(errorUrl("/users/invite", error));
   redirect(`/users?notice=${encodeURIComponent(`Invite sent to ${email.trim().toLowerCase()}.`)}`);

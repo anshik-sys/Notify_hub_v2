@@ -153,6 +153,8 @@ export async function sendNowAction(fd: FormData) {
   const { user, companyId, access } = await requireMember();
   const id = str(fd, "id");
   if (!isUuid(id)) notFound();
+  const limited = await limits([[`send-now:user:${user.id}`, 10, 3600]]);
+  if (limited) redirect(errorUrl(`/reminders/${id}`, limited));
   const r = await sendNow({ id: user.id, email: user.email, access }, companyId, id);
   if ("error" in r) redirect(errorUrl(`/reminders/${id}`, r.error!));
   const notice = r.mode === "extra" ? "Sent now. The next scheduled one is unchanged." : "Sending now.";
@@ -163,6 +165,8 @@ export async function sendTestAction(fd: FormData) {
   const { user, companyId, access } = await requireMember();
   const id = str(fd, "id");
   if (!isUuid(id)) notFound();
+  const limited = await limits([[`send-test:user:${user.id}`, 10, 3600]]);
+  if (limited) redirect(errorUrl(`/reminders/${id}`, limited));
   const r = await sendTest({ id: user.id, email: user.email, access }, companyId, id);
   const via = (r.sent ?? []).map((c) => (c === "email" ? "email" : "Slack")).join(" and ");
   if ("error" in r && r.error) redirect(errorUrl(`/reminders/${id}`, via ? `Test sent by ${via}. ${r.error}` : r.error));

@@ -25,8 +25,15 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   scheduled "my department" reminder also widens silently. Agreed fix when
   picked up: managers may only add people whose roles they could grant
   (`canGrant`), plus a department version of `recheckGroupReminders`.
-- **Still open from the audit, to discuss one at a time:** no rate limit on send now / test /
-  comments / single invites (medium), and five lows.
+- **Rate limits on actions that send (medium, fixed the same day):** Send
+  now and Send me a test 10/h each, comments (post and edit share one
+  budget, since an edit re-notifies new mentions) 30/h, single invites
+  20/h (same as setup). All per person, through `limits()`, checked after
+  the id is validated and before anything is sent. Rejected: per-reminder
+  keys, which would let one person spread a flood across reminders.
+  **Verified:** typecheck, lint, the rate-limit tests. **Not verified:**
+  hitting a limit in the browser.
+- **Still open from the audit, to discuss one at a time:** five lows.
 
 ## 2026-10-14 — real Slack test passes; palette approved
 
