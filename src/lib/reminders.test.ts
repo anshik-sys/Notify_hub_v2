@@ -198,6 +198,23 @@ test("lifecycle: create, approve, reject, edit, widen, cancel", async () => {
   assert.match((await decideReminder(await actor(admin), s.companyId, own.id, true))!, /isn't waiting/);
 });
 
+test("an editor without approve can't widen an approver's reminder unchecked", async () => {
+  const input = (targets: Target[]) => ({ title: "T", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets });
+  const { rows } = await s.owner.query("insert into roles (company_id, name, permissions) values ($1, 'Editors', '{reminders.edit}') returning id", [s.companyId]);
+  const editor = await s.user({ roles: [MEMBER_ROLE_ID, rows[0].id] });
+
+  const r = await createReminder(await actor(admin), s.companyId, input([{ kind: "user", ref: alice }]));
+  assert.ok("id" in r);
+  assert.equal(await updateReminder(await actor(editor), s.companyId, r.id, input([{ kind: "company", ref: null }])), null);
+  assert.equal((await getReminder(s.companyId, r.id))!.status, "pending_approval");
+
+  // An approver editing a member's in-scope reminder changes nothing.
+  const own = await createReminder(await actor(alice), s.companyId, input([{ kind: "department", ref: ops }]));
+  assert.ok("id" in own);
+  assert.equal(await updateReminder(await actor(admin), s.companyId, own.id, input([{ kind: "department", ref: ops }])), null);
+  assert.equal((await getReminder(s.companyId, own.id))!.status, "scheduled");
+});
+
 test("reminderAccess: owners full, recipients via delivery row, others none", async () => {
   const r = await createReminder(await actor(alice), s.companyId, {
     title: "Seen by",

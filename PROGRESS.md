@@ -33,7 +33,13 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   keys, which would let one person spread a flood across reminders.
   **Verified:** typecheck, lint, the rate-limit tests. **Not verified:**
   hitting a limit in the browser.
-- **Still open from the audit, to discuss one at a time:** five lows.
+- **Editing ran the scope check only as the creator (low, fixed):** a
+  custom role with `reminders.edit` but no approve could retarget an
+  admin's reminder to the whole company or outside emails with no approval.
+  Now it also runs as the editor when that's someone else, and the stricter
+  answer wins. An approver editing changes nothing. **Verified:** the new
+  test fails without the fix and passes with it; 143 tests, typecheck, lint.
+- **Still open from the audit, to discuss one at a time:** four lows.
 
 ## 2026-10-14 — real Slack test passes; palette approved
 

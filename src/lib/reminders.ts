@@ -442,9 +442,12 @@ export async function updateReminder(
       if (!current || !mayChange(actor, current.createdBy)) throw new Refused("Reminder not found.");
       if (!EDITABLE.includes(current.status)) throw new Refused("This reminder can no longer be edited.");
 
-      // The scope check runs as the creator, whoever edits: it's their send.
+      // The scope check runs as the creator (it's their send) and, when someone
+      // else edits, as the editor too: the stricter wins. Otherwise an editor
+      // without approve could widen an approver's reminder unchecked.
       const creator = { id: current.createdBy, access: await loadAccess(companyId, current.createdBy) };
       const out = await checked(tx, companyId, creator, input);
+      if (actor.id !== creator.id) out.push(...(await checked(tx, companyId, actor, input)));
       const oldTargets = await tx.select().from(reminderTargets).where(eq(reminderTargets.reminderId, id));
       // An approval covers the recipients it saw. Same or fewer targets keeps it;
       // anything new needs approving again (PRD 5.9).

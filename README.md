@@ -234,7 +234,10 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   - for everyone else, scope is the members of every department they belong to;
   - the whole company, another department, anyone outside scope, or an
     outside email means the reminder waits for approval;
-  - the check always runs as the *creator*, even when an admin edits.
+  - the check always runs as the *creator*, even when an admin edits. When
+    someone else edits, it also runs as the editor, and either one needing
+    approval is enough, so an editor without `reminders.approve` can't widen
+    an approver's reminder.
 - **Approval covers the targets it saw.** Editing an approved reminder keeps
   the approval only if the new targets are a subset of the old ones. Anything
   new goes back to `pending_approval`.
