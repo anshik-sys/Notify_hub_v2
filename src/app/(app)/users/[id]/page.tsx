@@ -4,12 +4,14 @@ import { List, ListRow } from "@/components/list";
 import { can, canGrant, MEMBER_ROLE_ID, visibleRoles } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { getUser } from "@/lib/users";
+import { isUserId } from "@/lib/validate";
 import { erasePersonAction, resetTwoFactorAction, saveUserRoles, toggleActive } from "../actions";
 
 export default async function UserDetail(props: PageProps<"/users/[id]">) {
   const { user: me, companyId, access } = await requireMember();
   if (!can(access, "users.view")) notFound();
   const { id } = await props.params;
+  if (!isUserId(id)) notFound();
   const person = await getUser(companyId, id); // RLS: only this company's users
   if (!person) notFound();
   const { error, notice } = await props.searchParams;

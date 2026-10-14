@@ -11,7 +11,7 @@ import {
 } from "@/lib/departments";
 import { can, type Permission } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
-import { isUuid } from "@/lib/validate";
+import { isUserId, isUuid } from "@/lib/validate";
 import { errorUrl } from "@/components/form";
 
 // departmentId given: manager permissions count for departments the user manages.
@@ -22,6 +22,10 @@ async function requirePermission(permission: Permission, departmentId?: string) 
   return member;
 }
 
+const userIdFrom = (formData: FormData) => {
+  const id = String(formData.get("userId"));
+  return isUserId(id) ? id : notFound();
+};
 const done = (path: string, error: string | null): never => redirect(error ? errorUrl(path, error) : path);
 
 export async function createDepartmentAction(formData: FormData) {
@@ -50,17 +54,17 @@ export async function setManagerAction(formData: FormData) {
   if (!isUuid(id)) notFound();
   const { companyId } = await requirePermission("departments.edit");
   const isManager = formData.get("isManager") === "true";
-  done(`/departments/${id}`, await setManager(companyId, id, String(formData.get("userId")), isManager));
+  done(`/departments/${id}`, await setManager(companyId, id, userIdFrom(formData), isManager));
 }
 
 export async function addMemberAction(formData: FormData) {
   const id = String(formData.get("departmentId"));
   const { companyId } = await requirePermission("departments.manage_members", id);
-  done(`/departments/${id}`, await addMember(companyId, id, String(formData.get("userId"))));
+  done(`/departments/${id}`, await addMember(companyId, id, userIdFrom(formData)));
 }
 
 export async function removeMemberAction(formData: FormData) {
   const id = String(formData.get("departmentId"));
   const { companyId } = await requirePermission("departments.manage_members", id);
-  done(`/departments/${id}`, await removeMember(companyId, id, String(formData.get("userId"))));
+  done(`/departments/${id}`, await removeMember(companyId, id, userIdFrom(formData)));
 }

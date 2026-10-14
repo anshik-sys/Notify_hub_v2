@@ -6,7 +6,7 @@ import { can, type Permission } from "@/lib/permissions";
 import { limits } from "@/lib/rate-limit";
 import { requireMember } from "@/lib/session";
 import { adminResetTwoFactor, erasePerson, setActive, setUserRoles } from "@/lib/users";
-import { isUuid } from "@/lib/validate";
+import { isUserId, isUuid } from "@/lib/validate";
 import { errorUrl } from "@/components/form";
 
 async function requirePermission(permission: Permission) {
@@ -39,6 +39,7 @@ export async function revokeInvite(formData: FormData) {
 export async function saveUserRoles(formData: FormData) {
   const { user, companyId, access } = await requirePermission("users.manage_roles");
   const userId = String(formData.get("userId"));
+  if (!isUserId(userId)) notFound();
   const roleIds = formData.getAll("roles").map(String);
   if (!roleIds.every(isUuid)) notFound();
   const error = await setUserRoles({ id: user.id, access }, companyId, userId, roleIds);
@@ -48,6 +49,7 @@ export async function saveUserRoles(formData: FormData) {
 export async function toggleActive(formData: FormData) {
   const { user, companyId, access } = await requirePermission("users.activate");
   const userId = String(formData.get("userId"));
+  if (!isUserId(userId)) notFound();
   const active = formData.get("active") === "true";
   const error = await setActive({ id: user.id, access }, companyId, userId, active);
   redirect(error ? errorUrl(`/users/${userId}`, error) : `/users/${userId}`);
@@ -56,6 +58,7 @@ export async function toggleActive(formData: FormData) {
 export async function resetTwoFactorAction(formData: FormData) {
   const { user, companyId, access } = await requirePermission("users.edit");
   const userId = String(formData.get("userId"));
+  if (!isUserId(userId)) notFound();
   const error = await adminResetTwoFactor({ id: user.id, access }, companyId, userId);
   redirect(error ? errorUrl(`/users/${userId}`, error) : `/users/${userId}?notice=${encodeURIComponent("Two-factor reset. They've been signed out and can set it up again.")}`);
 }
@@ -63,6 +66,7 @@ export async function resetTwoFactorAction(formData: FormData) {
 export async function erasePersonAction(formData: FormData) {
   const { user, companyId, access } = await requirePermission("users.delete");
   const userId = String(formData.get("userId"));
+  if (!isUserId(userId)) notFound();
   const error = await erasePerson({ id: user.id, access }, companyId, userId);
   redirect(error ? errorUrl(`/users/${userId}`, error) : `/users?notice=${encodeURIComponent("Erased. Their personal data is gone; company records show “Deleted person”.")}`);
 }

@@ -58,7 +58,15 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   making Delete mean cancel (more to explain, nobody asked). **Verified:**
   migrated locally (Member is now create, departments.view, users.view,
   groups.create), 144 tests, typecheck, lint.
-- **Still open from the audit, to discuss one at a time:** two lows.
+- **User ids weren't length-bounded (low, fixed):** new `isUserId`
+  (`src/lib/validate.ts`, 1–64 chars) on the four people actions, the
+  three department member actions and the person page; anything else gets
+  "not found". Not exploitable before (queries are parameterised); this
+  keeps to the AGENTS rule. The groups action keeps its inline check.
+  **Verified:** 144 tests, typecheck, lint.
+- **Left open, by choice:** a suspended company's users can still change
+  their own password, 2FA and sessions (`requireSignedIn` skips the
+  suspension check). Harmless.
 
 ## 2026-10-14 — real Slack test passes; palette approved
 
