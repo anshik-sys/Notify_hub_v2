@@ -2,6 +2,31 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-14 — unsubscribes are visible to the company, undoable by the person
+
+- The user flagged two gaps in the first unsubscribe version: nobody in
+  the company could see who unsubscribed, and there was no way back.
+- **Visible:** Settings → Unsubscribed (account menu, `company.view`, no new
+  permission) lists address + date. The reminder's Recipients mark a typed
+  address "Unsubscribed · Won't receive this" (`getReminder().unsubscribed`),
+  and saving a reminder to one redirects with a notice, before anything is
+  sent.
+- **Undo, by the person only:** "Subscribe again" on the "You're
+  unsubscribed" page (same signed link, same per-IP limit) deletes the row.
+  **Rejected: admin re-subscribe.** Re-adding someone who opted out is what
+  CAN-SPAM/GDPR consent and Gmail's sender rules forbid, and it would let an
+  admin undo every unsubscribe. Agreed with the user; revisit (with a typed
+  reason in the audit log) only if a customer asks.
+- **Verified:** 157 tests (resubscribe idempotent and company-scoped,
+  lookups case-insensitive, `getReminder` lists only this company's
+  suppressed targets, delivery resumes after resubscribe), typecheck,
+  lint. On a temp dev server with curl, row counts at each step: one-click →
+  1 (again → still 1), the page's Subscribe again → 0, Unsubscribe → 1; the
+  settings page signed out → sign-in. A 404 on the very first request after
+  the dev server started didn't repeat; not explained, probably first
+  compile. **Not verified in the browser:** the settings page, the badge and
+  the save notice.
+
 ## 2026-10-14 — a test for the New reminder form
 
 - The user asked for the form to be tested. Rendering `ReminderForm` in

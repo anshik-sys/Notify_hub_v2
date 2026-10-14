@@ -469,3 +469,17 @@ test("unsubscribe (PRD 7.1): suppressed outside addresses get nothing; others ge
   assert.equal(toMember.headers, undefined);
   assert.deepEqual(toMember.footerLinks, []);
 });
+
+test("unsubscribe then subscribe again: the address is sent to again", async () => {
+  const [{ id }] = await q(
+    `insert into reminders (company_id, short_id, created_by, title, description, sender_name, send_at, status, time_zone, anchor_local)
+     values ($1, $2, $3, 'Back again', '', 'HR', now() + interval '1 hour', 'scheduled', 'UTC', '2026-01-01T00:00') returning id`,
+    [s.companyId, `B-${s.companyId.slice(0, 6).toUpperCase()}`, creator],
+  );
+  const back = `back@out-${s.companyId}.test`;
+  await q("insert into reminder_targets values ($1, $2, 'email', $3)", [id, s.companyId, back]);
+  await q("insert into email_suppressions (company_id, email) values ($1, $2)", [s.companyId, back]);
+  await q("delete from email_suppressions where company_id = $1 and email = $2", [s.companyId, back]); // what resubscribe does
+  await dispatchDue(async () => {}, s.companyId, new Date(Date.now() + 2 * 3_600_000));
+  assert.deepEqual((await q("select address from deliveries where reminder_id = $1", [id])).map((r) => r.address), [back]);
+});

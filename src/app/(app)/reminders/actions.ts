@@ -21,6 +21,7 @@ import { limits } from "@/lib/rate-limit";
 import { channelChoices } from "@/lib/slack-installations";
 import { sendNow, sendTest } from "@/lib/send-now";
 import { setDone } from "@/lib/tasks";
+import { unsubscribedAmong } from "@/lib/unsubscribe";
 import { isUuid } from "@/lib/validate";
 
 const all = (fd: FormData, name: string) => fd.getAll(name).map(String);
@@ -64,14 +65,19 @@ export async function saveReminder(fd: FormData) {
   if (!removeAttachmentIds.every(isUuid)) notFound();
 
   const me = { id: user.id, access };
+  // Tell the sender now, before anything goes out, if a typed address unsubscribed.
+  const gone = await unsubscribedAmong(companyId, parsed.input.targets.filter((t) => t.kind === "email").map((t) => t.ref!));
+  const notice = gone.length
+    ? `?notice=${encodeURIComponent(`${gone.join(", ")} unsubscribed from your company’s reminders and won’t receive this.`)}`
+    : "";
   if (id) {
     const error = await updateReminder(me, companyId, id, parsed.input, files, removeAttachmentIds);
     if (error) redirect(errorUrl(back, error));
-    redirect(`/reminders/${id}`);
+    redirect(`/reminders/${id}${notice}`);
   }
   const created = await createReminder(me, companyId, parsed.input, files);
   if ("error" in created) redirect(errorUrl(back, created.error));
-  redirect(`/reminders/${created.id}`);
+  redirect(`/reminders/${created.id}${notice}`);
 }
 
 export async function cancelReminderAction(fd: FormData) {

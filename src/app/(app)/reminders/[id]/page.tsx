@@ -301,9 +301,13 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
             {seeAs === "full" && (
               <Section title="Recipients">
                 <List>
-                  {r.targetLabels.map((label, i) => (
-                    <ListRow key={i} title={label} />
-                  ))}
+                  {r.targetLabels.map((label, i) =>
+                    r.targets[i].kind === "email" && r.unsubscribed.includes(r.targets[i].ref!) ? (
+                      <ListRow key={i} title={label} meta="Won’t receive this" badge="Unsubscribed" />
+                    ) : (
+                      <ListRow key={i} title={label} />
+                    ),
+                  )}
                 </List>
                 <Hint>
                   {r.shareLabels.length ? `Also visible to ${r.shareLabels.join(", ")}, as well as` : "Visible only to"} the creator, their managers,

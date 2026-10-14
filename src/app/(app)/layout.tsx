@@ -34,6 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       { href: "/settings/integrations", icon: "integrations", label: "Integrations", allowed: can(access, "company.manage_integrations") },
       { href: "/settings/roles", icon: "roles", label: "Roles", allowed: can(access, "roles.manage") },
       { href: "/settings/audit", icon: "audit", label: "Audit log", allowed: can(access, "audit.view") },
+      { href: "/settings/unsubscribed", icon: "bell", label: "Unsubscribed", allowed: can(access, "company.view") },
     ] as const
   ).filter((l) => l.allowed);
 

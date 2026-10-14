@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { aliasedTable, and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { attachments, companies, companyApprovers, deliveries, departmentMembers, departments, groupMembers, groups, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
+import { attachments, companies, companyApprovers, deliveries, departmentMembers, emailSuppressions, departments, groupMembers, groups, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
 import { addNotifications, mutedFor } from "./notifications";
@@ -729,6 +729,12 @@ export async function getReminder(companyId: string, id: string) {
               ? `#${t.label ?? t.ref} (Slack)`
               : t.ref!;
 
+    // Typed outside addresses that unsubscribed (PRD 7.1): shown on the reminder.
+    const emailRefs = targets.filter((t) => t.kind === "email").map((t) => t.ref!);
+    const unsubscribed = emailRefs.length
+      ? (await tx.select({ email: emailSuppressions.email }).from(emailSuppressions).where(inArray(emailSuppressions.email, emailRefs))).map((x) => x.email)
+      : [];
+
     // Why it needs approval, recomputed with the creator's own access.
     let outOfScopeList: string[] = [];
     if (r.reminder.status === "pending_approval") {
@@ -756,6 +762,7 @@ export async function getReminder(companyId: string, id: string) {
       targets,
       targetLabels: targets.map(label),
       outOfScope: outOfScopeList,
+      unsubscribed,
       shares,
       shareLabels,
     };

@@ -234,6 +234,19 @@ test("edit, cancel and send now need the reminder to be visible, not just the pe
   assert.equal(await mayChange(s.companyId, await actor(admin), carol), true);
 });
 
+test("getReminder lists typed addresses that unsubscribed (PRD 7.1)", async () => {
+  const input = (targets: Target[]) => ({ title: "T", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets });
+  const r = await createReminder(await actor(admin), s.companyId, input([
+    { kind: "email", ref: "gone@else.test" },
+    { kind: "email", ref: "here@else.test" },
+    { kind: "user", ref: alice },
+  ]));
+  assert.ok("id" in r);
+  await s.owner.query("insert into email_suppressions (company_id, email) values ($1, 'gone@else.test')", [s.companyId]);
+  await other.owner.query("insert into email_suppressions (company_id, email) values ($1, 'here@else.test')", [other.companyId]);
+  assert.deepEqual((await getReminder(s.companyId, r.id))!.unsubscribed, ["gone@else.test"]);
+});
+
 test("reminderAccess: owners full, recipients via delivery row, others none", async () => {
   const r = await createReminder(await actor(alice), s.companyId, {
     title: "Seen by",

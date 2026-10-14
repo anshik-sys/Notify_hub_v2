@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { db } from "@/db";
 import { seeder } from "./test-helpers";
-import { readUnsubscribe, unsubscribe, unsubscribeTarget, unsubscribeToken, unsubscribeUrls } from "./unsubscribe";
+import { listUnsubscribed, readUnsubscribe, resubscribe, unsubscribe, unsubscribedAmong, unsubscribeTarget, unsubscribeToken, unsubscribeUrls } from "./unsubscribe";
 
 const s = seeder();
 const other = seeder();
@@ -43,4 +43,22 @@ test("urls: a confirm page and a one-click endpoint", () => {
   const { page, oneClick } = unsubscribeUrls(s.companyId, "a@else.test");
   assert.match(page, /\/unsubscribe\/[\w-]+\.[\w-]+$/);
   assert.match(oneClick, /\/api\/unsubscribe\/[\w-]+\.[\w-]+$/);
+});
+
+test("the person can subscribe again; lists and lookups stay inside the company", async () => {
+  const mine = unsubscribeToken(s.companyId, "back@else.test");
+  const theirs = unsubscribeToken(other.companyId, "back@else.test");
+  assert.equal(await unsubscribe(mine), null);
+  assert.equal(await unsubscribe(theirs), null);
+
+  assert.deepEqual(await unsubscribedAmong(s.companyId, ["BACK@else.test", "nobody@else.test"]), ["back@else.test"]);
+  assert.deepEqual(await unsubscribedAmong(s.companyId, []), []);
+  assert.ok((await listUnsubscribed(s.companyId)).some((r) => r.email === "back@else.test" && r.createdAt instanceof Date));
+
+  assert.equal(await resubscribe(mine), null);
+  assert.equal(await resubscribe(mine), null); // twice is fine
+  assert.deepEqual(await unsubscribedAmong(s.companyId, ["back@else.test"]), []);
+  assert.deepEqual(await unsubscribedAmong(other.companyId, ["back@else.test"]), ["back@else.test"]); // the other company's row stays
+  assert.ok(!(await listUnsubscribed(s.companyId)).some((r) => r.email === "back@else.test"));
+  assert.match((await resubscribe("garbage"))!, /isn't valid/);
 });

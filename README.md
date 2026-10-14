@@ -325,7 +325,13 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   - the page asks for a click before unsubscribing, because mail scanners
     open links. The one-click endpoint is POST only, the way mail apps call it;
   - the worker leaves suppressed addresses out **at dispatch**, so they never
-    get a delivery row, and the sender's log simply doesn't list them;
+    get a delivery row;
+  - **the company can see it, never undo it:** Settings → Unsubscribed
+    (`company.view`) lists the addresses; the reminder marks them
+    "Unsubscribed"; saving one shows a notice. **Only the person can
+    re-subscribe** ("Subscribe again" on the same link). There's deliberately no
+    admin re-subscribe: re-adding someone who opted out is what anti-spam
+    rules forbid (decided with the user, 2026-10-14);
   - `src/lib/unsubscribe.ts` imports `@/db` lazily, inside the web-only
     functions: the worker imports the file for the URLs and must never load
     the web DB client. Keep it that way.

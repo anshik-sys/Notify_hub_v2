@@ -1,3 +1,4 @@
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { companies, emailSuppressions } from "@/db/schema";
 import { readToken, signToken } from "./crypto";
 import { isUuid } from "./validate";
@@ -41,4 +42,33 @@ export async function unsubscribeTarget(token: string) {
   const { withTenant } = await import("@/db");
   const [c] = await withTenant(who.companyId, (tx) => tx.select({ name: companies.name }).from(companies));
   return c ? { email: who.email, companyName: c.name } : null;
+}
+
+// The person's own undo, from the same link. Only they can re-subscribe:
+// a company re-adding someone who opted out is what anti-spam rules forbid.
+export async function resubscribe(token: string) {
+  const who = readUnsubscribe(token);
+  if (!who) return "This link isn't valid.";
+  const { withTenant } = await import("@/db");
+  await withTenant(who.companyId, (tx) => tx.delete(emailSuppressions).where(and(eq(emailSuppressions.companyId, who.companyId), eq(emailSuppressions.email, who.email))));
+  return null;
+}
+
+// Settings → Unsubscribed (admins). Newest first.
+export async function listUnsubscribed(companyId: string) {
+  const { withTenant } = await import("@/db");
+  return withTenant(companyId, (tx) =>
+    tx.select({ email: emailSuppressions.email, createdAt: emailSuppressions.createdAt }).from(emailSuppressions).orderBy(desc(emailSuppressions.createdAt)),
+  );
+}
+
+// Which of these addresses unsubscribed from the company (lowercased).
+export async function unsubscribedAmong(companyId: string, emails: string[]) {
+  const wanted = [...new Set(emails.map((e) => e.toLowerCase()))];
+  if (!wanted.length) return [];
+  const { withTenant } = await import("@/db");
+  const rows = await withTenant(companyId, (tx) =>
+    tx.select({ email: emailSuppressions.email }).from(emailSuppressions).where(inArray(emailSuppressions.email, wanted)),
+  );
+  return rows.map((r) => r.email);
 }
