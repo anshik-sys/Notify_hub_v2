@@ -13,6 +13,18 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   edit (remove or replace) an attachment for 24h. Today anyone who can edit
   the reminder can remove any of its attachments, at any time.
 - Docs only; no code changed.
+- **Same day, after a Q&A with the user:** section 14 rewritten with decisions.
+  Google-style calendar (month/week/day/custom, drill-down, mini month,
+  toggles, search, colleague overlay, quick create, peek card, drag,
+  duplicate, per-entry colour, recurring "this / following / all"); a new
+  **event** type with guests, pasted meeting link, RSVP, `.ics` invites and
+  update notices; one-way ICS feed for Google Calendar; remind-before
+  offsets; sub-tasks; chains (B starts when A is done); cover image;
+  24h edit windows; comment attachments to mentioned people; more doc
+  types; browser push. Not planned: mobile app, slash command, year and
+  agenda views, shortcuts, holidays/OOO. Order: calendar UI first.
+- One open question left (14.5): with several assignees, does a chained
+  reminder start when the first or the last one finishes?
 
 ## 2026-10-14 — company admins edit their profile and logo; emails carry the brand
 

@@ -511,39 +511,68 @@ _Space for new features not covered above._
 
 ## 14. v2: calendar-first (draft, 2026-10-16)
 
-v2 makes NotifyHub feel like a calendar: reminders and tasks live on the calendar, and are created and managed from it. v1 ships first; nothing here blocks it.
+v2 makes NotifyHub work like Google Calendar: reminders, tasks and **events** live on one calendar, and are created and managed from it. v1 ships first; nothing here blocks it. Decisions below were made with the product owner on 2026-10-16.
 
-### 14.1 Calendar
-- **Month, week and day views.** Week and day show reminders in time slots.
-- **Create from the calendar.** Picking a day (or a time slot in week/day view) opens a new reminder or task with that date filled in.
-- **Colour coding.** Each entry is coloured by _(open: tag, department, reminder vs task, or status)_.
-- Easier navigation: today, previous/next and jump to a date, in every view.
+### 14.1 Calendar views and navigation
+- **One calendar screen** with **Month, Week, Day and custom range** (e.g. 4 days) views. Week, Day and custom views show entries in time slots, with a line marking "now".
+- **Drill down:** clicking a week in Month view opens that week; clicking a day opens that day.
+- **Mini month** in a side panel to jump to any date, plus Today and previous/next.
+- **Calendar toggles:** show or hide groups of entries: my reminders, tasks assigned to me, events I'm invited to, my department, company-wide.
+- **Search** entries by title, tag or person, and jump to the result.
+- **A colleague's calendar:** overlay another person's entries. Only what the viewer is already allowed to see (5.4) is shown.
+- **All-day and multi-day entries** sit in a strip above the time slots.
 
-### 14.2 Google Calendar
-- Reminders and tasks a person receives or created appear in their Google Calendar.
-- _Open:_ one-way (a personal calendar feed, which also works in Outlook and Apple Calendar) or two-way sync.
+### 14.2 Working with entries on the calendar
+- **Quick create:** picking a day or time slot opens a small popover with title, time and type (Reminder, Task, Event). Save creates it (addressed to the creator by default); "More options" opens the full form with everything filled in.
+- **Peek card:** clicking an entry opens a popover with its title, time, recipients/guests and actions (edit, delete, duplicate, mark done, RSVP), without leaving the calendar.
+- **Drag to reschedule:** dragging an entry to another day or time moves it.
+- **Duplicate** an entry to a new date.
+- **Recurring entries:** editing, dragging or deleting one asks **"This one / This and following / All"**, as in Google Calendar.
+- **Colours:** the creator picks a colour per entry from a fixed palette (about 11 colours, all readable in light and dark themes). The default depends on the type (reminder, task, event). Only entries are coloured; day cells stay plain.
 
-### 14.3 Reminders and tasks
-- **Remind before.** A task can also remind its assignees before it is due, at times the creator picks (e.g. 1 day and 1 hour before). Editing a recurring task's schedule keeps these offsets.
-- **Linked reminders (sub-tasks).** A reminder can be linked to another so that when one fires, the other fires too. _Open:_ at the same moment, after a delay, or only once the first is marked done.
-- **Cover image** on a sub-task.
-- **Follow-up wording.** Follow-up emails and Slack messages for unfinished tasks say "Follow-up" in the subject or first line.
+### 14.3 Events (meetings)
+A third type next to reminders and tasks.
+- **Fields:** title, description, start and end (or all-day / multi-day), recurrence, location, **meeting link** (any URL: Meet, Zoom, Teams; pasted, not generated), attachments, colour.
+- **Guests:** chosen with the same rules as reminder recipients (5.2): people, groups and departments; anyone outside the organiser's scope needs approval (5.9). Company members only.
+- **Invite:** guests get an email and/or Slack message with **Accept / Decline / Maybe** and an `.ics` file, so the event also lands in their own calendar.
+- **Reminders before start:** 10 minutes before by default; the organiser can change it or add more.
+- **Updates and cancellations:** guests are told when the time, place or link changes, or the event is cancelled (with an updated `.ics`).
+- **Responses:** the organiser sees who accepted, declined, said maybe or hasn't answered. RSVP is **for events only**; reminders and tasks keep their current behaviour (tasks have Mark done).
 
-### 14.4 Comments and attachments
-- **Comment edit window.** Authors can edit their comments for 24 hours after posting. After that, comments are read-only (they can still be deleted).
-- **Attachment edit window.** Whoever uploaded an attachment can remove or replace it for 24 hours after uploading. After that it is locked.
-- **Attachments on comments**, with the same types, limits and checks as 5.7. People mentioned in the comment get it by email.
-- **More file types**, picked from what customers ask for. Every file is still checked by its content (5.7).
+### 14.4 Google Calendar (and other calendar apps)
+- **One-way feed.** Each person has a private calendar link (iCal/ICS) to add to Google Calendar, Outlook or Apple Calendar. It shows the reminders, tasks and events they receive or created. It is read-only; changes are made in NotifyHub.
+- Each person can reset their link (the old one stops working). Admins can turn feeds off for the company.
+- The feed holds reminder content, so the link is a secret: it's long and random, and it never shows content the person couldn't see in the app.
+- Not planned: signing in with Google, writing directly into Google Calendar, or two-way sync.
 
-### 14.5 Notifications and Slack
-- **Slack slash command** (`/notifyhub`). _Open:_ what it does (create a reminder, list my tasks).
-- **Push notifications** that open the item they're about (reverses the deferral in 1.3). _Open:_ browser push, or Slack DMs with a link.
+### 14.5 Tasks: remind before, sub-tasks and chains
+- **Remind before due:** a task can have one or more "X minutes / hours / days before due" reminders. Each goes to the assignees who haven't marked it done yet. They survive recurring edits.
+- **Sub-tasks:** a task can have child tasks, each with its own title, assignee(s), due date and optional cover image. The parent counts as done when all its sub-tasks are done.
+- **Chained (linked) reminders:** a reminder or task B can be set to start **when task A is marked done**. Useful for step-by-step workflows (e.g. onboarding). _Open:_ for A with several assignees, does B start when the first one or the last one marks it done? (Suggested: when all have.)
+- **Cover image** on a task or sub-task, shown as a banner at the top of its page. Images only, same checks as 5.7.
+- **Follow-up wording:** follow-ups for unfinished tasks say "Follow-up" (not "Overdue") in the email subject and the first line of the Slack message.
 
-### 14.6 Accounts
-- People from the company's domain join only by invitation, never by email domain alone. (v1 already works this way; to confirm with whoever raised it.)
+### 14.6 Comments and attachments
+- **Comment edit window:** authors can edit a comment for **24 hours** after posting. After that it is read-only; deleting stays allowed.
+- **Attachment edit window:** whoever uploaded an attachment can remove or replace it for **24 hours** after uploading. After that it is locked.
+- **Attachments on comments:** same types, limits and checks as 5.7. Mentioned people get the file with their mention email (same 20 MB budget); everyone else sees it in the thread.
+- **More file types:** Apple Pages, Numbers and Keynote; OpenDocument (ODT, ODS, ODP); RTF; JSON. Still checked by content (5.7).
 
-### 14.7 Not planned
-- **Native mobile app.** The responsive web app (installable as a PWA) covers it. Revisit if customers ask.
+### 14.7 Push notifications
+- **Browser push** (Chrome, Edge, Safari on desktop), opt-in per person. Clicking a notification opens the exact item: the reminder, task, event or comment. This reverses the deferral in 1.3.
+- Push follows the same mute preferences as email and Slack (7.5).
 
-### 14.8 Before building
-- Ask HR (the first customer) what else they need, and use their answers to settle the open items above.
+### 14.8 Not planned
+- **Native mobile app.** The responsive web app covers it. Revisit if customers ask.
+- **Slack slash command** (`/notifyhub`). Left out for now.
+- **Year and schedule (agenda) views, keyboard shortcuts.**
+- **Company holidays / out-of-office.**
+- **Domain-restricted invitations:** already handled in v1 (people join only by invitation into their own company).
+
+### 14.9 Order
+1. Calendar UI: views, navigation, quick create, peek card, drag, duplicate, colours, recurring "this / following / all" (14.1, 14.2).
+2. Events and RSVP (14.3), then the calendar feed (14.4).
+3. Tasks: remind before, sub-tasks, chains, cover image, follow-up wording (14.5).
+4. Comments and attachments (14.6), then browser push (14.7).
+
+Before starting: ask HR (the first customer) what else they need.
