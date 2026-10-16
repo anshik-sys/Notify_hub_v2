@@ -2,6 +2,18 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-16 — PRD: v2 (calendar-first) drafted
+
+- New PRD section 14 from the team's feature list: calendar views and
+  create-from-calendar, Google Calendar, remind-before, linked reminders,
+  24h edit windows for comments and attachments, comment attachments, Slack
+  slash command, push. The open questions are marked inline.
+- Kept apart from v1: v1 still finishes first (remaining PRD gaps, then deploy).
+- **Clarified with the user:** "24 hours with format" means the uploader can
+  edit (remove or replace) an attachment for 24h. Today anyone who can edit
+  the reminder can remove any of its attachments, at any time.
+- Docs only; no code changed.
+
 ## 2026-10-14 — company admins edit their profile and logo; emails carry the brand
 
 - PRD 9.1/4/7.1 gap from the audit: only the platform owner could change a

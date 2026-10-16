@@ -506,3 +506,44 @@ _Not in v1. This is a draft to discuss before phase 2._
 _Space for new features not covered above._
 
 -
+
+---
+
+## 14. v2: calendar-first (draft, 2026-10-16)
+
+v2 makes NotifyHub feel like a calendar: reminders and tasks live on the calendar, and are created and managed from it. v1 ships first; nothing here blocks it.
+
+### 14.1 Calendar
+- **Month, week and day views.** Week and day show reminders in time slots.
+- **Create from the calendar.** Picking a day (or a time slot in week/day view) opens a new reminder or task with that date filled in.
+- **Colour coding.** Each entry is coloured by _(open: tag, department, reminder vs task, or status)_.
+- Easier navigation: today, previous/next and jump to a date, in every view.
+
+### 14.2 Google Calendar
+- Reminders and tasks a person receives or created appear in their Google Calendar.
+- _Open:_ one-way (a personal calendar feed, which also works in Outlook and Apple Calendar) or two-way sync.
+
+### 14.3 Reminders and tasks
+- **Remind before.** A task can also remind its assignees before it is due, at times the creator picks (e.g. 1 day and 1 hour before). Editing a recurring task's schedule keeps these offsets.
+- **Linked reminders (sub-tasks).** A reminder can be linked to another so that when one fires, the other fires too. _Open:_ at the same moment, after a delay, or only once the first is marked done.
+- **Cover image** on a sub-task.
+- **Follow-up wording.** Follow-up emails and Slack messages for unfinished tasks say "Follow-up" in the subject or first line.
+
+### 14.4 Comments and attachments
+- **Comment edit window.** Authors can edit their comments for 24 hours after posting. After that, comments are read-only (they can still be deleted).
+- **Attachment edit window.** Whoever uploaded an attachment can remove or replace it for 24 hours after uploading. After that it is locked.
+- **Attachments on comments**, with the same types, limits and checks as 5.7. People mentioned in the comment get it by email.
+- **More file types**, picked from what customers ask for. Every file is still checked by its content (5.7).
+
+### 14.5 Notifications and Slack
+- **Slack slash command** (`/notifyhub`). _Open:_ what it does (create a reminder, list my tasks).
+- **Push notifications** that open the item they're about (reverses the deferral in 1.3). _Open:_ browser push, or Slack DMs with a link.
+
+### 14.6 Accounts
+- People from the company's domain join only by invitation, never by email domain alone. (v1 already works this way; to confirm with whoever raised it.)
+
+### 14.7 Not planned
+- **Native mobile app.** The responsive web app (installable as a PWA) covers it. Revisit if customers ask.
+
+### 14.8 Before building
+- Ask HR (the first customer) what else they need, and use their answers to settle the open items above.
