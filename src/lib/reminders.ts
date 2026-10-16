@@ -5,6 +5,7 @@ import { attachments, companies, companyApprovers, deliveries, departmentMembers
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
 import { addNotifications, mutedFor } from "./notifications";
+import { dmLink } from "./slack-installations";
 import { putBlob } from "./storage";
 import { resolveRecipients, type Target, type Tx } from "./recipients";
 import { type Access, can, COMPANY_ADMIN_ROLE_ID, loadAccess } from "./permissions";
@@ -322,9 +323,9 @@ export async function mayDecide(companyId: string, actor: Actor) {
   return withTenant(companyId, async (tx) => (await approverIds(tx, companyId)).some((a) => a.id === actor.id));
 }
 
-// Every approver gets it in the notification centre; returns the emails of
-// those who haven't muted approval emails.
-async function approverEmails(tx: Tx, companyId: string, reminderId: string) {
+// Every approver gets it in the notification centre; returns who to tell by
+// email and by Slack, leaving out what each one muted.
+async function approversToTell(tx: Tx, companyId: string, reminderId: string) {
   const rows = await approverIds(tx, companyId);
   await addNotifications(
     tx,
@@ -335,18 +336,21 @@ async function approverEmails(tx: Tx, companyId: string, reminderId: string) {
     rows.map((r) => r.id),
     "approval",
   );
-  return rows.filter((r) => !muted.has(`${r.id}:email`)).map((r) => r.email);
+  return rows.map((r) => ({ email: r.email, mail: !muted.has(`${r.id}:email`), slack: !muted.has(`${r.id}:slack`) }));
 }
 
-async function notifyApprovers(emails: string[], title: string, id: string) {
+type Approver = Awaited<ReturnType<typeof approversToTell>>[number];
+
+async function notifyApprovers(companyId: string, approvers: Approver[], title: string, id: string) {
   const url = `${process.env.BETTER_AUTH_URL}/reminders/${id}`;
-  for (const to of emails)
-    await sendMail({
-      to,
-      subject: `Approval needed: ${title}`,
-      text: `A reminder needs your approval before it can be sent: "${title}".`,
-      links: [{ label: "Review it", url }],
-    }).catch((e) => console.error("approval email failed", e));
+  const text = `A reminder needs your approval before it can be sent: "${title}".`;
+  for (const a of approvers) {
+    if (a.mail)
+      await sendMail({ to: a.email, subject: `Approval needed: ${title}`, text, links: [{ label: "Review it", url }] }).catch((e) =>
+        console.error("approval email failed", e),
+      );
+    if (a.slack) await dmLink(companyId, a.email, text, { label: "Review it", url }).catch((e) => console.error("approval Slack DM failed", e));
+  }
 }
 
 // Replaces the reminder's shares. "mine" becomes the creator's current
@@ -454,11 +458,11 @@ export async function createReminder(actor: Actor, companyId: string, input: Rem
       await saveShares(tx, companyId, id, actor.id, shares);
       await saveAttachments(tx, companyId, id, actor.id, files, []);
       await notifyIfDue(tx, status, input.sendAt);
-      return { id, approvers: status === "pending_approval" ? await approverEmails(tx, companyId, id) : [] };
+      return { id, approvers: status === "pending_approval" ? await approversToTell(tx, companyId, id) : [] };
     }),
   );
   if ("error" in result) return result;
-  await notifyApprovers(result.approvers, input.title, result.id);
+  await notifyApprovers(companyId, result.approvers, input.title, result.id);
   return { id: result.id };
 }
 
@@ -530,11 +534,11 @@ export async function updateReminder(
       await saveShares(tx, companyId, id, actor.id, shares);
       await saveAttachments(tx, companyId, id, actor.id, files, removeAttachmentIds);
       await notifyIfDue(tx, status, input.sendAt);
-      return { approvers: status === "pending_approval" ? await approverEmails(tx, companyId, id) : [] };
+      return { approvers: status === "pending_approval" ? await approversToTell(tx, companyId, id) : [] };
     }),
   );
   if ("error" in result) return result.error;
-  await notifyApprovers(result.approvers, input.title, id);
+  await notifyApprovers(companyId, result.approvers, input.title, id);
   return null;
 }
 
@@ -553,18 +557,18 @@ export async function recheckGroupReminders(companyId: string, groupId: string, 
       .for("update", { of: reminders });
     const added = await tx.select({ email: user.email }).from(user).where(inArray(user.id, addedUserIds));
     const addedEmails = new Set(added.map((a) => a.email.toLowerCase()));
-    const out: { id: string; title: string; approvers: string[] }[] = [];
+    const out: { id: string; title: string; approvers: Approver[] }[] = [];
     for (const r of affected) {
       const targets = await tx.select().from(reminderTargets).where(eq(reminderTargets.reminderId, r.id));
       const creator = { id: r.createdBy, access: await loadAccess(companyId, r.createdBy) };
       const reasons = await outOfScope(tx, companyId, creator, targets, await resolveRecipients(tx, companyId, targets));
       if (!reasons.some((x) => addedEmails.has(x))) continue;
       await tx.update(reminders).set({ status: "pending_approval", decidedBy: null, decidedAt: null }).where(eq(reminders.id, r.id));
-      out.push({ ...r, approvers: await approverEmails(tx, companyId, r.id) });
+      out.push({ ...r, approvers: await approversToTell(tx, companyId, r.id) });
     }
     return out;
   });
-  for (const r of flipped) await notifyApprovers(r.approvers, r.title, r.id);
+  for (const r of flipped) await notifyApprovers(companyId, r.approvers, r.title, r.id);
   return flipped.length;
 }
 

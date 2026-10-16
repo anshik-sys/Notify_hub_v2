@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { encrypt } from "@/lib/crypto";
+import { COMPANY_ADMIN_ROLE_ID } from "@/lib/permissions";
 import { seeder } from "@/lib/test-helpers";
 import { ownerDb } from "./db";
 import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, dispatchManual, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
@@ -78,11 +79,12 @@ test("deliver: one email even when claimed twice; retries then fails", async () 
     { status: "queued", attempts: 1, last_error: "SMTP down" },
   );
   await q("update deliveries set attempts = $2 where id = $1", [second.id, MAX_ATTEMPTS - 1]);
+  const admin = await s.user({ roles: [COMPANY_ADMIN_ROLE_ID] });
   assert.equal(await deliverOne(second.id, failingSend), "failed");
   assert.equal(await deliverOne(second.id), "skipped"); // failed is final
-  assert.deepEqual(await q("select user_id, kind from notifications where reminder_id = $1 and kind = 'failed'", [reminderId]), [
-    { user_id: creator, kind: "failed" },
-  ]);
+  // The creator and the Company Admins hear about it.
+  const told = await q("select user_id from notifications where reminder_id = $1 and kind = 'failed'", [reminderId]);
+  assert.deepEqual(told.map((t) => t.user_id).sort(), [creator, admin].sort());
 
   assert.deepEqual((await q("select status from reminders where id = $1", [reminderId]))[0], { status: "sending" });
   assert.equal(await deliverOne(third.id), "sent");
@@ -110,7 +112,7 @@ test("sweep: stuck sends fail (never resent), old queued rows come back for re-e
   assert.match(row.last_error, /Not resent/);
   assert.equal(await mailpit(`stuck@${s.domain}`), 0);
   // Another failure on the same occurrence: still one notification.
-  assert.equal((await q("select 1 from notifications where reminder_id = $1 and kind = 'failed'", [reminderId])).length, 1);
+  assert.equal((await q("select 1 from notifications where reminder_id = $1 and kind = 'failed' and user_id = $2", [reminderId, creator])).length, 1);
 });
 
 // A daily series anchored at a fixed UTC time; "now" for dispatch is passed

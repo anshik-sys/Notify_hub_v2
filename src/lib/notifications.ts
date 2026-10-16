@@ -16,7 +16,7 @@ export type NewNotification = typeof notifications.$inferInsert & { kind: Notifi
 
 // The events a person can mute, and on which channels they're sent.
 export const MUTABLE = [
-  { event: "approval", label: "A reminder needs my approval", channels: ["email"] },
+  { event: "approval", label: "A reminder needs my approval", channels: ["email", "slack"] },
   { event: "decided", label: "My reminder was rejected", channels: ["email"] },
   { event: "mention", label: "Someone mentioned me in a comment", channels: ["email", "slack"] },
 ] as const;

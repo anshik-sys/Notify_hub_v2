@@ -2,6 +2,26 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-16 — approvers hear on Slack; admins hear about failed deliveries
+
+- Audit item #6 (v1).
+- **Approvals on Slack:** approvers now get a Slack DM with a "Review it"
+  button, as well as the email and the in-app notification. `approval` has
+  a Slack channel in `MUTABLE`, so Notifications → Preferences shows the
+  toggle by itself (on by default). Covers new reminders, edits that need
+  approval again, and group changes that flip a reminder back.
+- **Failed deliveries:** the in-app "Some deliveries failed" alert now goes
+  to every Company Admin as well as the creator. Still once per occurrence
+  (same dedupe key), and once per person if the creator is an admin. In-app
+  only, like the creator's; no email.
+- **Clean-up:** the Slack DM with one link button is now `dmLink`
+  (`src/lib/slack-installations.ts`); comment mentions use it too, instead
+  of their own copy.
+- **Verified:** 165 tests (new: an approver gets the DM with email muted, and
+  nothing once Slack is muted too; the worker test expects the creator and
+  an admin to be told about a failure), typecheck, lint. **Not verified:**
+  a real Slack DM, or the preferences page in a browser.
+
 ## 2026-10-16 — PRD: v2 (calendar-first) drafted
 
 - New PRD section 14 from the team's feature list: calendar views and

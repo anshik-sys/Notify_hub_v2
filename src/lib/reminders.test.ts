@@ -25,6 +25,7 @@ import {
 } from "./reminders";
 import { sendNow } from "./send-now";
 import { checkFile } from "./attachments";
+import { encrypt } from "./crypto";
 import { resolveRecipients } from "./recipients";
 import { setMutes } from "./notifications";
 import { seeder } from "./test-helpers";
@@ -492,6 +493,37 @@ test("notifications: approvers in-app (email unless muted); the creator hears th
   assert.deepEqual(await kinds(alice), ["decided"]);
   assert.match((await q("select text from notifications where reminder_id = $1 and user_id = $2", [r.id, alice]))[0].text, /Rejected: No/);
   await setMutes(s.companyId, admin, []);
+});
+
+test("notifications: approvers get a Slack DM too, unless they muted it", async () => {
+  await s.owner.query(
+    "insert into slack_installations (company_id, team_id, team_name, bot_token_enc, bot_user_id) values ($1, $2, 'WS', $3, 'UBOT')",
+    [s.companyId, `T-${s.companyId}`, encrypt("xoxb-test")],
+  );
+  const dms: string[] = [];
+  const real = globalThis.fetch;
+  // ponytail: createReminder takes no fetch, so stub the global one Slack calls fall back to.
+  globalThis.fetch = (async (url: string, init: RequestInit) => {
+    const method = url.split("/").pop();
+    const ok = (body: object) => new Response(JSON.stringify({ ok: true, ...body }));
+    if (method === "users.lookupByEmail") return ok({ user: { id: "U1" } });
+    if (method === "conversations.open") return ok({ channel: { id: "D1" } });
+    dms.push((init.body as URLSearchParams).get("text")!);
+    return ok({ ts: "1.0" });
+  }) as typeof fetch;
+  try {
+    const input = { title: "Slack me", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets: [{ kind: "department" as const, ref: sales }] };
+    await setMutes(s.companyId, admin, ["approval:email"]);
+    assert.ok("id" in (await createReminder(await actor(alice), s.companyId, input)));
+    assert.deepEqual(dms, ['A reminder needs your approval before it can be sent: "Slack me".']);
+    await setMutes(s.companyId, admin, ["approval:email", "approval:slack"]);
+    assert.ok("id" in (await createReminder(await actor(alice), s.companyId, input)));
+    assert.equal(dms.length, 1); // muted: no second DM
+  } finally {
+    globalThis.fetch = real;
+    await setMutes(s.companyId, admin, []);
+    await s.owner.query("delete from slack_installations where company_id = $1", [s.companyId]);
+  }
 });
 
 test("tags: lowercased, de-duplicated, validated", () => {

@@ -5,8 +5,7 @@ import { sendMail } from "./mail";
 import { addNotifications, mutedFor } from "./notifications";
 import { type Access, can, loadAccess } from "./permissions";
 import { reminderAccess } from "./reminders";
-import { lookupByEmail, openDm, postMessage } from "./slack";
-import { getInstallation } from "./slack-installations";
+import { dmLink } from "./slack-installations";
 
 // Discussion on a reminder (PRD 5.11). Anyone who can see the reminder can
 // comment. Mentions are explicit user ids from the composer, kept only if the
@@ -70,7 +69,6 @@ async function notify(
   const skipped: string[] = [];
   const url = `${process.env.BETTER_AUTH_URL}/reminders/${reminder.id}#comment-${commentId}`;
   const quote = body.length > 500 ? `${body.slice(0, 500)}…` : body;
-  const inst = await getInstallation(companyId).catch(() => null);
   const told: string[] = [];
   for (const p of people) {
     if (p.id === author.id) continue;
@@ -105,20 +103,8 @@ async function notify(
         text,
         links: [{ label: "Open the discussion", url }],
       }).catch((e) => console.error("mention email failed", e));
-    if (inst && !muted.has(`${p.id}:slack`))
-      try {
-        const token = inst.token();
-        const slackUser = await lookupByEmail(token, p.email, deps.slackFetch);
-        if (slackUser) {
-          const channel = await openDm(token, slackUser, deps.slackFetch);
-          await postMessage(token, channel, text, [{ type: "section", text: { type: "plain_text", text: text.slice(0, 2900) } }, {
-            type: "actions",
-            elements: [{ type: "button", text: { type: "plain_text", text: "Open the discussion" }, url, action_id: "open" }],
-          }], deps.slackFetch);
-        }
-      } catch (e) {
-        console.error("mention Slack DM failed", e);
-      }
+    if (!muted.has(`${p.id}:slack`))
+      await dmLink(companyId, p.email, text, { label: "Open the discussion", url }, deps.slackFetch).catch((e) => console.error("mention Slack DM failed", e));
   }
   return { skipped, told };
 }

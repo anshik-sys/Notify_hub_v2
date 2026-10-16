@@ -357,14 +357,17 @@ async function emailCapReached(companyId: string) {
   return rows[0]?.full ? rows[0].cap : null;
 }
 
-// Company Admins hear about it once a day: in the app, and by email.
-async function noticeHeld(companyId: string, reminderId: string, cap: number) {
-  const day = new Date().toISOString().slice(0, 10);
-  const admins = await ownerDb
+const companyAdmins = (companyId: string) =>
+  ownerDb
     .select({ id: user.id, email: user.email })
     .from(userRoles)
     .innerJoin(user, eq(user.id, userRoles.userId))
     .where(and(eq(userRoles.companyId, companyId), eq(userRoles.roleId, COMPANY_ADMIN_ROLE_ID), sql`${user.deactivatedAt} is null`));
+
+// Company Admins hear about it once a day: in the app, and by email.
+async function noticeHeld(companyId: string, reminderId: string, cap: number) {
+  const day = new Date().toISOString().slice(0, 10);
+  const admins = await companyAdmins(companyId);
   if (!admins.length) return;
   const text = `Daily email limit reached (${cap} in 24 hours): emails are held and go out as room frees up`;
   const fresh = await ownerDb
@@ -435,20 +438,23 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
   return "sent";
 }
 
-// Tells the creator, once per occurrence however many deliveries failed.
+// Tells the creator and the Company Admins, once per occurrence however many
+// deliveries failed.
 async function notifyFailed(d: { companyId: string; reminderId: string; occurrenceId: string }) {
   const [r] = await ownerDb.select({ createdBy: reminders.createdBy }).from(reminders).where(eq(reminders.id, d.reminderId));
   if (!r) return;
-  await addNotifications(ownerDb, [
-    {
+  const people = new Set([r.createdBy, ...(await companyAdmins(d.companyId)).map((a) => a.id)]);
+  await addNotifications(
+    ownerDb,
+    [...people].map((userId) => ({
       companyId: d.companyId,
-      userId: r.createdBy,
-      kind: "failed",
+      userId,
+      kind: "failed" as const,
       reminderId: d.reminderId,
       text: "Some deliveries failed",
       dedupeKey: `failed:${d.occurrenceId}`,
-    },
-  ]).catch((e) => console.error("failed-delivery notification", e));
+    })),
+  ).catch((e) => console.error("failed-delivery notification", e));
 }
 
 // Each tick: fail rows stuck in `sending`, and return queued rows that lost
