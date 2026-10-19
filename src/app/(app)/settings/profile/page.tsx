@@ -8,16 +8,18 @@ import { groupsOf } from "@/lib/groups";
 import { visibleRoles } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { getUser } from "@/lib/users";
-import { saveProfileAction, signOutAction } from "../account-actions";
+import { hasPassword } from "@/lib/account";
+import { changeEmailAction, saveProfileAction, signOutAction } from "../account-actions";
 
 // PRD 3.3: your name and time zone; what you belong to (read-only).
 export default async function Profile(props: PageProps<"/settings/profile">) {
   const { user, companyId, company } = await requireMember();
-  const [me, roles, groups, managers] = await Promise.all([
+  const [me, roles, groups, managers, withPassword] = await Promise.all([
     getUser(companyId, user.id),
     visibleRoles(companyId),
     groupsOf(companyId, user.id),
     managersOfMyDepartments(companyId, user.id),
+    hasPassword(user.id),
   ]);
   const sp = await props.searchParams;
 
@@ -34,6 +36,15 @@ export default async function Profile(props: PageProps<"/settings/profile">) {
         <Hint>Changes how times are shown to you. Reminders still send at the time they were set for.</Hint>
         <Button>Save</Button>
       </Form>
+
+      <Section title="Email">
+        <Form action={changeEmailAction}>
+          <Field label="New email" name="email" type="email" maxLength={254} required autoComplete="email" />
+          {withPassword && <Field label="Current password" name="password" type="password" required autoComplete="current-password" />}
+          <Hint>Now {user.email}. We’ll send a link to the new address; nothing changes until you click it.</Hint>
+          <Button>Change email</Button>
+        </Form>
+      </Section>
 
       <Section title="Your departments">
         {me && me.departments.length > 0 ? (

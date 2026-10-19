@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { authDb } from "./auth";
 import { type Access, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "./permissions";
 import { seeder } from "./test-helpers";
-import { adminResetTwoFactor, listUsers, setActive, setUserRoles } from "./users";
+import { adminResetTwoFactor, listUsers, personSessions, renamePerson, setActive, setUserRoles, signOutPerson } from "./users";
 
 const s = seeder();
 let admin: { id: string; access: Access };
@@ -95,4 +95,32 @@ test("admin 2FA reset: clears it, ends sessions; guarded like deactivation", asy
   assert.equal(rows[0].two_factor_enabled, false);
   assert.equal((await s.owner.query("select 1 from two_factor where user_id = $1", [lost])).rowCount, 0);
   assert.equal((await s.owner.query("select 1 from session where user_id = $1", [lost])).rowCount, 0);
+});
+
+test("admin renames someone and signs them out; never someone above them", async () => {
+  const q = async (sql: string, params: unknown[] = []) => (await s.owner.query(sql, params)).rows;
+  const boss = await s.user({ roles: [COMPANY_ADMIN_ROLE_ID] });
+  const bossActor = { id: boss, access: await loadAccess(s.companyId, boss) };
+  const [{ id: editors }] = await q("insert into roles (company_id, name, permissions) values ($1, 'People editors', '{users.edit}') returning id", [s.companyId]);
+  const editor = await s.user({ roles: [MEMBER_ROLE_ID, editors] });
+  const editorActor = { id: editor, access: await loadAccess(s.companyId, editor) };
+  const bob = await s.user({ roles: [MEMBER_ROLE_ID] });
+  for (const u of [bob, boss])
+    await q("insert into session (id, expires_at, token, user_id, updated_at) values ($1, now() + interval '1 day', $1, $2, now())", [`s-${u}`, u]);
+
+  assert.match((await renamePerson(editorActor, s.companyId, bob, "  "))!, /1–100/);
+  assert.equal(await renamePerson(editorActor, s.companyId, bob, " Robert "), null);
+  assert.equal((await q(`select name from "user" where id = $1`, [bob]))[0].name, "Robert");
+  const seen = await personSessions(editorActor, s.companyId, bob);
+  assert.deepEqual(seen?.map((x) => x.id), [`s-${bob}`]);
+  assert.ok(seen && !("token" in seen[0]));
+  assert.equal(await signOutPerson(editorActor, s.companyId, bob), null);
+  assert.deepEqual(await q("select id from session where user_id = $1", [bob]), []);
+
+  // An admin is above a users.edit role: no rename, no sessions, no sign-out.
+  assert.match((await renamePerson(editorActor, s.companyId, boss, "X"))!, /can't manage/);
+  assert.equal(await personSessions(editorActor, s.companyId, boss), null);
+  assert.match((await signOutPerson(editorActor, s.companyId, boss))!, /can't manage/);
+  assert.equal((await q("select id from session where user_id = $1", [boss])).length, 1);
+  assert.match((await signOutPerson(bossActor, s.companyId, boss))!, /yourself/);
 });

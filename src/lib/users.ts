@@ -1,7 +1,7 @@
 import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { departmentMembers, departments, invitations, roles, session, user, userRoles } from "@/db/schema";
-import { resetTwoFactor } from "./account";
+import { listMySessions, resetTwoFactor } from "./account";
 import { authDb } from "./auth";
 import { type Access, can, canGrant, COMPANY_ADMIN_ROLE_ID, MEMBER_ROLE_ID } from "./permissions";
 
@@ -216,5 +216,41 @@ export async function setActive(actor: Actor, companyId: string, userId: string,
   // The app role has no access to sessions. Between these two statements the
   // old session still exists, but requireMember() already refuses it.
   if (!active) await authDb.delete(session).where(eq(session.userId, userId));
+  return null;
+}
+
+// PRD 9.1: an admin fixes someone's name (users.edit; not someone above them).
+// Email stays theirs to change: it needs the new address verified (PRD 3.3).
+export async function renamePerson(actor: Actor, companyId: string, userId: string, name: string) {
+  name = name.trim();
+  if (!name || name.length > 100) return "Name must be 1–100 characters.";
+  try {
+    await withTenant(companyId, async (tx) => {
+      await assertCanManage(tx, actor, userId);
+      const updated = await tx
+        .update(user)
+        .set({ name })
+        .where(and(eq(user.id, userId), isNull(user.erasedAt)))
+        .returning({ id: user.id });
+      if (!updated.length) throw new Refused("User not found.");
+    });
+  } catch (e) {
+    if (e instanceof Refused) return e.message;
+    throw e;
+  }
+  return null;
+}
+
+// PRD 9.1 "Active sessions": where someone is signed in, for those who may
+// manage them; null otherwise. No tokens leave this function.
+export async function personSessions(actor: Actor, companyId: string, userId: string) {
+  if (!(await canManagePerson(actor, companyId, userId))) return null;
+  return (await listMySessions(userId)).map(({ id, ipAddress, userAgent, createdAt, updatedAt }) => ({ id, ipAddress, userAgent, createdAt, updatedAt }));
+}
+
+export async function signOutPerson(actor: Actor, companyId: string, userId: string) {
+  if (userId === actor.id) return "Sign yourself out under Settings → Security.";
+  if (!(await canManagePerson(actor, companyId, userId))) return "You can't manage this person.";
+  await authDb.delete(session).where(eq(session.userId, userId));
   return null;
 }

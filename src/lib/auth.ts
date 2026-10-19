@@ -47,8 +47,9 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }) => {
       sendMail({
         to: user.email,
+        // Also the new address in an email change (user.email is the new one).
         subject: "Verify your email for NotifyHub",
-        text: `Hi ${user.name},\n\nConfirm your email to finish signing up. The link expires in 1 hour.`,
+        text: `Hi ${user.name},\n\nConfirm that ${user.email} is your email for NotifyHub. The link expires in 1 hour. If you didn't ask for this, ignore it.`,
         links: [{ label: "Verify email", url }],
       }).catch((e) => console.error("verification email failed", e));
     },
@@ -62,7 +63,8 @@ export const auth = betterAuth({
   // Companies are created by the platform owner only (decided 2026-10-12);
   // people join through an invite. This closes the public HTTP sign-up; the
   // invite page calls auth.api.signUpEmail, which this doesn't affect.
-  disabledPaths: ["/sign-up/email"],
+  // Email change goes through our action only (it checks the password first).
+  disabledPaths: ["/sign-up/email", "/change-email"],
   advanced: { ipAddress: { ipAddressHeaders: [process.env.CLIENT_IP_HEADER || "x-forwarded-for"] } },
   socialProviders: {
     google: {
@@ -78,6 +80,9 @@ export const auth = betterAuth({
     },
   },
   user: {
+    // PRD 3.3: the change happens when the link sent to the new address is
+    // clicked. An address already in use gets the same answer and no email.
+    changeEmail: { enabled: true },
     additionalFields: {
       // Set once, by onboarding or invite acceptance. Never from client input.
       companyId: { type: "string", required: false, input: false },

@@ -2,6 +2,45 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-19 — admins edit names and end sessions; people change their own email
+
+- Audit item #4 (v1), PRD 9.1 and 3.3.
+- **No separate "create user"** (the user's call, 2026-10-19): Invite already
+  creates the account with roles and departments. The rejected options were
+  a pre-created account with a "set your password" email (more code, plus an
+  account with no password to secure) and an admin-typed password (the admin
+  would know it).
+- **Admin edits a person:** name only, on the person's page (`users.edit`,
+  and the person isn't above you: the same `assertCanManage` rule as
+  deactivation). Email stays the person's own, since it needs the new
+  address verified.
+- **Active sessions (PRD 9.1):** the same page lists where they're signed in
+  (device, IP, signed in, last active) with "Sign out everywhere". Same
+  guard; not for yourself (that's Settings → Security). Session tokens never
+  leave `personSessions`.
+- **Own email change (PRD 3.3):** Profile → Email. Better Auth's
+  `changeEmail`: a link goes to the new address, and the email changes when
+  it's clicked. We check the current password first (unless they're
+  Google-only) and allow 5 requests per hour. The `/change-email` HTTP route
+  is in `disabledPaths`, so the password check can't be skipped. An address
+  already in use gets the same answer and no email.
+- The verification email's wording is now neutral ("Confirm that X is your
+  email"), since it serves both sign-in and email change.
+- **Not done:** no "your email was changed" notice to the old address.
+  Better Auth's two-step `sendChangeEmailConfirmation` (the old address
+  approves first) would add it, at the cost of a second email; worth it if
+  a customer asks. Admin session sign-outs aren't in the audit log (sessions
+  are an auth table, with no trigger).
+- **Verified:** 167 tests (new: rename, list and sign out; refused for an
+  admin when the actor has only a `users.edit` role; tokens not returned).
+  Typecheck, lint. **In Chrome against a temp server on :3107:** a wrong
+  password gets "Invalid password"; the right one gets the notice and a
+  Mailpit email; clicking the link changes the email and lands on Profile
+  with "Email changed."; a taken address gets the same notice and no email;
+  Maya renamed Alice and signed her out everywhere (Alice's next page load
+  went to /sign-in); `POST /api/auth/change-email` returns 404. The demo
+  data was restored afterwards (Alice's email and name, her rate-limit rows).
+
 ## 2026-10-19 — delete reminders; each occurrence keeps what it sent
 
 - Audit item #5 (v1). The user picked **hidden everywhere** (no restore) on

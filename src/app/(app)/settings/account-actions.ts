@@ -4,7 +4,7 @@ import { APIError } from "better-auth";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { errorUrl } from "@/components/form";
-import { revokeMySession, setTimeZone } from "@/lib/account";
+import { hasPassword, revokeMySession, setTimeZone } from "@/lib/account";
 import { limits } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 import { requireMember, requireSignedIn } from "@/lib/session";
@@ -47,6 +47,25 @@ export async function saveProfileAction(fd: FormData) {
   if (error) redirect(errorUrl("/settings/profile", error));
   if (name !== user.name) await call("/settings/profile", async () => auth.api.updateUser({ body: { name }, headers: await headers() }));
   notice("/settings/profile", "Saved.");
+}
+
+// PRD 3.3: a link to the new address; the email changes when it's clicked.
+// The password (if they have one) guards against a borrowed session.
+export async function changeEmailAction(fd: FormData) {
+  const P = "/settings/profile";
+  const { user } = await requireMember();
+  const limited = await limits([[`email-change:user:${user.id}`, 5, 3600]]);
+  if (limited) redirect(errorUrl(P, limited));
+  const newEmail = str(fd, "email").trim().toLowerCase();
+  if (!newEmail || newEmail.length > 254) redirect(errorUrl(P, "Enter an email address."));
+  if (await hasPassword(user.id)) {
+    await passwordLimit(user.id, P);
+    await call(P, async () => auth.api.verifyPassword({ body: { password: str(fd, "password") }, headers: await headers() }));
+  }
+  await call(P, async () =>
+    auth.api.changeEmail({ body: { newEmail, callbackURL: `${P}?notice=${encodeURIComponent("Email changed.")}` }, headers: await headers() }),
+  );
+  notice(P, `Check ${newEmail} for a link. Your email changes once you click it.`);
 }
 
 export async function signOutAction() {
