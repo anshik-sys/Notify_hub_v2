@@ -38,6 +38,9 @@ redirect emailed links to SITE_URL, not the pod
 Lowercase, imperative, `area:` prefix when the repo already uses one. Match the
 surrounding `git log` rather than importing a convention.
 
+Hand it over as ready-to-paste commands (`git add -A` + `git commit -m "…"`),
+with **no apostrophes or quotes inside the message**: they break the shell.
+
 ---
 
 ## Documentation I expect
@@ -126,6 +129,26 @@ believing a failure.
 - If the correctness of something depends on a browser, say so and hand it to
 me. **I do the visual checks.** Do not start a dev server or drive a browser
 for design work — read the CSS and tell me what to look at.
+
+## Behaviour tests: spec first
+
+For any feature that changes behaviour (new rules, sending, permissions,
+approvals), tests check what it **should** do, not what the code happens to do:
+
+1. **Spec before code.** Add a section to `docs/expected-behaviour.md`: each
+   function and what it does, then numbered use cases (scenario → expected
+   result → source: a PRD section or my decision). Mark your own guesses
+   "(proposed)". I read it and say "spec is fine" or change it.
+2. **Build**, with your own quick tests as usual.
+3. **Independent tests.** Someone who has not read the implementation (a fresh
+   agent) writes one test per case id from the spec, named with the id
+   (`D3: …`), in `src/**/spec-*.test.ts`.
+4. **Report per case:** PASS / FAIL / SKIP in the spec's Status column. For each
+   FAIL decide with me: product bug, or wrong spec. Never weaken an assertion
+   to make it pass; a case that needs a browser is skipped with that reason
+   and checked in the browser.
+
+Small fixes and UI tweaks skip this and get ordinary tests.
 
 ---
 
