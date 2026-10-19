@@ -8,6 +8,7 @@ import {
   cancelReminder,
   createReminder,
   decideReminder,
+  deleteReminder,
   formToRaw,
   pauseReminder,
   resumeReminder,
@@ -86,6 +87,16 @@ export async function cancelReminderAction(fd: FormData) {
   if (!isUuid(id)) notFound();
   const error = await cancelReminder({ id: user.id, access }, companyId, id);
   redirect(error ? errorUrl(`/reminders/${id}`, error) : `/reminders/${id}`);
+}
+
+export async function deleteReminderAction(fd: FormData) {
+  const { user, companyId, access } = await requireMember();
+  const id = str(fd, "id");
+  if (!isUuid(id)) notFound();
+  const error = await deleteReminder({ id: user.id, access }, companyId, id);
+  if (error) redirect(errorUrl(`/reminders/${id}`, error));
+  // Someone without the list (an editor who can't create) goes home.
+  redirect(can(access, "reminders.create") || can(access, "reminders.view_all") ? `/reminders?notice=${encodeURIComponent("Reminder deleted.")}` : "/");
 }
 
 export async function decideReminderAction(fd: FormData) {

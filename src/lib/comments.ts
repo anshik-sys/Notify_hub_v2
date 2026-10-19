@@ -36,7 +36,7 @@ function cleanBody(body: string) {
 
 async function canSee(companyId: string, viewer: Actor, reminderId: string) {
   const [r] = await withTenant(companyId, (tx) =>
-    tx.select({ id: reminders.id, createdBy: reminders.createdBy, title: reminders.title }).from(reminders).where(eq(reminders.id, reminderId)),
+    tx.select({ id: reminders.id, createdBy: reminders.createdBy, title: reminders.title }).from(reminders).where(and(eq(reminders.id, reminderId), isNull(reminders.deletedAt))),
   );
   if (!r || !(await reminderAccess(companyId, viewer, r))) return null;
   return r;

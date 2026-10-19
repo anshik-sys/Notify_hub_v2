@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { withTenant } from "@/db";
 import { attachments, reminders } from "@/db/schema";
@@ -22,7 +22,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/attachments/[id
       .select({ meta: attachments, createdBy: reminders.createdBy })
       .from(attachments)
       .innerJoin(reminders, eq(reminders.id, attachments.reminderId))
-      .where(eq(attachments.id, id));
+      .where(and(eq(attachments.id, id), isNull(reminders.deletedAt)));
     if (!row) return null;
     return { ...row, data: await getBlob(tx, id) };
   });

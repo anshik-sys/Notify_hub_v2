@@ -2,6 +2,38 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-19 — delete reminders; each occurrence keeps what it sent
+
+- Audit item #5 (v1). The user picked **hidden everywhere** (no restore) on
+  2026-10-19.
+- **Delete** (PRD 5.6): any status, by the creator or anyone who could edit
+  it (`mayChange`). There's no separate `reminders.delete` permission: the PRD's
+  "edit/delete permission" reads fine as edit, and a second key would only
+  sit next to it. Confirmed with a required checkbox, as Send now does.
+- **Deleted also means cancelled.** Task follow-ups, snoozes (cleared), the
+  digest, reports and My tasks already skip cancelled, so they needed no
+  change. Retention purges it with the other finished reminders, and the
+  audit trigger records `deleted_at`. Its notifications are deleted, which
+  keeps both the list and the unread count right.
+- **Filtered by `deleted_at`:** `canViewWhere`/`overseeWhere` (every list,
+  the calendar, the dashboard), `getReminder` (page, edit), attachment
+  downloads, comments, Send me a test, the My tasks Done tab.
+- **Refused while anything is queued or sending.** Otherwise a queued
+  delivery goes out seconds after the delete. Known edge: a delivery held by
+  the daily email limit blocks deleting until it's sent.
+- **Snapshot:** each new occurrence stores title, description, links and
+  sender (`reminder_occurrences.snapshot`). The worker sends from it, so a
+  retry after an edit sends the original. The delivery log shows "Message as
+  sent", and earlier occurrences show their subject. Older rows have no
+  snapshot and show "—".
+- **Not done:** the privacy export still lists a person's deleted reminders.
+  They're still stored until retention, so that's correct for an export.
+- **Verified:** 166 tests (new: delete hides it from three viewers' lists,
+  `getReminder`, notifications; refused while sending; and a retry after an
+  edit sends the snapshot). The delete test fails without the list filter.
+  Typecheck, lint. **Not verified in the browser:** the Delete button,
+  "Message as sent" and the redirect notice.
+
 ## 2026-10-16 — approvers hear on Slack; admins hear about failed deliveries
 
 - Audit item #6 (v1).

@@ -51,6 +51,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - A new table holding personal data must be handled in `erase_person()` (a migration replacing the function) and in `exportPerson` (`src/lib/privacy.ts`).
 - Never call the `platform_*` SQL functions or set `app.platform` outside `src/lib/platform.ts`, and keep the console aggregate-only (no reminder content). The web app still never gets the owner URL.
 - Anything that lists reminders uses `canViewWhere` (what you can open) or `overseeWhere` (what you're responsible for) from `src/lib/views.ts`, never its own rule; they mirror `reminderAccess` / `canSeeReminder`.
+- Reminders are soft-deleted (`deleted_at`, also set to cancelled). A new query that reads `reminders` outside `canViewWhere`/`overseeWhere`/`getReminder` skips `deleted_at is not null` unless it already skips cancelled.
 - A new recipient kind (like `group`) must be handled in `resolveRecipients` (with an explicit `company_id` filter: the worker bypasses RLS), the channel rules in `validateInput`, `outOfScope` if it can widen, the `getReminder` labels and the recipient search in `src/lib/views.ts`.
 - Mail goes through `sendMail()` in `src/lib/mail.ts`, one recipient per call. Dev mail lands in Mailpit (http://localhost:8025).
 - Do not "simplify" the three DB roles, the transaction-local `set_config`, or the `nullif` in the policy. See README.

@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { attachments, reminders } from "@/db/schema";
 import { emailFiles } from "./attachments";
@@ -46,7 +46,7 @@ export async function sendTest(
   id: string,
   deps: { send?: typeof sendMail; slackFetch?: typeof fetch } = {},
 ) {
-  const [r] = await withTenant(companyId, (tx) => tx.select().from(reminders).where(eq(reminders.id, id)));
+  const [r] = await withTenant(companyId, (tx) => tx.select().from(reminders).where(and(eq(reminders.id, id), isNull(reminders.deletedAt))));
   if (!r || (await reminderAccess(companyId, actor, r)) !== "full") return { error: "Reminder not found." };
   const appUrl = `${process.env.BETTER_AUTH_URL}/reminders/${r.id}`;
   // A task's due time as if sent right now.

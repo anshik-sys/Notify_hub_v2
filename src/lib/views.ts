@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { REMINDER_STATUSES, reminderOccurrences, reminderShares, reminders, user, type ReminderStatus } from "@/db/schema";
 import { type Access, can } from "./permissions";
@@ -12,16 +12,21 @@ import { toLocalInput, zonedToUtc } from "./time";
 //   managed departments' (full access). Dashboard counts use this.
 // - canViewWhere = reminderAccess: that, plus shared with you or sent to you.
 //   Lists, search and the calendar use this: what you can open, you can find.
+// Both leave out deleted reminders, like getReminder.
 
 type Viewer = { id: string; access: Access };
 
-export function overseeWhere(viewer: Viewer): SQL | undefined {
-  if (can(viewer.access, "reminders.view_all") || can(viewer.access, "reminders.approve")) return undefined;
-  return or(
+const live = isNull(reminders.deletedAt);
+const seesAll = (viewer: Viewer) => can(viewer.access, "reminders.view_all") || can(viewer.access, "reminders.approve");
+const mineOrManaged = (viewer: Viewer) =>
+  or(
     eq(reminders.createdBy, viewer.id),
     sql`exists (select 1 from department_members m join department_members c on c.department_id = m.department_id
       where m.user_id = ${viewer.id} and m.is_manager and c.user_id = ${reminders.createdBy})`,
   );
+
+export function overseeWhere(viewer: Viewer): SQL | undefined {
+  return seesAll(viewer) ? live : and(live, mineOrManaged(viewer));
 }
 
 const sharedWithMe = (viewer: Viewer) =>
@@ -30,8 +35,7 @@ const sentToMe = (viewer: Viewer) =>
   sql`exists (select 1 from deliveries d where d.reminder_id = ${reminders.id} and d.user_id = ${viewer.id})`;
 
 export function canViewWhere(viewer: Viewer): SQL | undefined {
-  const oversee = overseeWhere(viewer);
-  return oversee && or(oversee, sharedWithMe(viewer), sentToMe(viewer));
+  return seesAll(viewer) ? live : and(live, or(mineOrManaged(viewer), sharedWithMe(viewer), sentToMe(viewer)));
 }
 
 // --- All reminders: filters live in the URL ----------------------------------

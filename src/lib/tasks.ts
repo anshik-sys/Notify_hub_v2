@@ -111,7 +111,7 @@ export function myDoneTasks(companyId: string, userId: string, limit = 50) {
       .from(taskAssignments)
       .innerJoin(reminders, eq(reminders.id, taskAssignments.reminderId))
       .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, taskAssignments.occurrenceId))
-      .where(and(eq(taskAssignments.userId, userId), isNotNull(taskAssignments.doneAt)))
+      .where(and(eq(taskAssignments.userId, userId), isNotNull(taskAssignments.doneAt), isNull(reminders.deletedAt)))
       .orderBy(desc(taskAssignments.doneAt))
       .limit(limit),
   );

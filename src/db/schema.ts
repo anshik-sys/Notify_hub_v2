@@ -313,6 +313,9 @@ export const reminders = pgTable(
     decidedBy: text().references(() => user.id),
     decidedAt: ts(),
     rejectionReason: text(),
+    // Soft delete: hidden everywhere (lists, page, tasks, notifications) and
+    // also cancelled; retention purges it with the other finished reminders.
+    deletedAt: ts(),
     createdAt: ts().notNull().defaultNow(),
     updatedAt: ts()
       .notNull()
@@ -368,6 +371,9 @@ export const reminderOccurrences = pgTable(
     occursAt: ts().notNull(),
     status: text().$type<"sending" | "sent" | "skipped" | "missed">().notNull(),
     dueAt: ts(), // tasks only
+    // What this occurrence was sent as, so later edits don't rewrite the log
+    // (and retries send the same message). Null for missed/skipped and old rows.
+    snapshot: jsonb().$type<{ title: string; description: string; links: { label: string; url: string }[]; senderName: string }>(),
     createdAt: ts().notNull().defaultNow(),
   },
   (t) => [

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { FilterBar, Pager } from "@/components/filters";
-import { Field, LinkButton, Page, SelectField } from "@/components/form";
+import { Field, firstParam, LinkButton, Page, SelectField } from "@/components/form";
 import { Badge, Muted, Table } from "@/components/table";
 import { REMINDER_STATUSES } from "@/db/schema";
 import { can } from "@/lib/permissions";
@@ -17,7 +17,8 @@ export default async function Reminders(props: PageProps<"/reminders">) {
   const { user, companyId, access, timeZone } = await requireMember();
   if (!can(access, "reminders.create") && !can(access, "reminders.view_all")) notFound();
   const viewer = { id: user.id, access };
-  const f = parseFilters(await props.searchParams);
+  const params = await props.searchParams;
+  const f = parseFilters(params);
   const [{ rows, total }, creators] = await Promise.all([
     searchReminders(companyId, viewer, timeZone, f),
     visibleCreators(companyId, viewer),
@@ -27,6 +28,7 @@ export default async function Reminders(props: PageProps<"/reminders">) {
   return (
     <Page
       title="Reminders"
+      notice={firstParam(params.notice)}
       actions={can(access, "reminders.create") && <LinkButton href="/reminders/new">New reminder</LinkButton>}
     >
       <FilterBar

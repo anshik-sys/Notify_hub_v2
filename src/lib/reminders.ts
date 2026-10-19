@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { aliasedTable, and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { attachments, companies, companyApprovers, deliveries, departmentMembers, emailSuppressions, departments, groupMembers, groups, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, user, userRoles, type ReminderStatus } from "@/db/schema";
+import { attachments, companies, companyApprovers, deliveries, departmentMembers, emailSuppressions, departments, groupMembers, groups, notifications, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, taskAssignments, user, userRoles, type ReminderStatus } from "@/db/schema";
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
 import { addNotifications, mutedFor } from "./notifications";
@@ -585,6 +585,34 @@ export async function cancelReminder(actor: Actor, companyId: string, id: string
   return result && "error" in result ? result.error : null;
 }
 
+// Soft delete (PRD 5.6), any status. Hidden everywhere from then on (decided
+// 2026-10-19: no restore). It's also cancelled, so the worker, follow-ups,
+// digests and reports, which already skip cancelled ones, leave it alone.
+// The audit trigger records deleted_at; retention purges it later.
+export async function deleteReminder(actor: Actor, companyId: string, id: string) {
+  const result = await refusals(() =>
+    withTenant(companyId, async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(reminders)
+        .where(and(eq(reminders.id, id), isNull(reminders.deletedAt)))
+        .for("update");
+      if (!current || !(await mayChange(companyId, actor, current.createdBy))) throw new Refused("Reminder not found.");
+      const [busy] = await tx
+        .select({ id: deliveries.id })
+        .from(deliveries)
+        .where(and(eq(deliveries.reminderId, id), inArray(deliveries.status, ["queued", "sending"])))
+        .limit(1);
+      if (busy) throw new Refused("It's being sent right now. Try again once it's done.");
+      await tx.update(reminders).set({ status: "cancelled", deletedAt: new Date() }).where(eq(reminders.id, id));
+      await tx.update(taskAssignments).set({ snoozedUntil: null }).where(eq(taskAssignments.reminderId, id));
+      await tx.delete(notifications).where(eq(notifications.reminderId, id));
+      return null;
+    }),
+  );
+  return result && "error" in result ? result.error : null;
+}
+
 // Checks reminders.approve and, in named mode, that the actor is named.
 export async function decideReminder(actor: Actor, companyId: string, id: string, approve: boolean, reason = "") {
   reason = reason.trim();
@@ -705,7 +733,7 @@ export async function getReminder(companyId: string, id: string) {
       .select({ reminder: reminders, creatorName: user.name, creatorEmail: user.email })
       .from(reminders)
       .innerJoin(user, eq(user.id, reminders.createdBy))
-      .where(eq(reminders.id, id));
+      .where(and(eq(reminders.id, id), isNull(reminders.deletedAt)));
     if (!r) return null;
     const targets = await tx.select().from(reminderTargets).where(eq(reminderTargets.reminderId, id));
     const deptIds = targets.filter((t) => t.kind === "department").map((t) => t.ref!);
@@ -815,6 +843,7 @@ export async function deliveryLog(companyId: string, reminderId: string) {
         occursAt: reminderOccurrences.occursAt,
         status: reminderOccurrences.status,
         dueAt: reminderOccurrences.dueAt,
+        snapshot: reminderOccurrences.snapshot,
         sent: sql<number>`count(*) filter (where ${deliveries.status} = 'sent')::int`,
         failed: sql<number>`count(*) filter (where ${deliveries.status} = 'failed')::int`,
         pending: sql<number>`count(*) filter (where ${deliveries.status} in ('queued','sending'))::int`,

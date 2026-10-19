@@ -48,9 +48,10 @@ function occurrenceRow(r: Reminder, occursAt: Date, status: "sending" | "missed"
 // (channel, address), task assignments. Returns the new delivery ids, or null
 // if that occurrence already exists (skipped, or a duplicate run).
 async function createOccurrence(tx: Tx, r: Reminder, occursAt: Date) {
+  const snapshot = { title: r.title, description: r.description, links: r.links, senderName: r.senderName };
   const [occ] = await tx
     .insert(reminderOccurrences)
-    .values(occurrenceRow(r, occursAt, "sending"))
+    .values({ ...occurrenceRow(r, occursAt, "sending"), snapshot })
     .onConflictDoNothing()
     .returning({ id: reminderOccurrences.id });
   if (!occ) return null;
@@ -408,12 +409,14 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
     .returning();
   if (!d) return "skipped"; // sent, failed, or another worker has it
 
-  const [r] = await ownerDb
-    .select({ reminder: reminders, creatorEmail: user.email, dueAt: reminderOccurrences.dueAt })
+  const [loaded] = await ownerDb
+    .select({ reminder: reminders, creatorEmail: user.email, dueAt: reminderOccurrences.dueAt, snapshot: reminderOccurrences.snapshot })
     .from(reminders)
     .innerJoin(user, eq(user.id, reminders.createdBy))
     .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, d.occurrenceId))
     .where(eq(reminders.id, d.reminderId));
+  // Send what the occurrence recorded, even if the reminder was edited since.
+  const r = { ...loaded, reminder: { ...loaded.reminder, ...loaded.snapshot } };
   let result: { slackChannel?: string; slackTs?: string; lastError?: string | null };
   try {
     result = d.channel === "slack" ? await sendSlack(d, r, slackFetch) : await sendEmail(d, r, send);

@@ -6,6 +6,7 @@ import {
   cancelReminder,
   createReminder,
   decideReminder,
+  deleteReminder,
   getReminder,
   isDelayed,
   listAttachments,
@@ -29,6 +30,7 @@ import { encrypt } from "./crypto";
 import { resolveRecipients } from "./recipients";
 import { setMutes } from "./notifications";
 import { seeder } from "./test-helpers";
+import { parseFilters, searchReminders } from "./views";
 import { toLocalInput } from "./time";
 
 const s = seeder();
@@ -596,4 +598,28 @@ test("named approvers: only they are asked and may decide; fallback if none can"
   assert.equal(await mayDecide(s.companyId, await actor(admin)), true);
   await q("update companies set approval_mode = 'any' where id = $1", [s.companyId]);
   await q("delete from company_approvers where company_id = $1", [s.companyId]);
+});
+
+test("delete: hidden everywhere and cancelled; refused while sending", async () => {
+  const r = await createReminder(await actor(alice), s.companyId, {
+    title: "Gone soon", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets: [{ kind: "user", ref: bob }],
+  });
+  assert.ok("id" in r);
+  const q = async (sql: string, params: unknown[]) => (await s.owner.query(sql, params)).rows;
+  await q("insert into notifications (company_id, user_id, kind, reminder_id, text) values ($1, $2, 'reminder', $3, 'x')", [s.companyId, bob, r.id]);
+  const [occ] = await q("insert into reminder_occurrences (company_id, reminder_id, occurs_at, status) values ($1, $2, now(), 'sending') returning id", [s.companyId, r.id]);
+  await q("insert into deliveries (company_id, reminder_id, occurrence_id, address) values ($1, $2, $3, 'b@x.test')", [s.companyId, r.id, occ.id]);
+  assert.match((await deleteReminder(await actor(alice), s.companyId, r.id))!, /being sent/);
+  await q("update deliveries set status = 'sent' where reminder_id = $1", [r.id]);
+
+  assert.match((await deleteReminder(await actor(carol), s.companyId, r.id))!, /not found/);
+  assert.equal(await deleteReminder(await actor(alice), s.companyId, r.id), null);
+  assert.equal(await getReminder(s.companyId, r.id), null);
+  for (const who of [admin, alice, bob]) {
+    const { rows } = await searchReminders(s.companyId, await actor(who), "UTC", parseFilters({ q: "Gone soon" }));
+    assert.deepEqual(rows, [], who);
+  }
+  assert.deepEqual(await q("select status, deleted_at is not null as deleted from reminders where id = $1", [r.id]), [{ status: "cancelled", deleted: true }]);
+  assert.deepEqual(await q("select id from notifications where reminder_id = $1", [r.id]), []);
+  assert.match((await deleteReminder(await actor(alice), s.companyId, r.id))!, /not found/);
 });

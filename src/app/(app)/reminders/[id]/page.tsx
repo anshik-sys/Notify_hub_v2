@@ -12,7 +12,7 @@ import { requireMember } from "@/lib/session";
 import { myTaskStatus, taskProgress } from "@/lib/tasks";
 import { formatInZone } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
-import { cancelReminderAction, decideReminderAction, markTaskAction, sendNowAction, sendTestAction, seriesAction } from "../actions";
+import { cancelReminderAction, decideReminderAction, deleteReminderAction, markTaskAction, sendNowAction, sendTestAction, seriesAction } from "../actions";
 import { Discussion } from "./discussion";
 import styles from "./page.module.css";
 import { listComments } from "@/lib/comments";
@@ -52,7 +52,8 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   const tz = r.timeZone;
   // Same rule as mayChange in src/lib/reminders.ts: "full" already means they can see it in full.
   const owner = user.id === r.createdBy;
-  const mayChange = editable && (owner || (can(access, "reminders.edit") && seeAs === "full"));
+  const mayDelete = owner || (can(access, "reminders.edit") && seeAs === "full");
+  const mayChange = editable && mayDelete;
   const mayDecide = r.status === "pending_approval" && (await canDecide(companyId, { id: user.id, access }));
   const maySendNow =
     (r.status === "scheduled" || (r.recurrence && r.status === "paused")) &&
@@ -174,6 +175,20 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                 <Hint>
                   {log.latest.sent} sent · {log.latest.failed} failed · {log.latest.pending} pending
                 </Hint>
+                {log.latest.snapshot && (
+                  <details className={styles.more}>
+                    <summary className={styles.moreToggle}>Message as sent</summary>
+                    <Hint>
+                      “{log.latest.snapshot.title}” from “{log.latest.snapshot.senderName}”
+                    </Hint>
+                    {log.latest.snapshot.description && <p className={styles.description}>{log.latest.snapshot.description}</p>}
+                    {log.latest.snapshot.links.map((l, i) => (
+                      <Hint key={i}>
+                        {l.label}: {l.url}
+                      </Hint>
+                    ))}
+                  </details>
+                )}
                 <Table
                   columns={["Recipient", "Channel", "Status", "Sent", "Note"]}
                   rows={log.rows.map((d) => ({
@@ -196,11 +211,12 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                   <details className={styles.more}>
                     <summary className={styles.moreToggle}>Earlier occurrences ({log.history.length})</summary>
                     <Table
-                      columns={["Occurrence", "Result"]}
+                      columns={["Occurrence", "Sent as", "Result"]}
                       rows={log.history.map((o) => ({
                         key: o.id,
                         cells: [
                           formatInZone(o.occursAt, tz),
+                          o.snapshot?.title ?? "—",
                           o.status === "missed" || o.status === "skipped" ? (
                             <Muted key="r">{OCCURRENCE_NOTE[o.status]}</Muted>
                           ) : (
@@ -260,7 +276,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
               </Section>
             )}
 
-            {(seeAs === "full" || mayChange) && (
+            {(seeAs === "full" || mayDelete) && (
               <Section title="Actions">
                 {seeAs === "full" && (
                   <form action={sendTestAction}>
@@ -295,6 +311,13 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                     <input type="hidden" name="id" value={r.id} />
                     <Button variant="secondary">{r.recurrence ? "Cancel the whole series" : "Cancel reminder"}</Button>
                   </form>
+                )}
+                {mayDelete && (
+                  <Form action={deleteReminderAction}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <Checkbox label="Delete it for everyone, with its delivery log and comments. This can’t be undone." required />
+                    <Button variant="danger">Delete reminder</Button>
+                  </Form>
                 )}
               </Section>
             )}

@@ -87,7 +87,13 @@ test("deliver: one email even when claimed twice; retries then fails", async () 
   assert.deepEqual(told.map((t) => t.user_id).sort(), [creator, admin].sort());
 
   assert.deepEqual((await q("select status from reminders where id = $1", [reminderId]))[0], { status: "sending" });
-  assert.equal(await deliverOne(third.id), "sent");
+  // Edited after dispatch: this occurrence still sends what it recorded.
+  await q("update reminders set title = 'Edited' where id = $1", [reminderId]);
+  let subject = "";
+  assert.equal(await deliverOne(third.id, (async (m: { subject: string }) => void (subject = m.subject)) as never), "sent");
+  assert.match(subject, /Fire drill/);
+  assert.deepEqual(await q("select snapshot->>'title' as t, snapshot->>'senderName' as s from reminder_occurrences where reminder_id = $1", [reminderId]), [{ t: "Fire drill", s: "HR" }]);
+  await q("update reminders set title = 'Fire drill' where id = $1", [reminderId]);
   // Nothing in flight any more: the reminder is done.
   assert.deepEqual((await q("select status from reminders where id = $1", [reminderId]))[0], { status: "sent" });
   assert.deepEqual(await q("select status from reminder_occurrences where reminder_id = $1", [reminderId]), [{ status: "sent" }]);
