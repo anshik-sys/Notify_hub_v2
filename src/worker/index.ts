@@ -5,7 +5,7 @@ import { checkEnvironment } from "@/lib/env-check";
 import { ownerDb, ownerUrl } from "./db";
 import { claimDigests, digestOne } from "./digest";
 import { runRetention } from "./retention";
-import { volumeAlerts } from "./volume-alert";
+import { upcomingVolumeAlerts, volumeAlerts } from "./volume-alert";
 import { escalateOverdue } from "./escalation";
 import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, dispatchManual, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
@@ -78,9 +78,12 @@ await boss.work<{ companyId: string }>("digest", async ([job]) => {
 await boss.schedule("retention", "0 3 * * *");
 await boss.work("retention", async () => runRetention());
 
-// Platform volume alert, hourly (PRD 9.2).
+// Platform volume alerts, hourly (PRD 9.2): the last 24 hours, and the next 7 days (PRD 6).
 await boss.schedule("volume", "5 * * * *");
-await boss.work("volume", async () => void (await volumeAlerts()));
+await boss.work("volume", async () => {
+  await volumeAlerts();
+  await upcomingVolumeAlerts();
+});
 
 await boss.schedule("tick", "* * * * *");
 // /api/health reports the worker down if this is older than 3 minutes.

@@ -2,6 +2,32 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-19 — volume alert looks ahead (PRD 6)
+
+- Audit item #9. The PRD wants a warning when any **upcoming** day has more
+  scheduled emails than the threshold; the old alert only counted the last
+  24 hours, i.e. after the flood. Spec: `docs/expected-behaviour.md`
+  section 7 (V1–V14), approved by the user before building.
+- `upcomingVolumeAlerts` (hourly, after `volumeAlerts`): for each
+  unsuspended company, its next 7 local days. Every scheduled, undeleted
+  email reminder counts each occurrence in the window (repeating ones via
+  `between`, minus ones already recorded, e.g. skipped) times its
+  recipients as of now (`resolveRecipients`, minus unsubscribed outside
+  addresses). Days over the threshold are claimed in `platform_alerts`
+  (new `kind` column: `sent` / `upcoming`, migration 0039; reordered by hand
+  because drizzle-kit added the primary key before the column). One email
+  per company lists the newly busy days with the top 3 reminders each.
+- **Kept the past-24-hours alert:** it catches "Send now" floods that were
+  never scheduled ahead.
+- **Estimates, not promises:** recipients are counted as of now, so people
+  joining a department later aren't in it. Days are company-local.
+- **Ceiling:** every scheduled reminder is expanded in memory each hour.
+  Fine for hundreds of companies; cache recipient counts if it gets slow.
+- **Verified so far:** my own test (exactly the threshold doesn't alert;
+  one more recipient alerts with the top reminder named; a second run
+  doesn't repeat). Typecheck, lint. The independent spec tests (V1–V14) are
+  still being written; results go in the next entry.
+
 ## 2026-10-19 — "only the next one" waiting for approval no longer loses that date
 
 - Found while writing the spec tests. When "only the next one" needed

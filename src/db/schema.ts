@@ -810,6 +810,9 @@ export const platformAlerts = pgTable(
       .notNull()
       .references(() => companies.id, { onDelete: "cascade" }),
     onDate: date().notNull(),
+    // "sent": the last 24 hours were over the threshold (on_date = the day
+    // it was noticed). "upcoming": on_date is a scheduled day over it.
+    kind: text().$type<"sent" | "upcoming">().notNull().default("sent"),
   },
-  (t) => [primaryKey({ columns: [t.companyId, t.onDate] })],
+  (t) => [primaryKey({ columns: [t.companyId, t.onDate, t.kind] })],
 );

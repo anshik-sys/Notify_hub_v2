@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { seeder } from "@/lib/test-helpers";
 import { ownerDb } from "./db";
 import { dispatchDue } from "./delivery";
-import { volumeAlerts } from "./volume-alert";
+import { upcomingVolumeAlerts, volumeAlerts } from "./volume-alert";
 
 const s = seeder();
 let alice: string, reminderId: string, occ: string;
@@ -51,4 +51,22 @@ test("volume alert: once per company per day, only over the threshold", async ()
   assert.deepEqual(sent.sort(), ["owner1@platform.test", "owner2@platform.test"]);
   assert.equal(await volumeAlerts(send, s.companyId), 0); // already alerted today
   assert.equal(sent.length, 2);
+});
+
+test("upcoming: a scheduled day over the threshold alerts once", async () => {
+  const bob = await s.user();
+  const [{ id }] = await q(
+    `insert into reminders (company_id, short_id, created_by, title, sender_name, send_at, status, time_zone, anchor_local)
+     values ($1, $2, $3, 'Big send', 'S', now() + interval '2 days', 'scheduled', 'UTC', '2030-01-01T00:00') returning id`,
+    [s.companyId, `R-${Math.random().toString(36).slice(2, 8).toUpperCase()}`, alice],
+  );
+  await q("insert into reminder_targets values ($1, $2, 'user', $3, null), ($1, $2, 'user', $4, null)", [id, s.companyId, alice, bob]);
+  await q("insert into platform_settings (id, daily_volume_alert) values (1, 2) on conflict (id) do update set daily_volume_alert = 2");
+  const sent: string[] = [];
+  const capture = (async (m: { text: string }) => void sent.push(m.text)) as never;
+  assert.equal(await upcomingVolumeAlerts(new Date(), s.companyId, capture), 0); // 2 emails that day: not over 2
+  await q("insert into reminder_targets values ($1, $2, 'email', 'out@else.test', null)", [id, s.companyId]);
+  assert.equal(await upcomingVolumeAlerts(new Date(), s.companyId, capture), 1);
+  assert.match(sent.join(), /about 3 emails[\s\S]*Big send: 3/);
+  assert.equal(await upcomingVolumeAlerts(new Date(), s.companyId, capture), 0);
 });

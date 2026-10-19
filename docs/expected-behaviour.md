@@ -1,4 +1,4 @@
-# Expected behaviour: v1 gap items #4, #5, #7, #8
+# Expected behaviour: v1 gap items #4, #5, #7, #8, #9
 
 What each feature should do, written from the PRD and the product owner's
 decisions, **not** from the code. Behaviour tests are written from this file,
@@ -156,6 +156,47 @@ if the person has no manager; once per person per occurrence.
 | SD6 | The reminder was deleted | Refused | Hidden everywhere | PASS |
 
 ---
+
+## 7. Volume alert looks ahead (#9, PRD 6)
+
+PRD 6: "the platform owner is warned when any upcoming day has more than a set
+number of scheduled emails". The threshold is the existing platform setting
+(Platform → Settings, "daily volume alert"); blank = no alerts.
+
+Rules marked **(proposed)** are mine; confirm or change them before building.
+
+| Function | What it does |
+|---|---|
+| Worker `upcomingVolumeAlerts(now?, onlyCompany?, send?)` (new, runs hourly with the existing alert) | For each company, estimates the emails each of the next 7 days will send and emails the platform owners about days over the threshold. |
+| Worker `volumeAlerts` (exists) | Keeps warning about the last 24 hours (a "Send now" flood that was never scheduled ahead). **(proposed: keep both)** |
+
+How "emails on a day" is estimated:
+
+- Every scheduled reminder that sends by email, counting each occurrence that
+  day (repeating ones by their rule, one-time ones by their send time).
+- Each occurrence counts **one email per recipient as of now**: people in the
+  departments, groups and company it targets (active ones only), plus typed
+  outside addresses that haven't unsubscribed.
+- "A day" is the company's own calendar day, in its time zone. **(proposed)**
+- Slack is not counted (it isn't email). Paused, waiting for approval,
+  cancelled, deleted and already-sent reminders are not counted.
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| V1 | Threshold blank | No look-ahead alerts at all | Existing setting | |
+| V2 | A company has a one-time reminder in 3 days to more people than the threshold | Platform owners get one email naming the company, the day and the estimated count | PRD 6 | |
+| V3 | Several reminders on the same day add up to more than the threshold, though none does alone | Alerted (it's the day's total) | PRD 6 "a day has more than" | |
+| V4 | A daily repeating reminder whose single send is under the threshold, but two send on the same day (e.g. daily plus a one-time) | Counted per occurrence per day, so the total decides | | |
+| V5 | Exactly the threshold | Not alerted (must be more than) | PRD 6 | |
+| V6 | The busy day is 8 or more days away | Not alerted yet; it is once it comes within 7 days **(proposed window: 7 days)** | | |
+| V7 | The alert runs again the next hour, or the next day, for the same busy day | Not repeated: one alert per company per busy day **(proposed)** | No spam | |
+| V8 | A second busy day for the same company | Its own alert (it's a different day) | | |
+| V9 | Only Slack, or paused / waiting for approval / deleted reminders | Not counted | | |
+| V10 | Recipients: deactivated people and unsubscribed outside addresses | Not counted | Same rule as sending | |
+| V11 | Company suspended | Not counted (it sends nothing) | PRD 9.2 | |
+| V12 | Another company's volume | Never added to this company's count; each company alerted separately | Tenancy | |
+| V13 | The email | Lists each busy day with its estimate and the top 3 reminders by volume that day (title, recipients), with a link to the platform console | Actionable alert **(proposed)** | |
+| V14 | The past-24-hours alert | Still works as before | Keep both | |
 
 ## Open questions found while testing
 
