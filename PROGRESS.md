@@ -25,8 +25,17 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   Fine for hundreds of companies; cache recipient counts if it gets slow.
 - **Verified so far:** my own test (exactly the threshold doesn't alert;
   one more recipient alerts with the top reminder named; a second run
-  doesn't repeat). Typecheck, lint. The independent spec tests (V1–V14) are
-  still being written; results go in the next entry.
+  doesn't repeat). Typecheck, lint. **Independent spec tests**
+  (`src/worker/spec-volume.test.ts`, written from the spec without reading
+  the code): V1–V14 all pass. Not seen as a real email in Mailpit (needs
+  `PLATFORM_OWNER_EMAILS` and the worker running).
+- **A flaky clash, fixed in the tests:** the spec tests and my own test both
+  change the one global `platform_settings` row, and node's test runner runs
+  files in parallel, so my test saw the other file's threshold (it passed
+  alone, failed in the full run). `lockPlatformSettings()` in
+  `src/lib/test-helpers.ts` is an advisory lock that every test file
+  changing that row now holds (also `platform.test.ts`). The full suite
+  passed 3 runs in a row afterwards (259 pass, 2 skipped).
 
 ## 2026-10-19 — "only the next one" waiting for approval no longer loses that date
 

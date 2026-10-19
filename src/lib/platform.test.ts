@@ -19,7 +19,7 @@ import {
   setSuspended,
   setVolumeAlert,
 } from "./platform";
-import { seeder } from "./test-helpers";
+import { lockPlatformSettings, seeder } from "./test-helpers";
 
 const s = seeder();
 let alice: string;
@@ -101,6 +101,7 @@ test("create, suspend, delete only when empty", async () => {
 });
 
 test("settings: volume alert and the Member role", async () => {
+  const release = await lockPlatformSettings();
   const before = await platformSettingsRow();
   try {
     assert.match((await setVolumeAlert(0))!, /whole number/);
@@ -111,6 +112,7 @@ test("settings: volume alert and the Member role", async () => {
   } finally {
     await setVolumeAlert(before.dailyVolumeAlert);
     await setMemberPermissions(before.memberPermissions);
+    await release();
   }
   assert.deepEqual((await platformSettingsRow()).memberPermissions.sort(), before.memberPermissions.sort());
 });

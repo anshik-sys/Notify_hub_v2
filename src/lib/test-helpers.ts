@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Pool } from "pg";
+import { Client, Pool } from "pg";
 
 // Seeds through the table owner (bypasses RLS). Every test file makes its own
 // company with a random domain and calls cleanup() in after().
@@ -36,4 +36,14 @@ export function seeder() {
       await owner.end();
     },
   };
+}
+
+// platform_settings is one global row. Test files run in parallel, so any
+// that change it hold this lock meanwhile; the returned function releases it
+// (ending the session drops the advisory lock).
+export async function lockPlatformSettings() {
+  const c = new Client({ connectionString: process.env.OWNER_DATABASE_URL });
+  await c.connect();
+  await c.query("select pg_advisory_lock(hashtext('test:platform_settings'))");
+  return () => c.end();
 }

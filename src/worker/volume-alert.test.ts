@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { seeder } from "@/lib/test-helpers";
+import { lockPlatformSettings, seeder } from "@/lib/test-helpers";
 import { ownerDb } from "./db";
 import { dispatchDue } from "./delivery";
 import { upcomingVolumeAlerts, volumeAlerts } from "./volume-alert";
@@ -9,8 +9,10 @@ const s = seeder();
 let alice: string, reminderId: string, occ: string;
 const q = async (sql: string, params: unknown[] = []) => (await s.owner.query(sql, params)).rows;
 let saved: number | null = null;
+let release: () => Promise<void>;
 
 before(async () => {
+  release = await lockPlatformSettings();
   await s.company();
   alice = await s.user();
   [{ id: reminderId }] = await q(
@@ -24,6 +26,7 @@ before(async () => {
 });
 after(async () => {
   await q("update platform_settings set daily_volume_alert = $1 where id = 1", [saved]);
+  await release();
   await q("delete from platform_alerts where company_id = $1", [s.companyId]);
   await s.cleanup();
   await ownerDb.$client.end();

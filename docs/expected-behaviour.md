@@ -7,7 +7,8 @@ failing test means either the code or this file is wrong, and we decide which.
 
 Status column: results of the spec tests, 2026-10-19. The tests are
 `src/lib/spec-delete-snapshot.test.ts`, `src/lib/spec-people.test.ts`,
-`src/lib/spec-only-next.test.ts` and `src/worker/spec-escalation.test.ts`,
+`src/lib/spec-only-next.test.ts`, `src/worker/spec-escalation.test.ts` and
+`src/worker/spec-volume.test.ts`,
 written from this file by testers who didn't read the implementation.
 
 Who's who in the cases:
@@ -183,21 +184,20 @@ How "emails on a day" is estimated:
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| V1 | Threshold blank | No look-ahead alerts at all | Existing setting | |
-| V2 | A company has a one-time reminder in 3 days to more people than the threshold | Platform owners get one email naming the company, the day and the estimated count | PRD 6 | |
-| V3 | Several reminders on the same day add up to more than the threshold, though none does alone | Alerted (it's the day's total) | PRD 6 "a day has more than" | |
-| V4 | A daily repeating reminder whose single send is under the threshold, but two send on the same day (e.g. daily plus a one-time) | Counted per occurrence per day, so the total decides | | |
-| V5 | Exactly the threshold | Not alerted (must be more than) | PRD 6 | |
-| V6 | The busy day is 8 or more days away | Not alerted yet; it is once it comes within 7 days **(proposed window: 7 days)** | | |
-| V7 | The alert runs again the next hour, or the next day, for the same busy day | Not repeated: one alert per company per busy day **(proposed)** | No spam | |
-| V8 | A second busy day for the same company | Its own alert (it's a different day) | | |
-| V9 | Only Slack, or paused / waiting for approval / deleted reminders | Not counted | | |
-| V10 | Recipients: deactivated people and unsubscribed outside addresses | Not counted | Same rule as sending | |
-| V11 | Company suspended | Not counted (it sends nothing) | PRD 9.2 | |
-| V12 | Another company's volume | Never added to this company's count; each company alerted separately | Tenancy | |
-| V13 | The email | Lists each busy day with its estimate and the top 3 reminders by volume that day (title, recipients), with a link to the platform console | Actionable alert **(proposed)** | |
-| V14 | The past-24-hours alert | Still works as before | Keep both | |
-
+| V1 | Threshold blank | No look-ahead alerts at all | Existing setting | PASS |
+| V2 | A company has a one-time reminder in 3 days to more people than the threshold | Platform owners get one email naming the company, the day and the estimated count | PRD 6 | PASS |
+| V3 | Several reminders on the same day add up to more than the threshold, though none does alone | Alerted (it's the day's total) | PRD 6 "a day has more than" | PASS |
+| V4 | A daily repeating reminder whose single send is under the threshold, but two send on the same day (e.g. daily plus a one-time) | Counted per occurrence per day, so the total decides | | PASS |
+| V5 | Exactly the threshold | Not alerted (must be more than) | PRD 6 | PASS |
+| V6 | The busy day is 8 or more days away | Not alerted yet; it is once it comes within 7 days **(proposed window: 7 days)** | | PASS |
+| V7 | The alert runs again the next hour, or the next day, for the same busy day | Not repeated: one alert per company per busy day **(proposed)** | No spam | PASS |
+| V8 | A second busy day for the same company | Its own alert (it's a different day) | | PASS |
+| V9 | Only Slack, or paused / waiting for approval / deleted reminders | Not counted | | PASS |
+| V10 | Recipients: deactivated people and unsubscribed outside addresses | Not counted | Same rule as sending | PASS |
+| V11 | Company suspended | Not counted (it sends nothing) | PRD 9.2 | PASS |
+| V12 | Another company's volume | Never added to this company's count; each company alerted separately | Tenancy | PASS |
+| V13 | The email | Lists each busy day with its estimate and the top 3 reminders by volume that day (title, recipients), with a link to the platform console | Actionable alert **(proposed)** | PASS |
+| V14 | The past-24-hours alert | Still works as before | Keep both | PASS |
 ## Open questions found while testing
 
 - ~~**T7a/T7c:** when the copy needs approval, the series still skips that date
