@@ -1,4 +1,4 @@
-// Behaviour tests for docs/expected-behaviour.md section 4 (T1–T10, change
+// Behaviour tests for docs/expected-behaviour.md section 4 (T1–T14, change
 // only the next occurrence), written from the spec, not the code.
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
@@ -25,6 +25,7 @@ import { toLocalInput } from "./time";
 
 const s = seeder();
 const w = seeder(); // a company of its own for the worker run (T3)
+const extra: ReturnType<typeof seeder>[] = []; // one company per worker run in T11–T14
 let admin: string, alice: string, bob: string, carol: string, editor: string;
 let ops: string, sales: string;
 const TZ = "UTC";
@@ -114,6 +115,7 @@ before(async () => {
   sales = await dept("Sales", [[carol, false]]);
 });
 after(async () => {
+  for (const e of extra) await e.cleanup();
   await w.cleanup();
   await s.cleanup();
   await ownerDb.$client.end();
@@ -233,13 +235,16 @@ test("T6: a member who can't change the series is refused ('not found')", async 
   assert.deepEqual(await occurrences(series), []);
 });
 
-test("T7a: a copy with recipients outside the creator's scope needs approval; approvers notified", async () => {
+test("T7a: a copy with recipients outside the creator's scope needs approval; approvers notified; the series doesn't skip yet", async () => {
   const series = await makeSeries(alice, { departmentIds: [ops] });
-  assert.equal((await getReminder(s.companyId, series))!.status, "scheduled");
+  const before = (await getReminder(s.companyId, series))!;
+  assert.equal(before.status, "scheduled");
   const res = await detach(alice, series, copyInput({ departmentIds: [sales] }));
   assert.ok("id" in res, JSON.stringify(res));
   assert.equal((await getReminder(s.companyId, res.id))!.status, "pending_approval");
   assert.ok((await approvalsFor(res.id)).includes(admin), "the approver (admin) is notified");
+  assert.equal((await getReminder(s.companyId, series))!.sendAt.getTime(), before.sendAt.getTime(), "series' next date unchanged");
+  assert.deepEqual(await occurrences(series), [], "series: that date not skipped yet");
 });
 
 test("T7b: the series was approved for those recipients: the copy is scheduled, no new approval", async () => {
@@ -294,4 +299,111 @@ test("T10: an input with a repeat rule is refused", async () => {
   assert.equal(await reminderCount(), count);
   assert.equal((await getReminder(s.companyId, series))!.sendAt.getTime(), before.sendAt.getTime());
   assert.deepEqual(await occurrences(series), []);
+});
+
+// T11–T14: a member's series to her own department; the copy goes to another
+// department, so it waits for approval. Each run in a company of its own so
+// dispatchDue only sees these two reminders.
+const pendingCopySetup = async () => {
+  const c = seeder();
+  extra.push(c);
+  await c.company();
+  const cAdmin = await c.user({ roles: [COMPANY_ADMIN_ROLE_ID] });
+  const member = await c.user({ roles: [MEMBER_ROLE_ID] });
+  const other = await c.user({ roles: [MEMBER_ROLE_ID] });
+  const cq = async (sql: string, params: unknown[] = []) => (await c.owner.query(sql, params)).rows;
+  const dept = async (name: string, u: string) => {
+    const [{ id }] = await cq("insert into departments (company_id, name) values ($1, $2) returning id", [c.companyId, name]);
+    await cq("insert into department_members values ($1, $2, $3, false)", [c.companyId, id, u]);
+    return id as string;
+  };
+  const mine = await dept("Mine", member);
+  const theirs = await dept("Theirs", other);
+  const adminActor = await actor(c.companyId, cAdmin);
+  const memberActor = await actor(c.companyId, member);
+  const made = await createReminder(memberActor, c.companyId, input({ departmentIds: [mine] }));
+  assert.ok("id" in made, JSON.stringify(made));
+  const series = made.id;
+  const seriesAt = (await getReminder(c.companyId, series))!.sendAt;
+  assert.equal(seriesAt.toISOString(), `${tomorrow}T09:00:00.000Z`);
+  const copy = await detachOccurrence(memberActor, c.companyId, series, copyInput({ departmentIds: [theirs] }));
+  assert.ok("id" in copy, JSON.stringify(copy));
+  assert.equal((await getReminder(c.companyId, copy.id))!.status, "pending_approval", "setup: the copy waits for approval");
+  const enqueued: string[] = [];
+  const enqueue = async (ids: string[]) => void enqueued.push(...ids);
+  const pastIt = new Date(`${tomorrow}T10:00:30Z`); // past 09:00 (series date) and 10:00 (copy)
+  const tick = () => dispatchDue(enqueue, c.companyId, pastIt);
+  const occ = async (id: string) =>
+    (await cq("select occurs_at, status from reminder_occurrences where reminder_id = $1 order by occurs_at", [id])).map((o) => [
+      (o.occurs_at as Date).toISOString(),
+      o.status as string,
+    ]);
+  const deliveries = async (id: string) => (await cq("select 1 from deliveries where reminder_id = $1", [id])).length;
+  return { c, adminActor, memberActor, series, seriesAt, copyId: copy.id, enqueued, tick, occ, deliveries };
+};
+const sentNormally = async (t: Awaited<ReturnType<typeof pendingCopySetup>>, label: string) => {
+  const occ = await t.occ(t.series);
+  assert.equal(occ.length, 1, `${label}: series has one occurrence for that date (${JSON.stringify(occ)})`);
+  assert.equal(occ[0][0], t.seriesAt.toISOString(), `${label}: on that date`);
+  assert.notEqual(occ[0][1], "skipped", `${label}: series not skipped (${occ[0][1]})`);
+  assert.equal(await t.deliveries(t.series), 1, `${label}: series delivered to its recipient`);
+};
+
+test("T11: copy approved before the date: the series sends nothing that date; the copy sends once", async () => {
+  const t = await pendingCopySetup();
+  assert.equal(await decideReminder(t.adminActor, t.c.companyId, t.copyId, true), null);
+  assert.equal((await getReminder(t.c.companyId, t.copyId))!.status, "scheduled");
+  await t.tick();
+  await t.tick();
+  assert.deepEqual(await t.occ(t.series), [[t.seriesAt.toISOString(), "skipped"]], "series: only the skipped record for that date");
+  assert.equal(await t.deliveries(t.series), 0, "series delivered nothing");
+  assert.equal((await t.occ(t.copyId)).length, 1, "copy: one occurrence");
+  assert.equal(await t.deliveries(t.copyId), 1, "copy: one delivery");
+  assert.equal(t.enqueued.length, 1, "one send enqueued in total");
+});
+
+test("T12: copy still waiting for approval when the date arrives: the series sends as usual; the copy doesn't", async () => {
+  const t = await pendingCopySetup();
+  await t.tick();
+  await sentNormally(t, "T12");
+  assert.deepEqual(await t.occ(t.copyId), [], "copy: no occurrence");
+  assert.equal(await t.deliveries(t.copyId), 0, "copy: nothing delivered");
+  assert.equal((await getReminder(t.c.companyId, t.copyId))!.status, "pending_approval", "copy still waiting");
+});
+
+test("T13: copy rejected, cancelled or deleted before the date: the series sends as usual", async (tt) => {
+  await tt.test("rejected", async () => {
+    const t = await pendingCopySetup();
+    assert.equal(await decideReminder(t.adminActor, t.c.companyId, t.copyId, false, "Not this time"), null);
+    await t.tick();
+    await sentNormally(t, "rejected");
+    assert.equal(await t.deliveries(t.copyId), 0, "rejected copy sends nothing");
+  });
+  await tt.test("cancelled", async () => {
+    const t = await pendingCopySetup();
+    assert.equal(await cancelReminder(t.memberActor, t.c.companyId, t.copyId), null);
+    await t.tick();
+    await sentNormally(t, "cancelled");
+    assert.equal(await t.deliveries(t.copyId), 0, "cancelled copy sends nothing");
+  });
+  await tt.test("deleted", async () => {
+    const t = await pendingCopySetup();
+    assert.equal(await deleteReminder(t.memberActor, t.c.companyId, t.copyId), null);
+    await t.tick();
+    await sentNormally(t, "deleted");
+    assert.equal(await t.deliveries(t.copyId), 0, "deleted copy sends nothing");
+  });
+});
+
+test("T14: copy approved after the series already sent that date: the copy is sent too; the series' send stays", async () => {
+  const t = await pendingCopySetup();
+  await t.tick();
+  await sentNormally(t, "before approval");
+  assert.equal(t.enqueued.length, 1, "series' send enqueued");
+  assert.equal(await decideReminder(t.adminActor, t.c.companyId, t.copyId, true), null);
+  await t.tick();
+  await sentNormally(t, "after approval"); // not undone, not turned into a skip
+  assert.equal((await t.occ(t.copyId)).length, 1, "copy: one occurrence");
+  assert.equal(await t.deliveries(t.copyId), 1, "copy: one delivery");
+  assert.equal(t.enqueued.length, 2, "copy's send enqueued");
 });

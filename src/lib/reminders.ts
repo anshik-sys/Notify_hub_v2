@@ -458,7 +458,7 @@ async function insertReminder(
   tx: Tx,
   companyId: string,
   actorId: string,
-  input: ReminderInput & Pick<typeof reminders.$inferInsert, "createdBy" | "status" | "decidedBy" | "decidedAt">,
+  input: ReminderInput & Pick<typeof reminders.$inferInsert, "createdBy" | "status" | "decidedBy" | "decidedAt" | "replacesSeriesId" | "replacesOccursAt">,
   files: CheckedFile[],
 ) {
   const { targets, shares, ...fields } = input;
@@ -557,7 +557,8 @@ export async function updateReminder(
 
 // PRD 5.6 "this occurrence": a scheduled series' next occurrence becomes its
 // own one-time reminder, and the series records that date as skipped and
-// moves on. The copy keeps the series' creator, so the same people see and
+// moves on (if the copy needs approval, only once it's approved; see
+// dispatchDue). The copy keeps the series' creator, so the same people see and
 // change it; files not removed in the form are copied. Approval works as an
 // edit of the series would: creator and editor are both checked, and a series
 // approved for these recipients (or more) passes the approval on.
@@ -602,15 +603,27 @@ export async function detachOccurrence(
         tx,
         companyId,
         actor.id,
-        { ...input, createdBy: series.createdBy, status, ...(status === "scheduled" && passOn ? { decidedBy: series.decidedBy, decidedAt: series.decidedAt } : {}) },
+        {
+          ...input,
+          createdBy: series.createdBy,
+          status,
+          replacesSeriesId: id,
+          replacesOccursAt: series.sendAt,
+          ...(status === "scheduled" && passOn ? { decidedBy: series.decidedBy, decidedAt: series.decidedAt } : {}),
+        },
         [...copies, ...files],
       );
-      await tx
-        .insert(reminderOccurrences)
-        .values({ companyId, reminderId: id, occursAt: series.sendAt, status: "skipped" })
-        .onConflictDoNothing();
-      const next = nextAfter(series.recurrence, series.anchorLocal, series.timeZone, series.sendAt);
-      await tx.update(reminders).set(next ? { sendAt: next } : { status: "sent" }).where(eq(reminders.id, id));
+      // Waiting for approval: the series keeps that date for now. The worker
+      // skips it on the day only if the copy has been approved by then
+      // (decided 2026-10-19), so an unapproved change never loses a send.
+      if (status === "scheduled") {
+        await tx
+          .insert(reminderOccurrences)
+          .values({ companyId, reminderId: id, occursAt: series.sendAt, status: "skipped" })
+          .onConflictDoNothing();
+        const next = nextAfter(series.recurrence, series.anchorLocal, series.timeZone, series.sendAt);
+        await tx.update(reminders).set(next ? { sendAt: next } : { status: "sent" }).where(eq(reminders.id, id));
+      }
       return { id: newId, approvers: status === "pending_approval" ? await approversToTell(tx, companyId, newId) : [] };
     }),
   );

@@ -1,5 +1,5 @@
 import { isNull, sql } from "drizzle-orm";
-import { bigint, bigserial, boolean, check, customType, date, index, integer, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { type AnyPgColumn, bigint, bigserial, boolean, check, customType, date, index, integer, jsonb, pgPolicy, pgRole, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // Tenant isolation: every tenant table carries company_id and a policy that
 // only matches rows of the company set by withTenant(). Unset => no rows.
@@ -320,6 +320,10 @@ export const reminders = pgTable(
     // Soft delete: hidden everywhere (lists, page, tasks, notifications) and
     // also cancelled; retention purges it with the other finished reminders.
     deletedAt: ts(),
+    // "Only the next one" (detachOccurrence): the series and date this copy
+    // replaces. The series skips that date once the copy is approved.
+    replacesSeriesId: uuid().references((): AnyPgColumn => reminders.id, { onDelete: "set null" }),
+    replacesOccursAt: ts(),
     createdAt: ts().notNull().defaultNow(),
     updatedAt: ts()
       .notNull()

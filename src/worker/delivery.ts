@@ -33,7 +33,7 @@ const STUCK_AFTER_MS = 10 * 60_000;
 type Reminder = typeof reminders.$inferSelect;
 type Tx = Parameters<Parameters<typeof ownerDb.transaction>[0]>[0];
 
-function occurrenceRow(r: Reminder, occursAt: Date, status: "sending" | "missed") {
+function occurrenceRow(r: Reminder, occursAt: Date, status: "sending" | "missed" | "skipped") {
   return {
     companyId: r.companyId,
     reminderId: r.id,
@@ -179,8 +179,25 @@ export async function dispatchDue(
           .insert(reminderOccurrences)
           .values(missed.map((at) => occurrenceRow(r, at, "missed")))
           .onConflictDoNothing();
+      // "Only the next one" replaced this date (detachOccurrence) and was
+      // approved after it was made: the copy sends instead. Still waiting,
+      // rejected or deleted: the series sends as usual.
+      const [replaced] = await tx
+        .select({ id: reminders.id })
+        .from(reminders)
+        .where(
+          and(
+            eq(reminders.replacesSeriesId, r.id),
+            eq(reminders.replacesOccursAt, toSend),
+            inArray(reminders.status, ["scheduled", "sending", "sent"]),
+            sql`${reminders.deletedAt} is null`,
+          ),
+        )
+        .limit(1);
+      if (replaced)
+        await tx.insert(reminderOccurrences).values(occurrenceRow(r, toSend, "skipped")).onConflictDoNothing();
       // null = this occurrence already exists (the user skipped it): nothing sent.
-      const deliveryIds = (await createOccurrence(tx, r, toSend)) ?? [];
+      const deliveryIds = replaced ? [] : ((await createOccurrence(tx, r, toSend)) ?? []);
 
       // A series with more to come stays scheduled at its next occurrence;
       // otherwise the reminder finishes once this occurrence's sends are done.

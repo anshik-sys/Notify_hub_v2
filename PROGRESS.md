@@ -2,6 +2,32 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-19 — "only the next one" waiting for approval no longer loses that date
+
+- Found while writing the spec tests. When "only the next one" needed
+  approval, the series skipped that date at once. If nobody approved in
+  time, nobody got anything that day, not even the original recipients. The
+  user picked option (b): the series skips that date only once the copy is
+  approved.
+- **How:** the copy records what it replaces (`reminders.replaces_series_id`,
+  `replaces_occurs_at`, migration 0038). A copy that needs no approval still
+  skips at once (T1/T2 unchanged). One waiting for approval leaves the
+  series alone; on the day, `dispatchDue` records the date as skipped
+  instead of sending only if the copy is scheduled, sending or sent and not
+  deleted. Still waiting, rejected, cancelled or deleted → the series sends.
+- **Rejected:** skipping at approval time (in `decideReminder`). Approval
+  also happens through an approver's edit and group re-checks, so there are
+  three places to keep in step. The dispatch check is one place and is also
+  right if the copy is cancelled after approval.
+- **Accepted consequence (T14):** approved after the series already sent
+  that date → the copy goes out too (its time has passed, PRD 5.9), so those
+  recipients get both. The series' "Next:" shows that date until the day,
+  while the copy waits.
+- **Verified:** spec cases T7a (changed) and T11–T14 (new), written by an
+  independent tester from `docs/expected-behaviour.md`; T7a, T12, T13 and
+  T14 fail against the old code and pass now. 246 tests (244 pass, 2
+  skipped: D11, P8). Typecheck, lint. Not clicked through in the browser.
+
 ## 2026-10-19 — behaviour spec and spec tests for #4, #5, #7, #8
 
 - The user asked for tests that check expected behaviour, not tests written

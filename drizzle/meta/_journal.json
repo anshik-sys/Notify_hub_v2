@@ -267,6 +267,13 @@
       "when": 1792406278588,
       "tag": "0037_escalated_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792411987170,
+      "tag": "0038_detached_copy_link",
+      "breakpoints": true
     }
   ]
 }

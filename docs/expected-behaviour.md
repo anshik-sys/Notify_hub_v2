@@ -104,13 +104,16 @@ functions enforce "not someone above you" and company boundaries.
 | T4 | Attachments | Files not removed are copied to the new one; removed ones aren't copied but stay on the series; newly uploaded files go on the new one only | | PASS |
 | T5 | Series is paused, pending approval, cancelled, deleted, or a one-time reminder | Refused | Decision: scheduled series only | PASS |
 | T6 | A member who can't change the series tries | Refused ("not found") | PRD 5.6 | PASS |
-| T7a | Copy has recipients outside the creator's scope | Needs approval; approvers notified | PRD 5.9 | PASS |
+| T7a | Copy has recipients outside the creator's scope | Needs approval; approvers notified; the series does **not** skip that date yet | PRD 5.9; decision 2026-10-19 (b) | PASS |
 | T7b | Series was approved for those same recipients | Copy is scheduled, no new approval | PRD 5.9 "approval covers the series" | PASS |
 | T7c | Copy adds a NEW out-of-scope recipient | Needs approval | PRD 5.9 | PASS |
 | T8 | An editor without approve sends an admin's series' copy to the whole company | Needs approval | Same rule as editing | PASS |
 | T9 | The next occurrence was the series' last | The series ends after the copy is made | | PASS |
 | T10 | The input has a repeat rule | Refused | It's one occurrence | PASS |
-
+| T11 | Copy needs approval and is approved before that date | On the date the series sends nothing; the copy sends once | Decision 2026-10-19 (b) | PASS |
+| T12 | Copy is still waiting for approval when the date arrives | The series sends as usual; the copy doesn't | Decision 2026-10-19 (b) | PASS |
+| T13 | Copy is rejected, cancelled or deleted before the date | The series sends as usual on that date | Decision 2026-10-19 (b) | PASS |
+| T14 | Copy is approved after the series already sent that date | The copy is sent on approval too (its send time has passed, PRD 5.9); the series' send isn't undone | Consequence of (b) | PASS |
 ## 5. Overdue escalation (#8, PRD 5.8)
 
 Decided 2026-10-19: N is a company setting; managers are told, or the creator
@@ -156,9 +159,9 @@ if the person has no manager; once per person per occurrence.
 
 ## Open questions found while testing
 
-- **T7a/T7c:** when the copy needs approval, the series still skips that date
-  straight away. If nobody approves before then, that date sends nothing. Not
-  specified; decide whether that's right.
+- ~~**T7a/T7c:** when the copy needs approval, the series still skips that date
+  straight away.~~ Decided 2026-10-19, option (b): the series skips that date
+  only once the copy is approved (T11–T14).
 
 ## Not covered here
 
