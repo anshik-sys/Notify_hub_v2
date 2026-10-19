@@ -2,6 +2,43 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-19 — repeating reminders: change only the next one
+
+- Audit item #7 (v1), PRD 5.6: a recurring reminder is edited for "this
+  occurrence" or "this and all future occurrences".
+- **How:** editing a scheduled series shows "Change: This and all future ones
+  / Only the next one (date)" in When. "All" is the old behaviour. "Only the
+  next one" saves the form as a **separate one-time reminder** (repeat fields
+  ignored) and records that date as skipped on the series, which moves on to
+  its next occurrence (`detachOccurrence`, the same skip as "Skip the next
+  one").
+- **Rejected:** a per-occurrence override (a row of changed fields the worker
+  merges at send time). It would touch dispatch, the snapshot, the delivery
+  log and the calendar; the copy reuses everything that already works. The
+  catch is that the copy has its own page, short id and comments, and
+  nothing links it back to the series. Worth revisiting if people ask to see
+  "the series with its exceptions" in one place; the v2 calendar
+  ("This one / This and following / All") may want that.
+- **The copy:** the series' creator stays its creator, so the same people
+  see and change it; files not removed in the form are copied (bytes too).
+  Approval works as it does for an edit: creator and editor are both
+  checked, and if the series was approved for these recipients or more, the
+  approval passes on.
+- **Only for a scheduled series.** A paused one would send its "next one"
+  while paused, and one waiting for approval has nothing to split yet.
+- `createReminder` and the copy share `insertReminder` (the insert, short-id
+  retry, targets, shares and files).
+- **Verified:** 168 tests (new: the copy's title, time, creator, one-time,
+  file copied; the series keeps its file, skips that date, moves on;
+  refused for someone who can't change it, for a repeat rule, for a paused
+  series). Typecheck, lint. **In Chrome** against the user's `next dev` on
+  :3000: Maya's "Submit timesheets" edit page shows the choice ("All"
+  preselected); "Only the next one" with a new title landed on the new
+  reminder with the notice, the series moved from 23 Oct to 30 Oct, and 23 Oct
+  is recorded as skipped. The demo data was restored afterwards.
+- **Not verified:** the layout of the new choice. Its placement above
+  "When to send" is for the user to judge.
+
 ## 2026-10-19 — admins edit names and end sessions; people change their own email
 
 - Audit item #4 (v1), PRD 9.1 and 3.3.

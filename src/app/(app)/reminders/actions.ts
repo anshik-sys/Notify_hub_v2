@@ -9,6 +9,7 @@ import {
   createReminder,
   decideReminder,
   deleteReminder,
+  detachOccurrence,
   formToRaw,
   pauseReminder,
   resumeReminder,
@@ -35,6 +36,9 @@ export async function saveReminder(fd: FormData) {
   const id = str(fd, "id");
   if (id && !isUuid(id)) notFound();
   const raw = formToRaw(fd);
+  // "Only the next one" of a series: saved as a one-time reminder (detachOccurrence).
+  const onlyNext = Boolean(id) && fd.get("scope") === "one";
+  if (onlyNext) raw.repeat = { ...raw.repeat, repeat: "none" };
   if (![...raw.departmentIds, ...raw.groupIds, ...raw.shareDepartmentIds, ...raw.shareGroupIds].every(isUuid)) notFound();
   const back = id ? `/reminders/${id}/edit` : "/reminders/new";
 
@@ -71,6 +75,11 @@ export async function saveReminder(fd: FormData) {
   const notice = gone.length
     ? `?notice=${encodeURIComponent(`${gone.join(", ")} unsubscribed from your company’s reminders and won’t receive this.`)}`
     : "";
+  if (onlyNext) {
+    const made = await detachOccurrence(me, companyId, id, parsed.input, files, removeAttachmentIds);
+    if ("error" in made) redirect(errorUrl(back, made.error));
+    redirect(`/reminders/${made.id}${notice || `?notice=${encodeURIComponent("Saved as a separate reminder. The series skips that date.")}`}`);
+  }
   if (id) {
     const error = await updateReminder(me, companyId, id, parsed.input, files, removeAttachmentIds);
     if (error) redirect(errorUrl(back, error));

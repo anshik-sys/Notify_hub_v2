@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { aliasedTable, and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
+import { aliasedTable, and, desc, eq, gte, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { attachments, companies, companyApprovers, deliveries, departmentMembers, emailSuppressions, departments, groupMembers, groups, notifications, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, taskAssignments, user, userRoles, type ReminderStatus } from "@/db/schema";
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
 import { addNotifications, mutedFor } from "./notifications";
 import { dmLink } from "./slack-installations";
-import { putBlob } from "./storage";
+import { getBlob, putBlob } from "./storage";
 import { resolveRecipients, type Target, type Tx } from "./recipients";
 import { type Access, can, COMPANY_ADMIN_ROLE_ID, loadAccess } from "./permissions";
 import { firstAtOrAfter, nextAfter, type RepeatFields, type Rule, ruleFromForm } from "./recurrence";
@@ -443,27 +443,40 @@ export async function createReminder(actor: Actor, companyId: string, input: Rem
     withTenant(companyId, async (tx) => {
       const out = await checked(tx, companyId, actor, input);
       const status: ReminderStatus = out.length ? "pending_approval" : "scheduled";
-      const { targets, shares, ...fields } = input;
-      let id = "";
-      for (let attempt = 0; !id; attempt++) {
-        const [row] = await tx
-          .insert(reminders)
-          .values({ ...fields, companyId, createdBy: actor.id, shortId: shortId(), status })
-          .onConflictDoNothing({ target: reminders.shortId })
-          .returning({ id: reminders.id });
-        if (row) id = row.id;
-        else if (attempt > 3) throw new Error("could not allocate a short id");
-      }
-      await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
-      await saveShares(tx, companyId, id, actor.id, shares);
-      await saveAttachments(tx, companyId, id, actor.id, files, []);
-      await notifyIfDue(tx, status, input.sendAt);
+      const id = await insertReminder(tx, companyId, actor.id, { ...input, createdBy: actor.id, status }, files);
       return { id, approvers: status === "pending_approval" ? await approversToTell(tx, companyId, id) : [] };
     }),
   );
   if ("error" in result) return result;
   await notifyApprovers(companyId, result.approvers, input.title, result.id);
   return { id: result.id };
+}
+
+// A new reminder row with its targets, shares and files (actorId uploads them
+// and expands "my departments").
+async function insertReminder(
+  tx: Tx,
+  companyId: string,
+  actorId: string,
+  input: ReminderInput & Pick<typeof reminders.$inferInsert, "createdBy" | "status" | "decidedBy" | "decidedAt">,
+  files: CheckedFile[],
+) {
+  const { targets, shares, ...fields } = input;
+  let id = "";
+  for (let attempt = 0; !id; attempt++) {
+    const [row] = await tx
+      .insert(reminders)
+      .values({ ...fields, companyId, shortId: shortId() })
+      .onConflictDoNothing({ target: reminders.shortId })
+      .returning({ id: reminders.id });
+    if (row) id = row.id;
+    else if (attempt > 3) throw new Error("could not allocate a short id");
+  }
+  await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
+  await saveShares(tx, companyId, id, actorId, shares);
+  await saveAttachments(tx, companyId, id, actorId, files, []);
+  await notifyIfDue(tx, fields.status, input.sendAt);
+  return id;
 }
 
 const targetKey = (t: Target) => `${t.kind}:${t.ref}`;
@@ -540,6 +553,70 @@ export async function updateReminder(
   if ("error" in result) return result.error;
   await notifyApprovers(companyId, result.approvers, input.title, id);
   return null;
+}
+
+// PRD 5.6 "this occurrence": a scheduled series' next occurrence becomes its
+// own one-time reminder, and the series records that date as skipped and
+// moves on. The copy keeps the series' creator, so the same people see and
+// change it; files not removed in the form are copied. Approval works as an
+// edit of the series would: creator and editor are both checked, and a series
+// approved for these recipients (or more) passes the approval on.
+// ponytail: a detached copy, not a per-occurrence override. The v2 calendar's
+// "this one" can reuse it for any date by skipping that date instead.
+export async function detachOccurrence(
+  actor: Actor,
+  companyId: string,
+  id: string,
+  input: ReminderInput,
+  files: CheckedFile[] = [],
+  removeAttachmentIds: string[] = [],
+) {
+  const result = await refusals(() =>
+    withTenant(companyId, async (tx) => {
+      const [series] = await tx
+        .select()
+        .from(reminders)
+        .where(and(eq(reminders.id, id), isNull(reminders.deletedAt)))
+        .for("update");
+      if (!series || !(await mayChange(companyId, actor, series.createdBy))) throw new Refused("Reminder not found.");
+      if (!series.recurrence || series.status !== "scheduled")
+        throw new Refused("Only a scheduled repeating reminder can change just its next one.");
+      if (input.recurrence) throw new Refused("Only the next one can't repeat.");
+
+      const creator = { id: series.createdBy, access: await loadAccess(companyId, series.createdBy) };
+      const out = await checked(tx, companyId, creator, input);
+      if (actor.id !== creator.id) out.push(...(await checked(tx, companyId, actor, input)));
+      const oldKeys = new Set((await tx.select().from(reminderTargets).where(eq(reminderTargets.reminderId, id))).map(targetKey));
+      const passOn = series.decidedBy !== null && input.targets.every((t) => oldKeys.has(targetKey(t)));
+      const status: ReminderStatus = out.length && !passOn ? "pending_approval" : "scheduled";
+
+      const kept = await tx
+        .select()
+        .from(attachments)
+        .where(and(eq(attachments.reminderId, id), removeAttachmentIds.length ? notInArray(attachments.id, removeAttachmentIds) : undefined))
+        .orderBy(attachments.createdAt);
+      const copies: CheckedFile[] = [];
+      for (const a of kept) copies.push({ fileName: a.fileName, contentType: a.contentType, size: a.size, sha256: a.sha256, data: (await getBlob(tx, a.id))! });
+
+      const newId = await insertReminder(
+        tx,
+        companyId,
+        actor.id,
+        { ...input, createdBy: series.createdBy, status, ...(status === "scheduled" && passOn ? { decidedBy: series.decidedBy, decidedAt: series.decidedAt } : {}) },
+        [...copies, ...files],
+      );
+      await tx
+        .insert(reminderOccurrences)
+        .values({ companyId, reminderId: id, occursAt: series.sendAt, status: "skipped" })
+        .onConflictDoNothing();
+      const next = nextAfter(series.recurrence, series.anchorLocal, series.timeZone, series.sendAt);
+      await tx.update(reminders).set(next ? { sendAt: next } : { status: "sent" }).where(eq(reminders.id, id));
+      return { id: newId, approvers: status === "pending_approval" ? await approversToTell(tx, companyId, newId) : [] };
+    }),
+  );
+  if ("error" in result) return result;
+  await notifyApprovers(companyId, result.approvers, input.title, result.id);
+  return { id: result.id };
 }
 
 // Group members were added (PRD 4): a scheduled reminder to that group whose

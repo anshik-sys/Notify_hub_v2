@@ -139,6 +139,7 @@ export function ReminderForm({
   slackChannels,
   attachments = [],
   brand,
+  nextLabel,
 }: {
   defaults: ReminderDefaults;
   departments: DepartmentChoice[];
@@ -152,6 +153,8 @@ export function ReminderForm({
   attachments?: { id: string; fileName: string; size: number }[];
   /** The company's name and logo, for the email preview's header. */
   brand?: Brand;
+  /** Edit of a scheduled series: its next occurrence, for "only the next one" (PRD 5.6). */
+  nextLabel?: string;
 }) {
   const mine = departments.filter((d) => d.mine);
   const others = departments.filter((d) => !d.mine);
@@ -329,6 +332,23 @@ export function ReminderForm({
       </Section>
 
       <Section title="When" step={4} required>
+        {nextLabel && (
+          <>
+            <RadioGroup
+              legend="Change"
+              name="scope"
+              value="all"
+              options={[
+                { value: "all", label: "This and all future ones" },
+                { value: "one", label: `Only the next one (${nextLabel})` },
+              ]}
+            />
+            <Hint>
+              Only the next one: it becomes a separate one-time reminder at the time below, and the series skips that date. The repeat
+              settings are ignored.
+            </Hint>
+          </>
+        )}
         <div className={styles.when}>
           <RadioGroup
             legend="When to send"

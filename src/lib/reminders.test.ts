@@ -7,6 +7,7 @@ import {
   createReminder,
   decideReminder,
   deleteReminder,
+  detachOccurrence,
   getReminder,
   isDelayed,
   listAttachments,
@@ -622,4 +623,50 @@ test("delete: hidden everywhere and cancelled; refused while sending", async () 
   assert.deepEqual(await q("select status, deleted_at is not null as deleted from reminders where id = $1", [r.id]), [{ status: "cancelled", deleted: true }]);
   assert.deepEqual(await q("select id from notifications where reminder_id = $1", [r.id]), []);
   assert.match((await deleteReminder(await actor(alice), s.companyId, r.id))!, /not found/);
+});
+
+test("only the next one: a one-time copy with the series' creator and files; the series skips that date", async () => {
+  const tz = "UTC";
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const daily = { repeat: "daily", every: "1", unit: "day", weekdays: [], monthlyBy: "day", ends: "never", until: "", count: "" };
+  const series = validateInput(raw({ departmentIds: [ops], when: "later", sendAtLocal: `${tomorrow}T09:00`, repeat: daily }), tz, "A").input!;
+  const doc = checkFile("a.txt", new TextEncoder().encode("one"));
+  assert.ok("file" in doc);
+  const made = await createReminder(await actor(alice), s.companyId, series, [doc.file]);
+  assert.ok("id" in made);
+  const first = series.sendAt;
+
+  // An admin (not the creator) changes just the next one: new title, an hour later.
+  const one = validateInput(
+    raw({ title: "Standup (moved)", departmentIds: [ops], when: "later", sendAtLocal: `${tomorrow}T10:00` }),
+    tz,
+    "A",
+  ).input!;
+  const refused = async (who: string, input: typeof one) => {
+    const r = await detachOccurrence(await actor(who), s.companyId, made.id, input);
+    return "error" in r ? r.error : "";
+  };
+  assert.match(await refused(carol, one), /not found/);
+  assert.match(await refused(alice, series), /can't repeat/);
+  const copy = await detachOccurrence(await actor(admin), s.companyId, made.id, one);
+  assert.ok("id" in copy);
+
+  const c = (await getReminder(s.companyId, copy.id))!;
+  assert.equal(c.title, "Standup (moved)");
+  assert.equal(c.recurrence, null);
+  assert.equal(c.createdBy, alice);
+  assert.equal(c.status, "scheduled");
+  assert.equal(toLocalInput(c.sendAt, tz), `${tomorrow}T10:00`);
+  assert.deepEqual((await listAttachments(s.companyId, copy.id)).map((a) => a.fileName), ["a.txt"]);
+  assert.equal((await listAttachments(s.companyId, made.id)).length, 1); // the series keeps its own
+
+  const after = (await getReminder(s.companyId, made.id))!;
+  assert.equal(after.title, "Standup");
+  assert.equal(after.sendAt.getTime(), first.getTime() + 86_400_000);
+  const occ = await s.owner.query("select occurs_at, status from reminder_occurrences where reminder_id = $1", [made.id]);
+  assert.deepEqual(occ.rows.map((o) => [o.occurs_at.getTime(), o.status]), [[first.getTime(), "skipped"]]);
+
+  // Not for a paused series.
+  assert.equal(await pauseReminder(await actor(alice), s.companyId, made.id), null);
+  assert.match(await refused(alice, one), /scheduled repeating/);
 });

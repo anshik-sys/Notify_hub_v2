@@ -4,7 +4,7 @@ import { getReminder, listAttachments, mayChange } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { companyBrand, senderDefault } from "@/lib/company";
 import { brandFor } from "@/lib/email-render";
-import { toLocalInput } from "@/lib/time";
+import { formatInZone, toLocalInput } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
 import { fieldsFromRule } from "@/lib/recurrence";
 import { channelChoices } from "@/lib/slack-installations";
@@ -40,6 +40,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
         attachments={files}
         timeZone={company.timeZone}
         defaultSender={senderDefault(company)}
+        nextLabel={r.recurrence && r.status === "scheduled" ? formatInZone(r.sendAt, r.timeZone) : undefined}
         defaults={{
           id: r.id,
           title: r.title,
