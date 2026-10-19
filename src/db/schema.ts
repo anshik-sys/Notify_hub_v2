@@ -33,6 +33,9 @@ export const companies = pgTable(
     contactPhone: text(),
     // Local time of day for daily task follow-ups (PRD 5.8), in timeZone.
     followUpTime: text().notNull().default("09:00"),
+    // PRD 5.8: an assignee this many days past due is escalated to their
+    // department managers (once). Null = off.
+    escalateAfterDays: integer(),
     // PRD 9.1: everyone must set up 2FA before using the app (requireMember).
     requireTwoFactor: boolean().notNull().default(false),
     // PRD 9.1: null = "Alerts | <name>".
@@ -58,6 +61,7 @@ export const companies = pgTable(
     check("companies_approval_mode_valid", sql`${t.approvalMode} in ('any','named')`),
     check("companies_retention_min", sql`${t.retentionDays} is null or ${t.retentionDays} >= 90`),
     check("companies_daily_email_limit_valid", sql`${t.dailyEmailLimit} between 1 and 1000000`),
+    check("companies_escalate_after_days_valid", sql`${t.escalateAfterDays} is null or ${t.escalateAfterDays} between 1 and 60`),
     check("companies_follow_up_time_valid", sql`${t.followUpTime} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
   ],
 ).enableRLS();
@@ -373,6 +377,10 @@ export const reminderOccurrences = pgTable(
     dueAt: ts(), // tasks only
     // What this occurrence was sent as, so later edits don't rewrite the log
     // (and retries send the same message). Null for missed/skipped and old rows.
+    // PRD 5.8: the single "done" of an occurrence nobody in the company is
+    // assigned to: a task sent only outside, or an announcement (the creator's
+    // "mark complete"). Tasks with assignees use task_assignments.done_at.
+    doneAt: ts(),
     snapshot: jsonb().$type<{ title: string; description: string; links: { label: string; url: string }[]; senderName: string }>(),
     createdAt: ts().notNull().defaultNow(),
   },
@@ -456,6 +464,8 @@ export const taskAssignments = pgTable(
     lastFollowupOn: date({ mode: "string" }),
     // Slack "Snooze": the worker re-sends the DM once this passes (then clears it).
     snoozedUntil: ts(),
+    // When their managers were told it's overdue (claimed once, worker).
+    escalatedAt: ts(),
     createdAt: ts().notNull().defaultNow(),
   },
   (t) => [unique().on(t.occurrenceId, t.userId), index().on(t.userId), tenantPolicy("company_id")],
@@ -626,7 +636,7 @@ export const notifications = pgTable(
     uniqueIndex().on(t.userId, t.dedupeKey),
     check(
       "notifications_kind_valid",
-      sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed')`,
+      sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed','escalated')`,
     ),
     tenantPolicy("company_id"),
   ],

@@ -11,6 +11,7 @@ import {
   deleteReminder,
   detachOccurrence,
   formToRaw,
+  setOccurrenceDone,
   pauseReminder,
   resumeReminder,
   skipNextOccurrence,
@@ -140,6 +141,15 @@ export async function markTaskAction(fd: FormData) {
   // From the My tasks page, go back there.
   const back = fd.get("next") ? safeNext(fd.get("next")) : `/reminders/${id}`;
   redirect(error ? errorUrl(back, error) : back);
+}
+
+// The shared "done" / "mark complete" of the latest occurrence (setOccurrenceDone checks who).
+export async function markOccurrenceAction(fd: FormData) {
+  const { user, companyId, access } = await requireMember();
+  const [id, occurrenceId] = [str(fd, "id"), str(fd, "occurrenceId")];
+  if (!isUuid(id) || !isUuid(occurrenceId)) notFound();
+  const error = await setOccurrenceDone({ id: user.id, access }, companyId, occurrenceId, fd.get("done") === "true");
+  redirect(error ? errorUrl(`/reminders/${id}`, error) : `/reminders/${id}`);
 }
 
 export async function sendNowAction(fd: FormData) {

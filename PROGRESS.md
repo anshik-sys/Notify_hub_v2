@@ -2,6 +2,48 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-19 — tasks: escalate to managers; one shared done when nobody is assigned
+
+- Audit item #8 (v1), PRD 5.8. The user's choices (2026-10-19): N is a
+  company setting; managers are told, or the creator if the person has no
+  manager; once per person and occurrence.
+- **Escalation** (`src/worker/escalation.ts`, every tick): an assignee still
+  not done `escalate_after_days` past due → each active manager of their
+  departments (not themselves) gets an in-app notification and an email,
+  mutable as "Someone in my department is late on a task". No manager → the
+  task's creator (unless that's the assignee). Claimed by stamping
+  `task_assignments.escalated_at` (kept out of the audit log like
+  `followups`; migration 0036 recreates the trigger). Company settings →
+  Task follow-ups; blank = off (the default).
+- **Only thresholds crossed in the last 7 days.** Otherwise turning it on
+  would email managers about every overdue task in history at once.
+  Trade-off: a worker down for more than a week skips those escalations.
+- **Managers can open the task.** Visibility used to be recipients, the
+  creator's managers and admins, so a Sales manager couldn't open HR's task
+  their report is late on. An `escalated` notification now gives viewer
+  access, in both `reminderAccess` and `canViewWhere`. It lasts as long as
+  the notification (retention, or the reminder being deleted).
+- **Shared done / mark complete:** one `reminder_occurrences.done_at`, shown
+  on the reminder page for the latest sent occurrence when nobody in the
+  company is assigned: a task sent only to outside addresses ("Mark done")
+  or an announcement ("Mark complete"). The creator or anyone who could edit
+  it; refused when there are assignees (they mark their own) or before it's
+  sent. A task with no assignees no longer shows "0 of 0 done".
+- **Rejected:** escalating by Slack too (email + in-app is enough to start;
+  add `slack` to its `MUTABLE` channels if asked). A done list column in
+  Reminders (nobody asked).
+- Migration 0037 adds `escalated` to the notifications kind check; I missed
+  it in 0036, and the test caught it.
+- **Verified:** 170 tests (new `escalation.test.ts`: manager told, the
+  deactivated manager not, no-manager → creator, done and 30-day-old
+  skipped, once only, off when unset, the manager gains viewer access;
+  shared done: who, refused with assignees or before sending). Typecheck,
+  lint. **In Chrome** (:3000, Maya): the setting saves 3 (0 is refused by the
+  browser), the preference is listed, and "Server maintenance window" Mark
+  complete → "Completed 19 Oct 2026, 10:39" → Undo. The demo data was
+  restored. **Not verified with the real worker running:** the escalation
+  email in Mailpit (the test captures it instead).
+
 ## 2026-10-19 — repeating reminders: change only the next one
 
 - Audit item #7 (v1), PRD 5.6: a recurring reminder is edited for "this

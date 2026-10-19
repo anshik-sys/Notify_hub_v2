@@ -8,6 +8,7 @@ import {
   decideReminder,
   deleteReminder,
   detachOccurrence,
+  setOccurrenceDone,
   getReminder,
   isDelayed,
   listAttachments,
@@ -669,4 +670,23 @@ test("only the next one: a one-time copy with the series' creator and files; the
   // Not for a paused series.
   assert.equal(await pauseReminder(await actor(alice), s.companyId, made.id), null);
   assert.match(await refused(alice, one), /scheduled repeating/);
+});
+
+test("shared done: for an occurrence nobody in the company is assigned to; not for assigned tasks", async () => {
+  const q = async (sql: string, params: unknown[]) => (await s.owner.query(sql, params)).rows;
+  const r = await createReminder(await actor(alice), s.companyId, {
+    title: "Policy update", description: "", links: [], senderName: "S", sendAt: later(), ...oneTime, targets: [{ kind: "email", ref: "ext@else.test" }],
+  });
+  assert.ok("id" in r);
+  const [occ] = await q("insert into reminder_occurrences (company_id, reminder_id, occurs_at, status) values ($1, $2, now(), 'sending') returning id", [s.companyId, r.id]);
+  assert.match((await setOccurrenceDone(await actor(carol), s.companyId, occ.id, true))!, /not found/);
+  assert.equal(await setOccurrenceDone(await actor(alice), s.companyId, occ.id, true), null);
+  assert.equal((await q("select done_at is not null as done from reminder_occurrences where id = $1", [occ.id]))[0].done, true);
+  assert.equal(await setOccurrenceDone(await actor(alice), s.companyId, occ.id, false), null);
+  assert.equal((await q("select done_at from reminder_occurrences where id = $1", [occ.id]))[0].done_at, null);
+
+  await q("insert into task_assignments (company_id, reminder_id, occurrence_id, user_id) values ($1, $2, $3, $4)", [s.companyId, r.id, occ.id, bob]);
+  assert.match((await setOccurrenceDone(await actor(alice), s.companyId, occ.id, true))!, /themselves/);
+  const [later2] = await q("insert into reminder_occurrences (company_id, reminder_id, occurs_at, status) values ($1, $2, now() + interval '1 day', 'skipped') returning id", [s.companyId, r.id]);
+  assert.match((await setOccurrenceDone(await actor(alice), s.companyId, later2.id, true))!, /hasn't been sent/);
 });

@@ -690,6 +690,29 @@ export async function deleteReminder(actor: Actor, companyId: string, id: string
   return result && "error" in result ? result.error : null;
 }
 
+// PRD 5.8: the single "done" of a sent occurrence nobody in the company is
+// assigned to: a task sent only to outside addresses (the shared toggle), or
+// an announcement (the creator's "mark complete"). Same people as editing.
+export async function setOccurrenceDone(actor: Actor, companyId: string, occurrenceId: string, done: boolean) {
+  const result = await refusals(() =>
+    withTenant(companyId, async (tx) => {
+      const [o] = await tx
+        .select({ status: reminderOccurrences.status, createdBy: reminders.createdBy })
+        .from(reminderOccurrences)
+        .innerJoin(reminders, eq(reminders.id, reminderOccurrences.reminderId))
+        .where(and(eq(reminderOccurrences.id, occurrenceId), isNull(reminders.deletedAt)))
+        .for("update", { of: reminderOccurrences });
+      if (!o || !(await mayChange(companyId, actor, o.createdBy))) throw new Refused("Reminder not found.");
+      if (o.status !== "sent" && o.status !== "sending") throw new Refused("It hasn't been sent yet.");
+      const [assigned] = await tx.select({ id: taskAssignments.id }).from(taskAssignments).where(eq(taskAssignments.occurrenceId, occurrenceId)).limit(1);
+      if (assigned) throw new Refused("Each assignee marks this one done themselves.");
+      await tx.update(reminderOccurrences).set({ doneAt: done ? new Date() : null }).where(eq(reminderOccurrences.id, occurrenceId));
+      return null;
+    }),
+  );
+  return result && "error" in result ? result.error : null;
+}
+
 // Checks reminders.approve and, in named mode, that the actor is named.
 export async function decideReminder(actor: Actor, companyId: string, id: string, approve: boolean, reason = "") {
   reason = reason.trim();
@@ -765,7 +788,16 @@ export async function reminderAccess(
       .limit(1),
   );
   if (got) return "viewer";
-  return (await sharedWith(companyId, viewer.id, r.id)) ? "viewer" : null;
+  if (await sharedWith(companyId, viewer.id, r.id)) return "viewer";
+  // A manager told that someone is late on it (src/worker/escalation.ts).
+  const [told] = await withTenant(companyId, (tx) =>
+    tx
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(and(eq(notifications.reminderId, r.id), eq(notifications.userId, viewer.id), eq(notifications.kind, "escalated")))
+      .limit(1),
+  );
+  return told ? "viewer" : null;
 }
 
 // Shared with the whole company, a department I'm in, or a group I'm in.
@@ -921,6 +953,7 @@ export async function deliveryLog(companyId: string, reminderId: string) {
         status: reminderOccurrences.status,
         dueAt: reminderOccurrences.dueAt,
         snapshot: reminderOccurrences.snapshot,
+        doneAt: reminderOccurrences.doneAt,
         sent: sql<number>`count(*) filter (where ${deliveries.status} = 'sent')::int`,
         failed: sql<number>`count(*) filter (where ${deliveries.status} = 'failed')::int`,
         pending: sql<number>`count(*) filter (where ${deliveries.status} in ('queued','sending'))::int`,

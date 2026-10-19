@@ -11,7 +11,7 @@ import { notificationMutes, notifications, reminders } from "@/db/schema";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tx = Pick<PgTransaction<any, any, any>, "select" | "insert">;
-export type NotificationKind = "reminder" | "task" | "approval" | "mention" | "comment" | "decided" | "tasks_done" | "failed";
+export type NotificationKind = "reminder" | "task" | "approval" | "mention" | "comment" | "decided" | "tasks_done" | "failed" | "escalated";
 export type NewNotification = typeof notifications.$inferInsert & { kind: NotificationKind };
 
 // The events a person can mute, and on which channels they're sent.
@@ -19,6 +19,7 @@ export const MUTABLE = [
   { event: "approval", label: "A reminder needs my approval", channels: ["email", "slack"] },
   { event: "decided", label: "My reminder was rejected", channels: ["email"] },
   { event: "mention", label: "Someone mentioned me in a comment", channels: ["email", "slack"] },
+  { event: "escalated", label: "Someone in my department is late on a task", channels: ["email"] },
 ] as const;
 export type MutableEvent = (typeof MUTABLE)[number]["event"];
 const CHANNEL_KEYS = new Set<string>(MUTABLE.flatMap((m) => m.channels.map((c) => `${m.event}:${c}`)));

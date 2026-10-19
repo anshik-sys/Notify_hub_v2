@@ -13,6 +13,7 @@ import {
   setApprovers,
   setContact,
   setDefaultSender,
+  setEscalateAfterDays,
   setFollowUpTime,
   setRequireTwoFactor,
   setRetention,
@@ -57,7 +58,7 @@ async function saveContact(fd: FormData) {
 async function saveFollowUp(fd: FormData) {
   "use server";
   const { companyId } = await admin();
-  done(await setFollowUpTime(companyId, String(fd.get("followUpTime") ?? "")));
+  done((await setFollowUpTime(companyId, String(fd.get("followUpTime") ?? ""))) ?? (await setEscalateAfterDays(companyId, String(fd.get("escalateAfterDays") ?? ""))));
 }
 
 async function saveSender(fd: FormData) {
@@ -171,6 +172,16 @@ export default async function CompanySettings(props: PageProps<"/settings/compan
         <Form action={saveFollowUp}>
           <Field label={`Daily task follow-up time (${company.timeZone})`} name="followUpTime" type="time" required defaultValue={settings.followUpTime} />
           <Hint>Everyone with an overdue task gets one reminder a day at this time until they mark it done.</Hint>
+          <Field
+            label="Tell their managers after this many days overdue"
+            name="escalateAfterDays"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={60}
+            defaultValue={settings.escalateAfterDays ?? ""}
+          />
+          <Hint>Once per person and task, to the managers of their departments (or the task’s creator if they have none). Leave blank to turn it off.</Hint>
           <Button>Save</Button>
         </Form>
       </Section>

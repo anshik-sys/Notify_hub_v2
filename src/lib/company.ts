@@ -74,6 +74,15 @@ export async function setFollowUpTime(companyId: string, time: string) {
   return null;
 }
 
+// PRD 5.8: days past due before managers are told; blank turns it off.
+export async function setEscalateAfterDays(companyId: string, raw: string) {
+  const v = raw.trim();
+  const days = v === "" ? null : Number(v);
+  if (days !== null && !(Number.isInteger(days) && days >= 1 && days <= 60)) return "Escalate after 1 to 60 days, or leave it blank.";
+  await withTenant(companyId, (tx) => tx.update(companies).set({ escalateAfterDays: days }).where(eq(companies.id, companyId)));
+  return null;
+}
+
 export async function followUpTime(companyId: string) {
   const [c] = await withTenant(companyId, (tx) =>
     tx.select({ followUpTime: companies.followUpTime }).from(companies).where(eq(companies.id, companyId)),
@@ -116,6 +125,7 @@ export async function companySettings(companyId: string) {
         contactEmail: companies.contactEmail,
         contactPhone: companies.contactPhone,
         followUpTime: companies.followUpTime,
+        escalateAfterDays: companies.escalateAfterDays,
         defaultSenderName: companies.defaultSenderName,
         approvalMode: companies.approvalMode,
         retentionDays: companies.retentionDays,

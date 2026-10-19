@@ -6,6 +6,7 @@ import { ownerDb, ownerUrl } from "./db";
 import { claimDigests, digestOne } from "./digest";
 import { runRetention } from "./retention";
 import { volumeAlerts } from "./volume-alert";
+import { escalateOverdue } from "./escalation";
 import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, dispatchManual, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
 // Long-running process, deployed separately from the web app.
@@ -94,6 +95,7 @@ await boss.work("tick", async () => {
   // Claimed once per delivery per local day; the job only sends.
   for (const assignmentId of await claimFollowUps())
     await boss.send("followup", { assignmentId }, { retryLimit: 3, retryDelay: 30, retryBackoff: true });
+  await escalateOverdue().catch((e) => console.error("escalation", e));
   // Claimed (cleared) once; a failed re-send isn't retried, to never DM twice.
   for (const assignmentId of await claimSnoozes()) await boss.send("snooze", { assignmentId }, { retryLimit: 0 });
   // One digest per company per local day (claimed); no retries, never twice.

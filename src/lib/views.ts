@@ -12,6 +12,7 @@ import { toLocalInput, zonedToUtc } from "./time";
 //   managed departments' (full access). Dashboard counts use this.
 // - canViewWhere = reminderAccess: that, plus shared with you or sent to you.
 //   Lists, search and the calendar use this: what you can open, you can find.
+//   "Sent to you" includes a manager told someone is late on it (escalation).
 // Both leave out deleted reminders, like getReminder.
 
 type Viewer = { id: string; access: Access };
@@ -33,9 +34,11 @@ const sharedWithMe = (viewer: Viewer) =>
   sql`exists (select 1 from ${reminderShares} where ${reminderShares.reminderId} = ${reminders.id} and ${sharedWithSql(viewer.id)})`;
 const sentToMe = (viewer: Viewer) =>
   sql`exists (select 1 from deliveries d where d.reminder_id = ${reminders.id} and d.user_id = ${viewer.id})`;
+const escalatedToMe = (viewer: Viewer) =>
+  sql`exists (select 1 from notifications n where n.reminder_id = ${reminders.id} and n.user_id = ${viewer.id} and n.kind = 'escalated')`;
 
 export function canViewWhere(viewer: Viewer): SQL | undefined {
-  return seesAll(viewer) ? live : and(live, or(mineOrManaged(viewer), sharedWithMe(viewer), sentToMe(viewer)));
+  return seesAll(viewer) ? live : and(live, or(mineOrManaged(viewer), sharedWithMe(viewer), sentToMe(viewer), escalatedToMe(viewer)));
 }
 
 // --- All reminders: filters live in the URL ----------------------------------

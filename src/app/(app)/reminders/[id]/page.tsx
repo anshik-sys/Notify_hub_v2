@@ -12,7 +12,7 @@ import { requireMember } from "@/lib/session";
 import { myTaskStatus, taskProgress } from "@/lib/tasks";
 import { formatInZone } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
-import { cancelReminderAction, decideReminderAction, deleteReminderAction, markTaskAction, sendNowAction, sendTestAction, seriesAction } from "../actions";
+import { cancelReminderAction, decideReminderAction, deleteReminderAction, markOccurrenceAction, markTaskAction, sendNowAction, sendTestAction, seriesAction } from "../actions";
 import { Discussion } from "./discussion";
 import styles from "./page.module.css";
 import { listComments } from "@/lib/comments";
@@ -135,7 +135,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
               )}
             </Section>
 
-            {progress && log?.latest && (
+            {progress && progress.total > 0 && log?.latest && (
               <Section title={`Task: ${progress.done} of ${progress.total} done`}>
                 {log.latest.dueAt && (
                   <Hint>
@@ -254,6 +254,28 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                   <input type="hidden" name="assignmentId" value={mine.assignmentId} />
                   <input type="hidden" name="done" value={mine.doneAt ? "false" : "true"} />
                   <Button variant={mine.doneAt ? "secondary" : "primary"}>{mine.doneAt ? "Undo: not done yet" : "Mark done"}</Button>
+                </form>
+              </Section>
+            )}
+
+            {/* PRD 5.8: nobody in the company is assigned (sent only outside, or an announcement): one shared done. */}
+            {mayDelete && log?.latest && (!r.isTask || progress?.total === 0) && (
+              <Section title={r.isTask ? "Task" : "Complete"}>
+                <Hint>
+                  {log.latest.doneAt
+                    ? `${r.isTask ? "Done" : "Completed"} ${formatInZone(log.latest.doneAt, tz)}`
+                    : r.isTask
+                      ? "Sent only outside the company, so you mark it done for everyone."
+                      : "Mark it complete once it’s been dealt with."}
+                  {r.recurrence ? " (this occurrence)" : ""}
+                </Hint>
+                <form action={markOccurrenceAction}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <input type="hidden" name="occurrenceId" value={log.latest.id} />
+                  <input type="hidden" name="done" value={log.latest.doneAt ? "false" : "true"} />
+                  <Button variant={log.latest.doneAt ? "secondary" : "primary"}>
+                    {log.latest.doneAt ? "Undo" : r.isTask ? "Mark done" : "Mark complete"}
+                  </Button>
                 </form>
               </Section>
             )}
