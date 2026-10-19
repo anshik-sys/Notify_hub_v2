@@ -2,6 +2,33 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-19 — behaviour spec and spec tests for #4, #5, #7, #8
+
+- The user asked for tests that check expected behaviour, not tests written
+  to pass. First `docs/expected-behaviour.md`: every function, numbered use
+  cases and expected results, each traced to the PRD or a user decision. The
+  user approved it before any test existed.
+- Then three independent testers (fresh agents) wrote one test per case id
+  without reading the implementation: `src/lib/spec-delete-snapshot.test.ts`,
+  `src/lib/spec-people.test.ts`, `src/lib/spec-only-next.test.ts`,
+  `src/worker/spec-escalation.test.ts`. They add 69 tests; the suite is now
+  239 (237 pass, 2 skipped, 0 fail).
+- **The one failure (D11, delete is audited) was the test's setup, not the
+  product.** The audit trigger takes its actor from the signed-in request
+  (`setCurrentActor`); a lib test has none. Checked for real in Chrome: Maya
+  deleting a throwaway reminder logged "update" by Maya Patel with
+  `deleted_at`. D11 is skipped with that reason, not weakened. P8 (email
+  change) is browser-only too.
+- **Testers' own mistakes, fixed in the tests:** T9 used a repeat without an
+  end; E2 looked for the title in the stored notification text (the
+  notification list adds it); D3 used `reminderAccess` on a deleted row.
+  Pages load the reminder through `getReminder`, which hides deleted ones,
+  and every other caller filters `deleted_at` first. `reminderAccess` itself
+  doesn't check deletion; keep it that way only while that stays true.
+- **Open question for the user (in the spec):** when "only the next one"
+  needs approval, the series skips that date at once; if nobody approves in
+  time, that date sends nothing.
+
 ## 2026-10-19 — tasks: escalate to managers; one shared done when nobody is assigned
 
 - Audit item #8 (v1), PRD 5.8. The user's choices (2026-10-19): N is a
