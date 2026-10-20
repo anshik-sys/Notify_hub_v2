@@ -2,18 +2,20 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
-## 2026-10-20 — top-bar search hidden where a page has its own
+## 2026-10-20 — top-bar search only on the pages about reminders
 
-- The top bar's "Search reminders…" sat above Team's people search and the
-  Audit log's search, so those pages had two boxes searching different
-  things. It now hides on `/users` and `/settings/audit` too, as it already
-  did on `/reminders`. Everywhere else it stays: it's the way to find a
-  reminder from any page.
-- **Rejected:** dropping it from every page but Reminders; finding a
-  reminder from Home or Calendar would then always take an extra click.
-- **Verified:** in Chrome (throwaway session for Maya): the top-bar search
-  is on Home and My tasks, and absent on Reminders, Team and Audit log.
-  Typecheck, lint.
+- "Search reminders…" was in the top bar of all 28 signed-in pages,
+  including Settings, Roles, Groups, Departments and Reports, and sat
+  above Team's and the Audit log's own search boxes. My first answer (hide
+  it only where a page has its own search) didn't go far enough for the
+  user. It now shows only on Home, Calendar, My tasks, Approvals and
+  Notifications, the pages that list reminders or tasks (`ShowOn` in
+  `nav-link.tsx`). Reminders has its own search.
+- **Trade-off:** from a reminder's page or Settings, finding another
+  reminder means opening Reminders first.
+- **Verified:** in Chrome (throwaway session for Maya), 12 pages: the
+  search is on those five, and not on Reminders, Team, Groups,
+  Departments, Reports, Profile or the Audit log. Typecheck, lint.
 
 ## 2026-10-20 — one "New reminder" button on the Reminders page
 

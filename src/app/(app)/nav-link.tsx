@@ -25,6 +25,11 @@ export function HideOn({ paths, children }: { paths: string[]; children: React.R
   return paths.includes(usePathname()) ? null : children;
 }
 
+// The opposite: shows its children only on the given pages.
+export function ShowOn({ paths, children }: { paths: string[]; children: React.ReactNode }) {
+  return paths.includes(usePathname()) ? children : null;
+}
+
 // The shell stays mounted across client navigations, so an open popover menu
 // would stay open on the new page. Close it whenever the path changes.
 export function ClosePopoverOnNavigate({ id }: { id: string }) {
