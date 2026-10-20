@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import { errorUrl } from "@/components/form";
 import { addComment, deleteComment, editComment } from "@/lib/comments";
@@ -21,7 +22,12 @@ async function commentLimit(userId: string, reminderId: string) {
   if (limited) redirect(errorUrl(`/reminders/${reminderId}`, limited) + "#discussion");
 }
 
-const back = (reminderId: string, q = "", anchor = "discussion") => `/reminders/${reminderId}${q}#${anchor}`;
+// Back to the reminder. Usually only the #anchor differs from the current URL,
+// which the router treats as a scroll and keeps the old page, so mark it stale.
+function back(reminderId: string, q = "", anchor = "discussion"): never {
+  revalidatePath(`/reminders/${reminderId}`);
+  redirect(`/reminders/${reminderId}${q}#${anchor}`);
+}
 const skippedNotice = (skipped: string[]) =>
   skipped.length
     ? `?notice=${encodeURIComponent(`${skipped.join(", ")} can't see this reminder, so ${skipped.length === 1 ? "wasn't" : "weren't"} notified.`)}`
@@ -35,7 +41,7 @@ export async function postComment(fd: FormData) {
   await commentLimit(actor.id, reminderId);
   const r = await addComment(actor, companyId, reminderId, { body: str(fd, "body"), parentId, mentionIds: mentionIds(fd) });
   if ("error" in r) redirect(errorUrl(`/reminders/${reminderId}`, r.error) + "#discussion");
-  redirect(back(reminderId, skippedNotice(r.skipped), `comment-${r.id}`));
+  back(reminderId, skippedNotice(r.skipped), `comment-${r.id}`);
 }
 
 export async function editCommentAction(fd: FormData) {
@@ -45,7 +51,7 @@ export async function editCommentAction(fd: FormData) {
   await commentLimit(actor.id, reminderId);
   const r = await editComment(actor, companyId, commentId, { body: str(fd, "body"), mentionIds: mentionIds(fd) });
   if ("error" in r) redirect(errorUrl(`/reminders/${reminderId}`, r.error) + "#discussion");
-  redirect(back(r.reminderId, skippedNotice(r.skipped), `comment-${commentId}`));
+  back(r.reminderId, skippedNotice(r.skipped), `comment-${commentId}`);
 }
 
 export async function deleteCommentAction(fd: FormData) {
@@ -54,5 +60,5 @@ export async function deleteCommentAction(fd: FormData) {
   if (!isUuid(commentId) || !isUuid(reminderId)) notFound();
   const r = await deleteComment(actor, companyId, commentId);
   if ("error" in r) redirect(errorUrl(`/reminders/${reminderId}`, r.error) + "#discussion");
-  redirect(back(r.reminderId));
+  back(r.reminderId);
 }

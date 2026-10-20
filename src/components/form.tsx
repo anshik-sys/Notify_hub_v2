@@ -63,11 +63,14 @@ const Star = () => (
 );
 
 export function Section({
+  id,
   title,
   required,
   step,
   children,
 }: {
+  /** For in-page links, e.g. `#discussion`. */
+  id?: string;
   title: string;
   required?: boolean;
   /** A numbered step in a StepsForm: shown as a small circle before the title. */
@@ -75,7 +78,7 @@ export function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className={styles.section} data-card>
+    <section id={id} className={styles.section} data-card>
       <h2 className={styles.sectionTitle}>
         {step !== undefined && (
           <span className={styles.step} aria-hidden="true">

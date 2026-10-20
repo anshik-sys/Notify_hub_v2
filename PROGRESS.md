@@ -2,6 +2,34 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — discussion: new comments show without a reload; card layout
+
+- **Posting needed a reload to show the comment.** Reproduced in Chrome:
+  saved, but not on screen until a refresh. The action redirects to the
+  same page plus `#comment-…`; when only the hash differs, the router treats
+  it as a scroll and keeps its cached page. `back()` in `comment-actions.ts`
+  now calls `revalidatePath` on the reminder first (what the Next 16 docs
+  say to do before a redirect that needs fresh data). Post, reply, edit and
+  delete all go through it. Other actions redirect to a different URL (a
+  `?notice=`), so they never had this.
+- **Layout:** Discussion was bare text between cards, and Post comment
+  stretched full width (`:first-of-type:not(input)` matched the button
+  too). Now a kit `Section` (new optional `id`, so `#discussion` links
+  still work) with an avatar per comment, replies indented under the text,
+  mentions in the accent tint, and Reply / Edit / Delete as one row of
+  small text buttons (no disclosure triangles, Delete turns red on hover).
+- **Rejected:** the open Reply/Edit taking the row's full width (the button
+  jumped under the form, away from the mouse) and `display: contents` on
+  `<details>` (Chrome ignores it; the form got squeezed into the row). The
+  toggles are now empty `<details>`, and `:has()` shows the matching form
+  under the row, as the reminder form already does.
+- **Verified:** in Chrome (Playwright, a throwaway session for Maya on
+  :3000): before the fix the new comment wasn't on screen after posting;
+  after it, it is, the box is cleared, and Reply opens under the row.
+  Test comments and the session were deleted. 260 tests, typecheck, lint.
+  **Not verified:** dark mode, below 768px, and a long thread with replies
+  (the demo has none).
+
 ## 2026-10-20 — Team: pending invites get their own tab
 
 - Pending invites sat below the members table, so with a paged list you

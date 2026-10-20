@@ -1,4 +1,5 @@
-import { Button } from "@/components/form";
+import { Avatar } from "@/components/avatar";
+import { Button, Section } from "@/components/form";
 import type { ThreadComment } from "@/lib/comments";
 import { formatInZone } from "@/lib/time";
 import { deleteCommentAction, editCommentAction, postComment } from "../comment-actions";
@@ -40,27 +41,42 @@ function Comment({ c, threadId, p }: { c: ThreadComment; threadId: string; p: Pr
   const mine = c.authorId === p.viewerId;
   return (
     <article id={`comment-${c.id}`} className={styles.comment}>
-      <header className={styles.meta}>
-        <strong>{c.deleted ? "" : c.authorName}</strong>
-        <span>{formatInZone(c.createdAt, p.timeZone)}</span>
-        {c.edited && !c.deleted && <span>(edited)</span>}
-      </header>
-      {c.deleted ? <p className={styles.deleted}>Comment deleted</p> : <Body text={c.body} mentions={c.mentions} />}
-      {!c.deleted && (
-        <div className={styles.actions}>
-          <details className={styles.details}>
-            <summary>Reply</summary>
-            <form action={postComment} className={styles.form}>
+      {c.deleted ? <span className={styles.avatarGap} /> : <Avatar name={c.authorName} />}
+      <div className={styles.main}>
+        <header className={styles.meta}>
+          {!c.deleted && <strong>{c.authorName}</strong>}
+          <span>{formatInZone(c.createdAt, p.timeZone)}</span>
+          {c.edited && !c.deleted && <span>(edited)</span>}
+        </header>
+        {c.deleted ? <p className={styles.deleted}>Comment deleted</p> : <Body text={c.body} mentions={c.mentions} />}
+        {!c.deleted && (
+          <>
+            {/* The toggles stay in one row; CSS shows the open one's form under it. */}
+            <div className={styles.actions}>
+              <details className={`${styles.toggle} ${styles.replyToggle}`}>
+                <summary className={styles.action}>Reply</summary>
+              </details>
+              {mine && (
+                <details className={`${styles.toggle} ${styles.editToggle}`}>
+                  <summary className={styles.action}>Edit</summary>
+                </details>
+              )}
+              {(mine || p.canModerate) && (
+                <form action={deleteCommentAction}>
+                  <input type="hidden" name="reminderId" value={p.reminderId} />
+                  <input type="hidden" name="commentId" value={c.id} />
+                  <button className={`${styles.action} ${styles.delete}`}>Delete</button>
+                </form>
+              )}
+            </div>
+            <form action={postComment} className={`${styles.form} ${styles.replyForm}`}>
               <input type="hidden" name="reminderId" value={p.reminderId} />
               <input type="hidden" name="parentId" value={threadId} />
               <MentionTextarea people={p.people} label="Reply" />
               <Button size="small">Post reply</Button>
             </form>
-          </details>
-          {mine && (
-            <details className={styles.details}>
-              <summary>Edit</summary>
-              <form action={editCommentAction} className={styles.form}>
+            {mine && (
+              <form action={editCommentAction} className={`${styles.form} ${styles.editForm}`}>
                 <input type="hidden" name="reminderId" value={p.reminderId} />
                 <input type="hidden" name="commentId" value={c.id} />
                 <MentionTextarea
@@ -71,17 +87,10 @@ function Comment({ c, threadId, p }: { c: ThreadComment; threadId: string; p: Pr
                 />
                 <Button size="small">Save</Button>
               </form>
-            </details>
-          )}
-          {(mine || p.canModerate) && (
-            <form action={deleteCommentAction}>
-              <input type="hidden" name="reminderId" value={p.reminderId} />
-              <input type="hidden" name="commentId" value={c.id} />
-              <button className={styles.linkButton}>Delete</button>
-            </form>
-          )}
-        </div>
-      )}
+            )}
+          </>
+        )}
+      </div>
     </article>
   );
 }
@@ -89,8 +98,8 @@ function Comment({ c, threadId, p }: { c: ThreadComment; threadId: string; p: Pr
 export function Discussion(p: Props) {
   const count = p.thread.reduce((n, c) => n + (c.deleted ? 0 : 1) + c.replies.filter((r) => !r.deleted).length, 0);
   return (
-    <section id="discussion" className={styles.section}>
-      <h2 className={styles.title}>Discussion ({count})</h2>
+    <Section id="discussion" title={`Discussion (${count})`}>
+      {p.thread.length === 0 && <p className={styles.empty}>No comments yet.</p>}
       {p.thread.map((c) => (
         <div key={c.id} className={styles.thread}>
           <Comment c={c} threadId={c.id} p={p} />
@@ -108,6 +117,6 @@ export function Discussion(p: Props) {
         <MentionTextarea people={p.people} label="Add a comment" />
         <Button>Post comment</Button>
       </form>
-    </section>
+    </Section>
   );
 }

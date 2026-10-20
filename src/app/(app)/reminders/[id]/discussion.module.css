@@ -1,68 +1,80 @@
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-width: 720px;
-}
-
-.title {
+.empty {
   margin: 0;
-  font-size: 1.0625rem;
-  font-weight: 600;
+  color: var(--muted);
 }
 
 .thread {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-bottom: 12px;
+  gap: 12px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 
+/* Replies line up under the parent's text, past its avatar. */
 .replies {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-left: 24px;
-  padding-left: 12px;
+  gap: 12px;
+  margin-left: 13px;
+  padding-left: 25px;
   border-left: 2px solid var(--border);
 }
 
 .comment {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  gap: 10px;
   scroll-margin-top: 24px;
 }
 
 .comment:target {
   border-radius: var(--radius);
-  outline: 2px solid var(--border);
-  outline-offset: 4px;
+  outline: 2px solid var(--brand);
+  outline-offset: 6px;
+}
+
+.avatarGap {
+  flex-shrink: 0;
+  width: 28px;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   gap: 8px;
+  min-height: 28px;
+  padding-top: 4px;
   color: var(--muted);
   font-size: 0.8125rem;
 }
 
 .meta strong {
   color: var(--fg);
+  font-size: 0.9375rem;
 }
 
 /* User text: keep line breaks, never overflow. */
 .body {
   margin: 0;
+  line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .mention {
+  padding: 0 4px;
   border-radius: 4px;
-  background: var(--surface);
+  background: var(--accent-bg);
+  color: var(--accent-fg);
   font-weight: 600;
 }
 
@@ -76,37 +88,70 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 12px;
-  font-size: 0.8125rem;
+  gap: 4px;
+  margin-left: -8px;
 }
 
-.details > summary {
+/* Reply, Edit and Delete look alike: small muted text buttons. */
+.action {
+  display: inline-block;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
   color: var(--muted);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
   cursor: pointer;
+  list-style: none;
+  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out);
 }
 
-.details[open] {
-  flex-basis: 100%;
+.action::-webkit-details-marker {
+  display: none;
 }
 
+.action:hover {
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.delete:hover {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+.toggle[open] > .action {
+  background: var(--surface);
+  color: var(--fg);
+}
+
+/* Each form shows while its toggle is open. Without :has() support both
+   stay visible, which still works. */
+.replyForm,
+.editForm {
+  margin-top: 4px;
+}
+
+.main:has(.replyToggle:not([open])) > .replyForm,
+.main:has(.editToggle:not([open])) > .editForm {
+  display: none;
+}
+
+/* The text box fills the width; the button sizes to its label. */
 .form {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
-  margin-top: 8px;
 }
 
-.form > :first-of-type:not(input) {
+.form > div {
   align-self: stretch;
-}
-
-.linkButton {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
 }
