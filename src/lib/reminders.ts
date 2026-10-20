@@ -585,6 +585,9 @@ export async function detachOccurrence(
   removeAttachmentIds: string[] = [],
   // Any upcoming date of the series (the calendar, PRD 14.2); the next one by default.
   occursAt?: Date,
+  // A calendar move: only the time changes, never the recipients, so the copy
+  // keeps the series' status and approval (decided 2026-10-20, spec M6).
+  moveOnly = false,
 ) {
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
@@ -604,7 +607,7 @@ export async function detachOccurrence(
       const out = await checked(tx, companyId, creator, input);
       if (actor.id !== creator.id) out.push(...(await checked(tx, companyId, actor, input)));
       const oldKeys = new Set((await tx.select().from(reminderTargets).where(eq(reminderTargets.reminderId, id))).map(targetKey));
-      const passOn = series.decidedBy !== null && input.targets.every((t) => oldKeys.has(targetKey(t)));
+      const passOn = moveOnly || (series.decidedBy !== null && input.targets.every((t) => oldKeys.has(targetKey(t))));
       const status: ReminderStatus = out.length && !passOn ? "pending_approval" : "scheduled";
 
       const kept = await tx
@@ -629,6 +632,7 @@ export async function detachOccurrence(
         },
         [...copies, ...files],
       );
+      await copyColors(tx, id, newId);
       // Waiting for approval: the series keeps that date for now. The worker
       // skips it on the day only if the copy has been approved by then
       // (decided 2026-10-19), so an unapproved change never loses a send.
@@ -794,6 +798,12 @@ async function filesOf(tx: Tx, reminderId: string) {
 
 export type Scope = "one" | "following" | "all";
 
+// Everyone's own colour (PRD 14.2, personal) for a reminder, onto its copy or
+// split, so nobody's calendar changes colour (decided 2026-10-20, spec M7).
+const copyColors = (tx: Tx, from: string, to: string) =>
+  tx.execute(sql`insert into reminder_colors (user_id, reminder_id, company_id, color)
+    select user_id, ${to}, company_id, color from reminder_colors where reminder_id = ${from} on conflict do nothing`);
+
 // PRD 14.2: drag (or "Move to…") an entry. A one-time reminder just moves;
 // its recipients and approval stay. For a series:
 // - one: that date becomes its own one-time reminder (detachOccurrence) and the series skips it;
@@ -809,7 +819,7 @@ export async function moveEntry(actor: Actor, companyId: string, id: string, occ
   if (row.recurrence && scope === "one") {
     if (row.status !== "scheduled") return { error: "Only a scheduled repeating reminder can move just one date." };
     const input = await withTenant(companyId, (tx) => inputFromRow(tx, row));
-    return detachOccurrence(actor, companyId, id, { ...input, recurrence: null, sendAt: newAt, anchorLocal: toLocalInput(newAt, row.timeZone) }, [], [], occursAt);
+    return detachOccurrence(actor, companyId, id, { ...input, recurrence: null, sendAt: newAt, anchorLocal: toLocalInput(newAt, row.timeZone) }, [], [], occursAt, true);
   }
   return refusals(() =>
     withTenant(companyId, async (tx) => {
@@ -871,6 +881,7 @@ export async function moveEntry(actor: Actor, companyId: string, id: string, occ
         },
         await filesOf(tx, id),
       );
+      await copyColors(tx, id, newId);
       // Skips from that date on, and the dates waiting copies replace, go to the
       // new series (moved the same way), so no date sends twice.
       const shift = (d: Date) => zonedToUtc(shiftSeries(series.recurrence, local(d), local(occursAt), local(newAt)).anchorLocal, r.timeZone)!;

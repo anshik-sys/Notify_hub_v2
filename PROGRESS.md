@@ -2,6 +2,37 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — calendar spec tests: 36 pass, 4 decided, 16 browser-only
+
+- An independent tester (a fresh agent, no implementation files) wrote
+  `src/lib/spec-calendar.test.ts`, one test per case in section 10: 52 tests.
+  First run: 32 pass, 4 fail, 16 skipped (screens, keyboard, the drag gesture,
+  the audit actor). One slip noted in the report: an early grep showed two
+  implementation lines (`DEFAULT_COLOR`, `shownOn`); no assertion depends on
+  them.
+- **The four failures, decided with the user (2026-10-20):**
+  - **M6 (product bug):** an editor dragging one date of someone else's
+    series made a copy that waited for approval. `detachOccurrence` checked
+    scope as the editor (T8, meant for edits). A move never changes
+    recipients, so it now passes `moveOnly`: the copy keeps the series'
+    status and approval. Editing through the form still checks both.
+  - **M7 (product gap):** personal colours were lost on the new series from
+    "this and following". Everyone's colour is now copied (`copyColors`) to
+    the new series and to "this one" copies.
+  - **C9 (test):** the test used the search's default, latest-first order.
+    The calendar asks for soonest first, so the test now does too.
+  - **K3 (spec wording):** the card has no Delete for a sent entry. The
+    tester called `deleteEntry`, which follows D1 (a creator may delete a
+    sent reminder from its page). K3 now says it's about the card.
+- **Also decided:** a colleague picked under "Meet with…" stays visible over
+  the layer ticks (C8 says so now).
+- **After the fixes:** 36 pass, 0 fail, 16 skipped. Full suite 337 pass, 24
+  skipped. **M14 checked in Chrome:** "Move to…" on a throwaway reminder
+  logged an update by Maya Patel with the old and new send time (deleted
+  afterwards). The section 10 Status column is filled in.
+- **Not covered by the tester:** `layoutDay` and the 30-minute blocks (I test
+  those), M11's form flow, Q5's prefill (checked in Chrome).
+
 ## 2026-10-20 — calendar slice 4: drag, and this one / this and following / all
 
 - Spec M1–M14, the last calendar slice. Entries you may change can be
