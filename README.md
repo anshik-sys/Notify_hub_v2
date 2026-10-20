@@ -415,9 +415,14 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
 - **The dashboard's numbers match the lists they link to.** Each card's link
   is the filter for exactly what it counts (same SQL conditions). Change them
   in pairs.
-- **The calendar expands series from their rule** (`between()`), from the next
-  occurrence, minus recorded (skipped) ones, up to 500 scheduled reminders
-  per request.
+- **The calendar (`calendarRange`) expands series from their rule** (`between()`),
+  from the next occurrence, minus recorded (skipped) ones, up to 500
+  upcoming reminders per request, plus what was actually sent (from
+  `reminder_occurrences`, shown with the title it was sent with) and
+  reminders waiting for approval. Layers ("Created by me", "Tasks assigned
+  to me", …) are computed from **targets**, not deliveries, so they work for
+  sends still to come; visibility is still `canViewWhere`. View, date,
+  layers, colleague and search all live in the URL (`calendarView`).
 - **Groups (PRD 4)** resolve to their active members at send time, like
   departments. Anyone with `groups.create` (given to the Member role by
   migration 0021) makes one; the creator or `groups.manage` edits it.

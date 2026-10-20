@@ -139,6 +139,7 @@ export async function searchReminders(companyId: string, viewer: Viewer, timeZon
           where t.reminder_id = ${reminders.id}
             and (t.ref ilike ${like} or t.label ilike ${like} or u.name ilike ${like} or u.email ilike ${like}
               or dp.name ilike ${like} or g.name ilike ${like}))`,
+        sql`exists (select 1 from "user" cu where cu.id = ${reminders.createdBy} and cu.name ilike ${like})`,
       ),
     );
   }
@@ -219,7 +220,27 @@ export function upcoming(companyId: string, viewer: Viewer, limit = 8) {
 
 // --- Calendar ----------------------------------------------------------------
 
-export type CalendarEntry = { reminderId: string; title: string; at: Date; isTask: boolean };
+// PRD 14.1 layers. An entry can be in several; "other" holds what the viewer
+// can see that fits none (sent to them directly, or seen through view_all).
+export const LAYERS = {
+  mine: "Created by me",
+  assigned: "Tasks assigned to me",
+  departments: "My departments",
+  company: "Company-wide",
+  other: "Everything else I can see",
+} as const;
+export type Layer = keyof typeof LAYERS;
+export type CalendarEntry = {
+  reminderId: string;
+  title: string;
+  at: Date;
+  isTask: boolean;
+  // sent: went out (from what was actually sent); pending: waiting for approval.
+  state: "scheduled" | "pending" | "sent";
+  layers: Layer[];
+  // Created by or sent to the colleague being overlaid (C10).
+  theirs: boolean;
+};
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 export const CALENDAR_LIMIT = 500;
 
@@ -232,30 +253,54 @@ export function monthBounds(month: string, timeZone: string) {
   return { start: zonedToUtc(`${month}-01T00:00`, timeZone)!, end: zonedToUtc(`${next}-01T00:00`, timeZone)!, next, prev };
 }
 
-// Upcoming sends in a month, keyed by local day (YYYY-MM-DD). Series are
-// expanded from their rule; occurrences already recorded (skipped) are left out.
-// ponytail: expands up to CALENDAR_LIMIT scheduled reminders per request; page
+// The reminder is addressed to this person: directly, through a department or
+// group they're in, or the whole company. Targets, not deliveries, so it
+// works for sends still to come.
+const addressedTo = (userId: string) => sql`exists (select 1 from reminder_targets t where t.reminder_id = ${reminders.id} and (
+  t.kind = 'company' or (t.kind = 'user' and t.ref = ${userId})
+  or (t.kind = 'department' and t.ref in (select department_id::text from department_members where user_id = ${userId}))
+  or (t.kind = 'group' and t.ref in (select group_id::text from group_members where user_id = ${userId}))))`;
+const myDepartments = (userId: string) => sql`(select department_id::text from department_members where user_id = ${userId})`;
+
+// Entries between two local dates (from inclusive, to exclusive), keyed by
+// local day (YYYY-MM-DD): scheduled and waiting sends (series expanded from
+// their rule, recorded occurrences left out) and what was actually sent.
+// Only what the viewer can open. With `person`, entries created by or
+// addressed to them are flagged `theirs`.
+// ponytail: expands up to CALENDAR_LIMIT upcoming reminders per request; page
 // by day or cache if a company ever has more.
-export async function calendarMonth(companyId: string, viewer: Viewer, timeZone: string, month: string) {
-  const b = monthBounds(month, timeZone);
-  if (!b) return null;
-  const { rows, recorded } = await withTenant(companyId, async (tx) => {
+export async function calendarRange(companyId: string, viewer: Viewer, timeZone: string, range: { from: string; to: string; person?: string }) {
+  const start = zonedToUtc(`${range.from}T00:00`, timeZone);
+  const end = zonedToUtc(`${range.to}T00:00`, timeZone);
+  if (!start || !end || end <= start) return null;
+  const flags = {
+    mine: sql<boolean>`${reminders.createdBy} = ${viewer.id}`,
+    assigned: sql<boolean>`${reminders.isTask} and ${addressedTo(viewer.id)}`,
+    departments: sql<boolean>`exists (select 1 from reminder_targets t where t.reminder_id = ${reminders.id} and t.kind = 'department' and t.ref in ${myDepartments(viewer.id)})
+      or exists (select 1 from reminder_shares sh where sh.reminder_id = ${reminders.id} and sh.kind = 'department' and sh.ref in ${myDepartments(viewer.id)})`,
+    company: sql<boolean>`exists (select 1 from reminder_targets t where t.reminder_id = ${reminders.id} and t.kind = 'company')
+      or exists (select 1 from reminder_shares sh where sh.reminder_id = ${reminders.id} and sh.kind = 'company')`,
+    theirs: range.person ? sql<boolean>`${reminders.createdBy} = ${range.person} or ${addressedTo(range.person)}` : sql<boolean>`false`,
+  };
+  const { rows, recorded, sent } = await withTenant(companyId, async (tx) => {
     const rows = await tx
       .select({
         id: reminders.id,
         title: reminders.title,
+        status: reminders.status,
         sendAt: reminders.sendAt,
         recurrence: reminders.recurrence,
         anchorLocal: reminders.anchorLocal,
         timeZone: reminders.timeZone,
         isTask: reminders.isTask,
+        ...flags,
       })
       .from(reminders)
       .where(
         and(
-          eq(reminders.status, "scheduled"),
-          lt(reminders.sendAt, b.end),
-          or(sql`${reminders.recurrence} is not null`, gte(reminders.sendAt, b.start)),
+          inArray(reminders.status, ["scheduled", "pending_approval"]),
+          lt(reminders.sendAt, end),
+          or(sql`${reminders.recurrence} is not null`, gte(reminders.sendAt, start)),
           canViewWhere(viewer),
         ),
       )
@@ -266,28 +311,104 @@ export async function calendarMonth(companyId: string, viewer: Viewer, timeZone:
       ? await tx
           .select({ reminderId: reminderOccurrences.reminderId, at: reminderOccurrences.occursAt })
           .from(reminderOccurrences)
-          .where(and(inArray(reminderOccurrences.reminderId, series), gte(reminderOccurrences.occursAt, b.start), lt(reminderOccurrences.occursAt, b.end)))
+          .where(and(inArray(reminderOccurrences.reminderId, series), gte(reminderOccurrences.occursAt, start), lt(reminderOccurrences.occursAt, end)))
       : [];
-    return { rows, recorded };
+    // What went out in the range, as it was sent (the snapshot's title).
+    const sent = await tx
+      .select({
+        id: reminders.id,
+        title: sql<string>`coalesce(${reminderOccurrences.snapshot}->>'title', ${reminders.title})`,
+        at: reminderOccurrences.occursAt,
+        isTask: reminders.isTask,
+        ...flags,
+      })
+      .from(reminderOccurrences)
+      .innerJoin(reminders, eq(reminders.id, reminderOccurrences.reminderId))
+      .where(
+        and(
+          inArray(reminderOccurrences.status, ["sent", "sending"]),
+          gte(reminderOccurrences.occursAt, start),
+          lt(reminderOccurrences.occursAt, end),
+          canViewWhere(viewer),
+        ),
+      )
+      .orderBy(asc(reminderOccurrences.occursAt))
+      .limit(CALENDAR_LIMIT);
+    return { rows, recorded, sent };
   });
+  type Flagged = { id: string; title: string; isTask: boolean; mine: boolean; assigned: boolean; departments: boolean; company: boolean; theirs: boolean };
+  const base = (r: Flagged) => {
+    const layers = (["mine", "assigned", "departments", "company"] as const).filter((l) => r[l]);
+    return { reminderId: r.id, title: r.title, isTask: r.isTask, layers: layers.length ? layers : (["other"] as Layer[]), theirs: r.theirs };
+  };
   const done = new Set(recorded.map((o) => `${o.reminderId}:${o.at.getTime()}`));
   const days = new Map<string, CalendarEntry[]>();
   const add = (e: CalendarEntry) => {
     const key = toLocalInput(e.at, timeZone).slice(0, 10);
     days.set(key, [...(days.get(key) ?? []), e]);
   };
+  for (const r of sent) add({ ...base(r), at: r.at, state: "sent" });
   for (const r of rows.slice(0, CALENDAR_LIMIT)) {
-    const base = { reminderId: r.id, title: r.title, isTask: r.isTask };
+    const entry = { ...base(r), state: r.status === "pending_approval" ? ("pending" as const) : ("scheduled" as const) };
     if (!r.recurrence) {
-      add({ ...base, at: r.sendAt });
+      add({ ...entry, at: r.sendAt });
       continue;
     }
-    const from = r.sendAt > b.start ? r.sendAt : b.start;
-    for (const at of between(r.recurrence as Rule, r.anchorLocal, r.timeZone, from, new Date(b.end.getTime() - 1)))
-      if (!done.has(`${r.id}:${at.getTime()}`)) add({ ...base, at });
+    const from = r.sendAt > start ? r.sendAt : start;
+    for (const at of between(r.recurrence as Rule, r.anchorLocal, r.timeZone, from, new Date(end.getTime() - 1)))
+      if (!done.has(`${r.id}:${at.getTime()}`)) add({ ...entry, at });
   }
   for (const list of days.values()) list.sort((x, y) => x.at.getTime() - y.at.getTime());
-  return { ...b, days, truncated: rows.length > CALENDAR_LIMIT };
+  return { start, end, days, truncated: rows.length > CALENDAR_LIMIT };
+}
+
+// --- Which days a calendar view shows (PRD 14.1), from the URL -----------------
+
+export const VIEWS = { month: "Month", week: "Week", day: "Day", days: "Days" } as const;
+export type CalendarView = keyof typeof VIEWS;
+const ISO_DAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+const asDate = (d: string) => new Date(`${d}T00:00:00Z`);
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+export const addDays = (d: string, n: number) => iso(new Date(asDate(d).getTime() + n * 86_400_000));
+const addMonths = (d: string, n: number) => {
+  const x = asDate(`${d.slice(0, 7)}-01`);
+  x.setUTCMonth(x.getUTCMonth() + n);
+  return iso(x);
+};
+// Monday of that date's week.
+export const weekStart = (d: string) => addDays(d, -((asDate(d).getUTCDay() + 6) % 7));
+const fmt = (d: string, o: Intl.DateTimeFormatOptions) => asDate(d).toLocaleDateString("en-GB", { ...o, timeZone: "UTC" });
+
+// view: month | week | day | days (2–7, default 4); date: any day inside it.
+// Bad values fall back (to month, today, 4) instead of erroring.
+export function calendarView(p: { view?: string; date?: string; n?: string }, today: string) {
+  const view: CalendarView = p.view && p.view in VIEWS ? (p.view as CalendarView) : "month";
+  const date = p.date && ISO_DAY.test(p.date) && iso(asDate(p.date)) === p.date ? p.date : today;
+  const n = Math.min(7, Math.max(2, Number.parseInt(p.n ?? "", 10) || 4));
+  const from = view === "month" ? `${date.slice(0, 7)}-01` : view === "week" ? weekStart(date) : date;
+  const length = view === "week" ? 7 : view === "day" ? 1 : view === "days" ? n : 0;
+  const to = view === "month" ? addMonths(from, 1) : addDays(from, length);
+  const step = (dir: 1 | -1) => (view === "month" ? addMonths(from, dir) : addDays(from, dir * (length || 1)));
+  const last = addDays(to, -1);
+  const title =
+    view === "month"
+      ? fmt(from, { month: "long", year: "numeric" })
+      : view === "day"
+        ? fmt(from, { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+        : `${fmt(from, { day: "numeric", month: "short" })} – ${fmt(last, { day: "numeric", month: "short", year: "numeric" })}`;
+  return { view, date, n, from, to, prev: step(-1), next: step(1), title };
+}
+
+// Shown if any of its layers is on (C8), or it's the overlaid colleague's (C10).
+export const shownOn = (e: CalendarEntry, on: ReadonlySet<Layer>) => e.theirs || e.layers.some((l) => on.has(l));
+
+// A month (the old view and its tests): scheduled sends only.
+export async function calendarMonth(companyId: string, viewer: Viewer, timeZone: string, month: string) {
+  const b = monthBounds(month, timeZone);
+  if (!b) return null;
+  const r = (await calendarRange(companyId, viewer, timeZone, { from: `${month}-01`, to: `${b.next}-01` }))!;
+  const days = new Map([...r.days].map(([d, list]) => [d, list.filter((e) => e.state === "scheduled")] as const).filter(([, l]) => l.length));
+  return { ...b, days, truncated: r.truncated };
 }
 
 // People who created a reminder the viewer can see: the Creator filter's options.

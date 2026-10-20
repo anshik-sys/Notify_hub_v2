@@ -2,6 +2,50 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — calendar slice 1: Month, Week, Day and N-day views
+
+- Spec section 10 approved ("spec is fine"); built one slice at a time at
+  the user's request. This slice: C1–C13.
+- **Views:** Month, Week, Day and 2–7 days, all in the URL
+  (`calendarView`: range, previous/next, title; bad values fall back).
+  Month rows have a "Week" link, day numbers open Day view, the mini month
+  pages on its own (`?mini=`). Week/Day/N days are an hour grid: entries sit
+  in their hour cell (several stack), a line marks now, and a tiny client
+  component (`scroll-to.tsx`, the only client code here) scrolls the grid to
+  the earliest entry or 07:00.
+- **What shows (`calendarRange`, replacing `calendarMonth`, which stays as a
+  wrapper so its tests keep passing):** scheduled and waiting (dashed)
+  reminders, and what was actually sent (faded, with the title it was sent
+  with). Paused, cancelled, rejected and deleted ones aren't shown.
+- **Layers** from targets and shares (works before anything is sent), plus
+  "Everything else I can see": without it, a reminder sent to you directly,
+  or an admin's view-all, could never be hidden. Added to the spec.
+- **Colleague overlay:** their entries (created by them or addressed to them)
+  are outlined, only within what the viewer can already open.
+- **Search** reuses the Reminders search, which now also matches the
+  creator's name (C9 asked for it; the Reminders list gets it too).
+- **Top-bar search hidden on Calendar** too: it has its own (same rule as
+  Team and Audit log).
+- **Found, not decided:** upcoming tasks assigned to you can't show, because
+  recipients can open a reminder only after it's sent (PRD 5.4 as built).
+  Asked the user; spec notes it.
+- **Found, not mine:** in dev, every in-app navigation logs 33 CSP errors
+  ("Applying inline style violates style-src"), on old pages too
+  (Reminders → My tasks), none on a full load. Probably the dev server's
+  style injection. Not checked on a production build; CSP not loosened.
+- **Verified:** 289 tests pass, 8 skipped (new: `calendarView` ranges, steps
+  and fallbacks; `calendarRange` states, layers, overlay, visibility;
+  creator-name search). **In Chrome** as Maya:
+  - all four views load with entries, and the week link opens that week;
+  - the mini month's arrow leaves the main view alone;
+  - hiding every layer but "Everything else" empties the week;
+  - search finds "Submit timesheets" and links to its date;
+  - the hour grid opens at the first entry, with the now line on today.
+
+  Typecheck, lint.
+- **Not verified:** below 1100px (the side panel stacks), dark mode, a
+  colleague overlay in the browser (the test covers the query).
+
 ## 2026-10-20 — v2 calendar spec drafted (PRD 14.1, 14.2)
 
 - The user deferred the deploy ("we arent deploying now") and moved on to

@@ -332,7 +332,7 @@ deleted = hidden everywhere.
 | C5 | Mini month in a side panel | Clicking a date opens it in the current view; arrows change the mini month without moving the main view | PRD 14.1 | |
 | C6 | What shows | Scheduled sends (series expanded, skipped ones left out), **sent** ones in the past (from what was actually sent, faded), and reminders **waiting for approval** (marked "Needs approval"). Not paused, cancelled, rejected or deleted ones | **(proposed: past sends and waiting ones are new)** | |
 | C7 | Times and days | In the viewer's time zone, as today; a reminder in another zone shows at the viewer's local time | Existing rule | |
-| C8 | Layers on/off: Created by me · Tasks assigned to me · My departments · Company-wide | Each hides or shows its entries; an entry in two layers shows once and hides only when all its layers are off. All on by default; the choice is in the URL | PRD 14.1. **(proposed: "Events I'm invited to" arrives in step 2)** | |
+| C8 | Layers on/off: Created by me · Tasks assigned to me · My departments · Company-wide · Everything else I can see | Each hides or shows its entries; an entry in two layers shows once and hides only when all its layers are off. All on by default; the choice is in the URL. "Everything else" holds what fits no other layer (sent to you directly, or seen through "view all"), so every entry can be hidden | PRD 14.1. **(proposed: "Events I'm invited to" arrives in step 2.) "Everything else" added while building, 2026-10-20** | |
 | C9 | Search by title, tag or a person's name (creator or recipient) | Lists matching entries the viewer can see, next first; picking one opens its date in the current view | PRD 14.1 | |
 | C10 | A colleague's calendar: pick a person | Their entries (created by them or sent to them) are added, outlined, but **only those the viewer could already open**; a colleague's private reminder never shows | PRD 14.1, 5.4 | |
 | C11 | More than fit in a day cell (Month) | "+N more" opens the rest in place, as today | Existing | |
@@ -404,7 +404,17 @@ remind-before and sub-tasks (step 3). Drag and the popovers need client
 JavaScript, a first for a whole page here; every action also works without
 a mouse (K4, M4).
 
-### Open questions for the calendar
+### Found while building
+
+- **Upcoming tasks assigned to me don't show** (C8): a recipient can open a
+  reminder only once it has been sent to them (PRD 5.4 as built: "sent to
+  you" means a delivery exists). So "Tasks assigned to me" holds tasks
+  already sent, and ones you created or can see for another reason.
+  Showing upcoming ones means letting recipients open a reminder before
+  it's sent (content visible early, even while waiting for approval).
+  **Open question for the user.**
+
+### Open questions for the calendar (answered: "spec is fine", 2026-10-20)
 
 1. **C6:** show past sends and reminders waiting for approval, or only
    what's scheduled (as today)?

@@ -59,8 +59,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
 
           {seesReminders && (
-            // Only on pages about reminders and tasks; Reminders has its own search.
-            <ShowOn paths={["/", "/calendar", "/tasks", "/approvals", "/notifications"]}>
+            // Only on pages about reminders and tasks; Reminders and Calendar have their own search.
+            <ShowOn paths={["/", "/tasks", "/approvals", "/notifications"]}>
               <form action="/reminders" role="search" className={styles.search}>
                 <Icon name="search" />
                 <input name="q" type="search" placeholder="Search reminders…" aria-label="Search reminders" className={styles.searchInput} />

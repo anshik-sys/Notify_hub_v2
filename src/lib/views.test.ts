@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { db } from "@/db";
 import { COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "./permissions";
 import { seeder } from "./test-helpers";
-import { calendarMonth, dashboardStats, filterUrl, parseFilters, searchReminders } from "./views";
+import { calendarMonth, calendarRange, calendarView, dashboardStats, filterUrl, parseFilters, searchReminders, shownOn } from "./views";
 
 const s = seeder();
 let admin: string, mgr: string, alice: string, bob: string, ops: string;
@@ -149,4 +149,76 @@ test("show filter: shared with me and sent to me are listed; dashboard ignores t
   const cal = (await calendarMonth(s.companyId, await viewer(alice), "UTC", "2030-01"))!;
   assert.ok([...cal.days.values()].flat().some((e) => e.title === "Bob shares with Ops"));
   await q("update reminders set status = 'cancelled' where id = any($1)", [[shared, toAlice]]);
+});
+
+test("calendarView: ranges, steps and fallbacks per view", () => {
+  const t = "2026-10-20"; // a Tuesday
+  const m = calendarView({}, t);
+  assert.deepEqual([m.view, m.from, m.to, m.prev, m.next, m.title], ["month", "2026-10-01", "2026-11-01", "2026-09-01", "2026-11-01", "October 2026"]);
+  const w = calendarView({ view: "week", date: "2026-10-25" }, t); // a Sunday: its week starts Monday the 19th
+  assert.deepEqual([w.from, w.to, w.prev, w.next], ["2026-10-19", "2026-10-26", "2026-10-12", "2026-10-26"]);
+  const d = calendarView({ view: "day", date: "2026-12-31" }, t);
+  assert.deepEqual([d.from, d.to, d.next, d.title], ["2026-12-31", "2027-01-01", "2027-01-01", "Thursday, 31 December 2026"]);
+  const n = calendarView({ view: "days", date: t, n: "3" }, t);
+  assert.deepEqual([n.from, n.to, n.prev, n.next], ["2026-10-20", "2026-10-23", "2026-10-17", "2026-10-23"]);
+  assert.equal(calendarView({ view: "days", n: "40" }, t).n, 7);
+  assert.equal(calendarView({ view: "days", n: "x" }, t).n, 4);
+  assert.equal(calendarView({ view: "year", date: "2026-02-30" }, t).view, "month");
+  assert.equal(calendarView({ date: "2026-02-30" }, t).date, t); // not a real day
+  assert.equal(calendarView({ view: "month", date: "2027-01-15" }, t).prev, "2026-12-01");
+});
+
+test("calendarRange: waiting and sent entries, layers, a colleague's overlay", async () => {
+  const sales = (await q("insert into departments (company_id, name) values ($1, 'Sales') returning id", [s.companyId]))[0].id;
+  const task = await mk(alice, "Task for ops", { task: true, sendAt: "2031-05-06T09:00Z" });
+  await q("insert into reminder_targets values ($1, $2, 'department', $3, null)", [task, s.companyId, ops]);
+  // Bob's upcoming task to Ops: alice can't open it until it's sent to her (PRD 5.4, as built).
+  const bobsTask = await mk(bob, "Bob's task for ops", { task: true, sendAt: "2031-05-06T10:00Z" });
+  await q("insert into reminder_targets values ($1, $2, 'department', $3, null)", [bobsTask, s.companyId, ops]);
+  const everyone = await mk(alice, "All hands", { sendAt: "2031-05-07T09:00Z" });
+  await q("insert into reminder_targets values ($1, $2, 'company', null, null)", [everyone, s.companyId]);
+  await mk(alice, "Waiting one", { sendAt: "2031-05-08T09:00Z", status: "pending_approval" });
+  const toSales = await mk(bob, "Sales only", { sendAt: "2031-05-09T09:00Z" });
+  await q("insert into reminder_targets values ($1, $2, 'department', $3, null)", [toSales, s.companyId, sales]);
+  await mk(alice, "Paused one", { sendAt: "2031-05-10T09:00Z", status: "paused" });
+  const went = await mk(bob, "Went out", { sendAt: "2031-05-04T09:00Z", status: "sent" });
+  await q("insert into reminder_targets values ($1, $2, 'user', $3, null)", [went, s.companyId, alice]);
+  const [{ id: occ }] = await q(
+    `insert into reminder_occurrences (company_id, reminder_id, occurs_at, status, snapshot) values ($1, $2, '2031-05-04T09:00Z', 'sent', '{"title":"Went out (as sent)","description":"","links":[],"senderName":"S"}') returning id`,
+    [s.companyId, went],
+  );
+  await q("insert into deliveries (company_id, reminder_id, occurrence_id, address, user_id, status) values ($1, $2, $3, $4, $4, 'sent')", [s.companyId, went, occ, alice]);
+
+  const range = { from: "2031-05-01", to: "2031-06-01" };
+  const all = [...(await calendarRange(s.companyId, await viewer(alice), "UTC", range))!.days.values()].flat();
+  const by = (title: string) => all.find((e) => e.title === title);
+  assert.deepEqual(by("Task for ops")?.layers, ["mine", "assigned", "departments"]);
+  assert.deepEqual(by("All hands")?.layers, ["mine", "company"]);
+  assert.equal(by("Bob's task for ops"), undefined);
+  assert.equal(by("Waiting one")?.state, "pending");
+  assert.deepEqual(by("Waiting one")?.layers, ["mine"]);
+  assert.equal(by("Went out (as sent)")?.state, "sent");
+  assert.deepEqual(by("Went out (as sent)")?.layers, ["other"]); // sent to her directly: no layer of its own
+  assert.equal(by("Sales only"), undefined); // alice can't open it
+  assert.equal(by("Paused one"), undefined);
+  assert.equal(by("Went out"), undefined); // shown as it was sent, once
+
+  // Layers: hidden only when all of an entry's layers are off.
+  assert.equal(shownOn(by("Task for ops")!, new Set(["departments"])), true);
+  assert.equal(shownOn(by("Task for ops")!, new Set(["company", "other"])), false);
+
+  // The admin overlays bob: his own and what's addressed to him are flagged; others aren't.
+  const adm = [...(await calendarRange(s.companyId, await viewer(admin), "UTC", { ...range, person: bob }))!.days.values()].flat();
+  assert.equal(adm.find((e) => e.title === "Sales only")?.theirs, true); // he created it
+  assert.equal(adm.find((e) => e.title === "All hands")?.theirs, true); // addressed to the whole company
+  assert.equal(adm.find((e) => e.title === "Waiting one")?.theirs, false);
+  // Alice overlaying bob still sees only what she could open.
+  const al = [...(await calendarRange(s.companyId, await viewer(alice), "UTC", { ...range, person: bob }))!.days.values()].flat();
+  assert.ok(!al.some((e) => e.title === "Sales only"));
+  assert.equal(await calendarRange(s.companyId, await viewer(alice), "UTC", { from: "2031-06-01", to: "2031-05-01" }), null);
+  await q("update reminders set status = 'cancelled' where id = any($1)", [[task, bobsTask, everyone, toSales]]);
+});
+
+test("search finds a reminder by its creator's name", async () => {
+  assert.ok((await titles(admin, { q: "Bob Build" })).includes("Bob's own"));
 });
