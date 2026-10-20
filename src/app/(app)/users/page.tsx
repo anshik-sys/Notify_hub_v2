@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { Avatar } from "@/components/avatar";
 import { FilterBar, Pager } from "@/components/filters";
-import { Button, Field, firstParam, LinkButton, Page, Section } from "@/components/form";
+import { Button, Field, firstParam, LinkButton, Page } from "@/components/form";
 import { Badge, Muted, Table } from "@/components/table";
+import { Tabs } from "@/components/tabs";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { listUsers } from "@/lib/users";
@@ -19,6 +20,9 @@ export default async function Users(props: PageProps<"/users">) {
   const page = Number.isInteger(n) && n > 0 && n < 10_000 ? n : 1;
   const { users, pending, total } = await listUsers(companyId, q, page);
   const canInvite = can(access, "users.create");
+  const hasInvites = canInvite && pending.length > 0;
+  // ?show=invites with none left (the last one revoked) falls back to members.
+  const showInvites = hasInvites && firstParam(sp.show) === "invites";
   const showRoles = can(access, "users.manage_roles");
 
   return (
@@ -40,60 +44,74 @@ export default async function Users(props: PageProps<"/users">) {
         </>
       }
     >
-      <FilterBar action="/users" clearHref={q ? "/users" : undefined}>
-        <Field label="Search" name="q" type="search" placeholder="Name, email or department" defaultValue={q} />
-      </FilterBar>
-      <Table
-        columns={["Name", "Email", "Departments", ...(showRoles ? ["Roles"] : []), "Status"]}
-        empty={q ? "Nobody matches that." : undefined}
-        rows={users.map((u) => ({
-          key: u.id,
-          href: `/users/${u.id}`,
-          cells: [
-            <span key="n" className={styles.person}>
-              <Avatar name={u.name} />
-              {u.name}
-            </span>,
-            u.email,
-            <Muted key="d">{u.departments.map((d) => (d.isManager ? `${d.name} (manager)` : d.name)).join(", ") || "—"}</Muted>,
-            ...(showRoles ? [<Muted key="r">{u.roles.join(", ")}</Muted>] : []),
-            u.deactivatedAt ? (
-              <Badge key="s" tone="danger">
-                Deactivated
-              </Badge>
-            ) : (
-              <Badge key="s">Active</Badge>
-            ),
-          ],
-        }))}
-      />
-      {total > PAGE_SIZE && (
-        <Pager
-          page={page}
-          total={total}
-          pageSize={PAGE_SIZE}
-          href={(p) => `/users?${new URLSearchParams({ ...(q && { q }), ...(p > 1 && { page: String(p) }) })}`}
+      {hasInvites && (
+        <Tabs
+          label="Show"
+          tabs={[
+            { href: "/users", label: "Members", current: !showInvites },
+            {
+              href: "/users?show=invites",
+              label: `Pending invites (${pending.length})`,
+              current: showInvites,
+            },
+          ]}
         />
       )}
-      {canInvite && pending.length > 0 && (
-        <Section title="Pending invites">
+      {showInvites ? (
+        <Table
+          columns={["Email", "Expires", ""]}
+          rows={pending.map((p) => ({
+            key: p.id,
+            cells: [
+              p.email,
+              p.expiresAt.toISOString().slice(0, 10),
+              <form key="r" action={revokeInvite}>
+                <input type="hidden" name="id" value={p.id} />
+                <Button variant="secondary" size="small">
+                  Revoke
+                </Button>
+              </form>,
+            ],
+          }))}
+        />
+      ) : (
+        <>
+          <FilterBar action="/users" clearHref={q ? "/users" : undefined}>
+            <Field label="Search" name="q" type="search" placeholder="Name, email or department" defaultValue={q} />
+          </FilterBar>
           <Table
-            columns={["Email", "Expires", ""]}
-            rows={pending.map((p) => ({
-              key: p.id,
+            columns={["Name", "Email", "Departments", ...(showRoles ? ["Roles"] : []), "Status"]}
+            empty={q ? "Nobody matches that." : undefined}
+            rows={users.map((u) => ({
+              key: u.id,
+              href: `/users/${u.id}`,
               cells: [
-                p.email,
-                p.expiresAt.toISOString().slice(0, 10),
-                <form key="r" action={revokeInvite}>
-                  <input type="hidden" name="id" value={p.id} />
-                  <Button variant="secondary" size="small">
-                    Revoke
-                  </Button>
-                </form>,
+                <span key="n" className={styles.person}>
+                  <Avatar name={u.name} />
+                  {u.name}
+                </span>,
+                u.email,
+                <Muted key="d">{u.departments.map((d) => (d.isManager ? `${d.name} (manager)` : d.name)).join(", ") || "—"}</Muted>,
+                ...(showRoles ? [<Muted key="r">{u.roles.join(", ")}</Muted>] : []),
+                u.deactivatedAt ? (
+                  <Badge key="s" tone="danger">
+                    Deactivated
+                  </Badge>
+                ) : (
+                  <Badge key="s">Active</Badge>
+                ),
               ],
             }))}
           />
-        </Section>
+          {total > PAGE_SIZE && (
+            <Pager
+              page={page}
+              total={total}
+              pageSize={PAGE_SIZE}
+              href={(p) => `/users?${new URLSearchParams({ ...(q && { q }), ...(p > 1 && { page: String(p) }) })}`}
+            />
+          )}
+        </>
       )}
     </Page>
   );

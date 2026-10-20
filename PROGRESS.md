@@ -2,6 +2,22 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — Team: pending invites get their own tab
+
+- Pending invites sat below the members table, so with a paged list you
+  had to scroll past 25 people to find them. The user picked tabs from
+  three options (also offered: a card above the table, which pushes
+  members down when there are many invites; invites mixed into the table
+  as "Invited" rows, which would make paging and search cover two tables).
+- **Team** shows "Members | Pending invites (n)" only to people who can
+  invite, and only while some are pending. The invites tab is
+  `/users?show=invites` (unpaged); with none left it falls back to members.
+  Sending an invite and revoking one land on that tab.
+- **Kit:** the pill tabs were copied in the Tasks and Reports CSS; now one
+  `Tabs` (`src/components/tabs.tsx`), used by all three pages.
+- **Verified:** typecheck, lint. **Not verified:** the look and the clicks
+  in the browser (the user is checking).
+
 ## 2026-10-20 — Team list pages (audit #10)
 
 - PRD 11.3 says lists are paginated; the Team page (PRD 4 directory) loaded

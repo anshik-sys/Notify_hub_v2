@@ -25,7 +25,7 @@ export async function inviteUser(formData: FormData) {
   if (limited) redirect(errorUrl("/users/invite", limited));
   const error = await createInvitation({ id: user.id, name: user.name, access }, companyId, email, roleIds, departmentIds);
   if (error) redirect(errorUrl("/users/invite", error));
-  redirect(`/users?notice=${encodeURIComponent(`Invite sent to ${email.trim().toLowerCase()}.`)}`);
+  redirect(`/users?show=invites&notice=${encodeURIComponent(`Invite sent to ${email.trim().toLowerCase()}.`)}`);
 }
 
 export async function revokeInvite(formData: FormData) {
@@ -33,7 +33,7 @@ export async function revokeInvite(formData: FormData) {
   const id = String(formData.get("id"));
   if (!isUuid(id)) notFound();
   await revokeInvitation(companyId, id);
-  redirect("/users");
+  redirect("/users?show=invites");
 }
 
 export async function saveUserRoles(formData: FormData) {

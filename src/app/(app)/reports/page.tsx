@@ -4,6 +4,7 @@ import { FilterBar } from "@/components/filters";
 import { Field, LinkButton, Page, Section, SelectField } from "@/components/form";
 import { StatCards } from "@/components/stats";
 import { Bar, Muted, Table } from "@/components/table";
+import { Tabs } from "@/components/tabs";
 import { can } from "@/lib/permissions";
 import { parseReportFilters, type ReportFilters } from "@/lib/reports";
 import { requireMember } from "@/lib/session";
@@ -36,13 +37,7 @@ export default async function Reports(props: PageProps<"/reports">) {
         )
       }
     >
-      <nav className={styles.tabs} aria-label="Report">
-        {TABS.map(([key, label]) => (
-          <Link key={key} href={`/reports?${qs({ ...f, report: key })}`} aria-current={f.report === key ? "page" : undefined}>
-            {label}
-          </Link>
-        ))}
-      </nav>
+      <Tabs label="Report" tabs={TABS.map(([key, label]) => ({ href: `/reports?${qs({ ...f, report: key })}`, label, current: f.report === key }))} />
       <FilterBar action="/reports">
         <input type="hidden" name="report" value={f.report} />
         {f.report !== "overdue" && <Field label="From" name="from" type="date" defaultValue={f.from} />}

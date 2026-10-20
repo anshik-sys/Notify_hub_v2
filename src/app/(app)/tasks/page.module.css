@@ -1,35 +1,3 @@
-.tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 16px;
-}
-
-.tabs a {
-  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out);
-  padding: 6px 14px;
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 0.9375rem;
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.tabs a:hover {
-  background: var(--panel);
-  color: var(--fg);
-}
-
-.tabs a[aria-current="page"] {
-  background: var(--accent-bg);
-  color: var(--accent-fg);
-  font-weight: 600;
-}
-
-.tabs a:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
-}
-
 .due {
   display: inline-flex;
   align-items: center;
