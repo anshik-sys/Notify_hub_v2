@@ -4,14 +4,21 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
 ## 2026-10-20 — Team list pages (audit #10)
 
-- The Team page loaded every member at once. It now shows 25 per page
-  (`PAGE_SIZE`, same as Reminders) with the shared `Pager`; the search
-  carries across pages. Pending invites stay unpaged.
+- PRD 11.3 says lists are paginated; the Team page (PRD 4 directory) loaded
+  every member at once, plus every department membership and role in the
+  company to label them. It now shows 25 per page (`PAGE_SIZE`, same as
+  Reminders) with the shared `Pager`; the search carries across pages.
+  Pending invites stay unpaged (they expire in 7 days, so the list stays
+  short).
 - `listUsers(companyId, q, page?)` returns `total`; without a page it still
-  returns everyone, so the pickers (reminder form, setup, integrations)
-  are unchanged. Department and role lookups now fetch only the listed
-  people, not the whole company. Ties on name sort by id so no one shows
-  on two pages.
+  returns everyone, because the pickers (reminder form, setup,
+  integrations) need the full list. Department and role lookups now fetch
+  only the listed people. Ties on name sort by id; without that, two
+  people with the same name could swap between pages and one would show
+  twice.
+- **Rejected:** keyset paging. Offset is what Reminders uses and is fine to
+  a few thousand people (README); switch both together if a company gets
+  that big.
 - **Verified:** new test in `src/lib/users.test.ts` (26 matching people:
   25 + 1, total 26, no repeats, unpaged returns all 26). Full suite 260
   pass, 2 browser-only skips; typecheck, lint. Not yet looked at in the

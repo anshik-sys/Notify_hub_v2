@@ -267,7 +267,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Tags: add "Finance, Q3" to a reminder → shown as chips; clicking one lists reminders with that tag.
 - [ ] My tasks: Mark done moves it to Done and stays on the page; Calendar shows a daily reminder on each remaining day, not on a skipped one.
 - [ ] Groups: a member creates a group of teammates and sends to it (no approval needed); adding someone from another department sends their upcoming reminder back to "Needs approval" and the admin is notified. Only the creator or an admin can edit it.
-- [ ] Team: searching a department's name lists its members, with their departments shown.
+- [ ] Team: searching a department's name lists its members, with their departments shown. With more than 25 people, Next goes to page 2 and keeps the search.
 - [ ] Settings → Security: set up two-factor with a real authenticator app (scan the QR), sign out, sign in → asked for a code; a backup code works once.
 - [ ] Forgot password → the email arrives → the link resets the password, and works only once; other sessions are signed out.
 - [ ] Company → Require two-factor: refused until you have it yourself; then someone without it is sent to set it up.
