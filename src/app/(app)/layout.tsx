@@ -58,7 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
 
           {seesReminders && (
-            <HideOn path="/reminders">
+            <HideOn paths={["/reminders"]}>
               <form action="/reminders" role="search" className={styles.search}>
                 <Icon name="search" />
                 <input name="q" type="search" placeholder="Search reminders…" aria-label="Search reminders" className={styles.searchInput} />
@@ -85,10 +85,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <Avatar name={user.name} size="large" />
             </button>
             {can(access, "reminders.create") && (
-              <Link href="/reminders/new" className={styles.create} aria-label="New reminder">
-                <Icon name="plus" />
-                <span className={styles.createLabel}>New reminder</span>
-              </Link>
+              // Reminders has its own "New reminder" page action; the form needs no link to itself.
+              <HideOn paths={["/reminders", "/reminders/new"]}>
+                <Link href="/reminders/new" className={styles.create} aria-label="New reminder">
+                  <Icon name="plus" />
+                  <span className={styles.createLabel}>New reminder</span>
+                </Link>
+              </HideOn>
             )}
           </div>
         </header>

@@ -2,6 +2,18 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — one "New reminder" button on the Reminders page
+
+- The user saw two: the top bar's pill and the page's own action. On
+  2026-10-12 I kept both ("page actions are the rule"); the user now asked
+  for one. The page action stays (AGENTS.md: a page's main action goes top
+  right); the top-bar pill hides on `/reminders`, like the top-bar search
+  already did, and on `/reminders/new` (a link to the page you're on).
+  `HideOn` takes a list of paths now.
+- **Verified:** in Chrome (throwaway session for Maya): one New reminder
+  link on Home, Reminders and My tasks; none on the New reminder page.
+  Typecheck, lint.
+
 ## 2026-10-20 — discussion: new comments show without a reload; card layout
 
 - **Posting needed a reload to show the comment.** Reproduced in Chrome:

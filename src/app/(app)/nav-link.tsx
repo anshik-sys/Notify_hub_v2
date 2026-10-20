@@ -19,10 +19,10 @@ export function NavLink({ href, icon, children }: { href: string; icon: IconName
   );
 }
 
-// Hides its children on one page, e.g. the top-bar search on /reminders,
+// Hides its children on the given pages, e.g. the top-bar search on /reminders,
 // which has its own search field.
-export function HideOn({ path, children }: { path: string; children: React.ReactNode }) {
-  return usePathname() === path ? null : children;
+export function HideOn({ paths, children }: { paths: string[]; children: React.ReactNode }) {
+  return paths.includes(usePathname()) ? null : children;
 }
 
 // The shell stays mounted across client navigations, so an open popover menu
