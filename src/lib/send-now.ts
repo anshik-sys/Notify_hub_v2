@@ -23,6 +23,8 @@ export async function sendNow(actor: Actor, companyId: string, id: string) {
   return withTenant(companyId, async (tx) => {
     const [r] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update");
     if (!r || !(await mayChange(companyId, actor, r.createdBy, "reminders.send_now"))) return { error: "Reminder not found." };
+    // An event isn't a message to send: its invites and notices are (PRD 14.3).
+    if (r.isEvent) return { error: "An event isn't sent; its guests get invites and \"starts soon\" notices." };
     const allowed = r.status === "scheduled" || (r.recurrence && r.status === "paused");
     if (!allowed)
       return {
@@ -48,6 +50,7 @@ export async function sendTest(
 ) {
   const [r] = await withTenant(companyId, (tx) => tx.select().from(reminders).where(and(eq(reminders.id, id), isNull(reminders.deletedAt))));
   if (!r || (await reminderAccess(companyId, actor, r)) !== "full") return { error: "Reminder not found." };
+  if (r.isEvent) return { error: "An event isn't sent; its guests get invites and \"starts soon\" notices." };
   const appUrl = `${process.env.BETTER_AUTH_URL}/reminders/${r.id}`;
   // A task's due time as if sent right now.
   const due =

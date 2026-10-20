@@ -55,6 +55,13 @@ async function createOccurrence(tx: Tx, r: Reminder, occursAt: Date) {
     .onConflictDoNothing()
     .returning({ id: reminderOccurrences.id });
   if (!occ) return null;
+  // An event's date coming round sends nothing itself (its invites and
+  // "starts soon" notices are separate, PRD 14.3): it's recorded as happened,
+  // so the calendar shows it as past and a series moves on.
+  if (r.isEvent) {
+    await tx.update(reminderOccurrences).set({ status: "sent" }).where(eq(reminderOccurrences.id, occ.id));
+    return [];
+  }
   const targets = await tx
     .select({ kind: reminderTargets.kind, ref: reminderTargets.ref })
     .from(reminderTargets)

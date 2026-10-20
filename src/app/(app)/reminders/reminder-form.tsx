@@ -26,6 +26,14 @@ export type ReminderDefaults = {
   repeat: RepeatFields;
   isTask: boolean;
   dueLocal: string;
+  // PRD 14.3 events (left out on a new reminder).
+  isEvent?: boolean;
+  endLocal?: string;
+  allDay?: boolean;
+  endDate?: string;
+  location?: string;
+  meetingUrl?: string;
+  notifyBefore?: number[];
   channels: string[];
   slackChannelIds: string[];
   tags: string;
@@ -372,12 +380,46 @@ export function ReminderForm({
         </div>
       </Section>
 
-      <Section title="Task" step={5}>
+      <Section title="Type" step={5}>
         <div className={styles.task}>
-          <Checkbox label="This is a task: everyone must mark it done" name="isTask" defaultChecked={defaults.isTask} />
+          <RadioGroup
+            legend="Type"
+            hideLegend
+            name="kind"
+            value={defaults.isEvent ? "event" : defaults.isTask ? "task" : "reminder"}
+            options={[
+              { value: "reminder", label: "Reminder: tell people something" },
+              { value: "task", label: "Task: everyone must mark it done" },
+              { value: "event", label: "Event: a meeting people attend" },
+            ]}
+          />
           <div className={styles.due}>
             <Field label={`Due (${timeZone})`} name="due" type="datetime-local" defaultValue={defaults.dueLocal} />
             <Hint>Anyone not done by then gets a reminder every day until they are.</Hint>
+          </div>
+          {/* PRD 14.3: the start is "When to send" above. */}
+          <div className={styles.event}>
+            <Hint>The start is the date and time under When. Guests are the recipients: people in the company only.</Hint>
+            <Checkbox label="All day" name="allDay" defaultChecked={defaults.allDay} />
+            <div className={styles.endsAt}>
+              <Field label={`Ends (${timeZone})`} name="endsAt" type="datetime-local" defaultValue={defaults.endLocal} />
+            </div>
+            <div className={styles.endDate}>
+              <Field label="Last day" name="endDate" type="date" defaultValue={defaults.endDate} />
+              <Hint>Leave it empty for a one-day event.</Hint>
+            </div>
+            <Field label="Location" name="location" maxLength={200} placeholder="Room 4, or an address" defaultValue={defaults.location} />
+            <Field label="Meeting link" name="meetingUrl" type="url" placeholder="https://meet.google.com/…" defaultValue={defaults.meetingUrl} />
+            <CheckboxGroup
+              legend="Tell guests before it starts"
+              name="notifyBefore"
+              options={[
+                { value: "10", label: "10 minutes" },
+                { value: "30", label: "30 minutes" },
+                { value: "60", label: "1 hour" },
+                { value: "1440", label: "1 day" },
+              ].map((o) => ({ ...o, checked: (defaults.notifyBefore ?? [10]).includes(Number(o.value)) }))}
+            />
           </div>
         </div>
       </Section>

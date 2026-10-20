@@ -230,12 +230,12 @@ export async function quickCreateAction(fd: FormData) {
   const r = await quickCreate({ id: user.id, access }, companyId, {
     title: str(fd, "title"),
     at,
-    kind: fd.get("kind") === "task" ? "task" : "reminder",
+    kind: fd.get("kind") === "task" ? "task" : fd.get("kind") === "event" ? "event" : "reminder",
     timeZone,
     senderName: senderDefault(company),
   });
   if ("error" in r) redirect(errorUrl(back, r.error));
-  redirect(withNotice(back, fd.get("kind") === "task" ? "Task created." : "Reminder created."));
+  redirect(withNotice(back, fd.get("kind") === "task" ? "Task created." : fd.get("kind") === "event" ? "Event created." : "Reminder created."));
 }
 
 const SCOPES: Scope[] = ["one", "following", "all"];

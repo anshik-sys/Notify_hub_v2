@@ -174,7 +174,7 @@ test("calendarRange: waiting and sent entries, layers, a colleague's overlay", a
   const sales = (await q("insert into departments (company_id, name) values ($1, 'Sales') returning id", [s.companyId]))[0].id;
   const task = await mk(alice, "Task for ops", { task: true, sendAt: "2031-05-06T09:00Z" });
   await q("insert into reminder_targets values ($1, $2, 'department', $3, null)", [task, s.companyId, ops]);
-  // Bob's upcoming task to Ops: alice can't open it until it's sent to her (PRD 5.4, as built).
+  // Bob's upcoming task to Ops: alice, in Ops, can open it before it's sent (spec VS2, 2026-10-20).
   const bobsTask = await mk(bob, "Bob's task for ops", { task: true, sendAt: "2031-05-06T10:00Z" });
   await q("insert into reminder_targets values ($1, $2, 'department', $3, null)", [bobsTask, s.companyId, ops]);
   const everyone = await mk(alice, "All hands", { sendAt: "2031-05-07T09:00Z" });
@@ -196,7 +196,7 @@ test("calendarRange: waiting and sent entries, layers, a colleague's overlay", a
   const by = (title: string) => all.find((e) => e.title === title);
   assert.deepEqual(by("Task for ops")?.layers, ["mine", "assigned", "departments"]);
   assert.deepEqual(by("All hands")?.layers, ["mine", "company"]);
-  assert.equal(by("Bob's task for ops"), undefined);
+  assert.deepEqual(by("Bob's task for ops")?.layers, ["assigned", "departments"]);
   assert.equal(by("Waiting one")?.state, "pending");
   assert.deepEqual(by("Waiting one")?.layers, ["mine"]);
   assert.equal(by("Went out (as sent)")?.state, "sent");
@@ -237,7 +237,7 @@ test("search finds a reminder by its creator's name", async () => {
 test("layoutDay: minutes from midnight; overlapping blocks share the width", () => {
   const e = (hhmm: string, title = hhmm): CalendarEntry => ({
     reminderId: title, title, at: new Date(`2031-05-06T${hhmm}:00Z`), isTask: false, state: "scheduled", layers: ["mine"], theirs: false,
-    color: "lavender", myColor: false, repeat: null, recipients: null, canChange: true, assignment: null,
+    color: "lavender", myColor: false, repeat: null, recipients: null, canChange: true, assignment: null, event: null,
   });
   const lay = (...es: CalendarEntry[]) => layoutDay(es, "UTC").map((p) => [p.entry.title, p.minute, p.lane, p.lanes]);
   assert.deepEqual(lay(e("09:00"), e("11:00")), [["09:00", 540, 0, 1], ["11:00", 660, 0, 1]]); // apart: full width
@@ -247,4 +247,20 @@ test("layoutDay: minutes from midnight; overlapping blocks share the width", () 
   assert.deepEqual(lay(e("09:30"), e("10:00")), [["09:30", 570, 0, 1], ["10:00", 600, 0, 1]]); // touching isn't overlapping
   assert.deepEqual(lay(e("23:45")), [["23:45", 1425, 0, 1]]);
   assert.deepEqual(layoutDay([], "UTC"), []);
+});
+
+test("events on the calendar: blocks as long as the event, several days, the invited layer", async () => {
+  const meeting = await mk(bob, "Long meeting", { sendAt: "2032-02-03T13:00Z" });
+  await q("update reminders set is_event = true, duration_minutes = 90 where id = $1", [meeting]);
+  await q("insert into reminder_targets values ($1, $2, 'department', $3, null)", [meeting, s.companyId, ops]);
+  const offsite = await mk(alice, "Offsite", { sendAt: "2032-02-10T00:00Z", anchor: "2032-02-10T00:00" });
+  await q("update reminders set is_event = true, all_day = true, duration_minutes = 3 * 1440 where id = $1", [offsite]);
+  const days = (await calendarRange(s.companyId, await viewer(alice), "UTC", { from: "2032-02-01", to: "2032-03-01" }))!.days;
+  const titles = (d: string) => (days.get(d) ?? []).map((e) => e.title);
+  const m = days.get("2032-02-03")!.find((e) => e.title === "Long meeting")!;
+  assert.deepEqual([m.event?.minutes, m.layers], [90, ["invited", "departments"]]); // a guest in Ops, before it's sent
+  assert.deepEqual(["2032-02-10", "2032-02-11", "2032-02-12", "2032-02-13"].map((d) => titles(d).includes("Offsite")), [true, true, true, false]);
+  const placed = layoutDay(days.get("2032-02-03")!, "UTC").find((p) => p.entry.title === "Long meeting")!;
+  assert.deepEqual([placed.minute, placed.length], [13 * 60, 90]);
+  await q("update reminders set status = 'cancelled' where id = any($1)", [[meeting, offsite]]);
 });

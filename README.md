@@ -392,6 +392,18 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   which runs alongside the page, so marking read inside the reminder page
   would leave the count stale for that load. The list uses a plain `<a>` (no
   prefetch), so only a real click marks it read.
+- **Events (PRD 14.3) are a third kind on `reminders`** (`is_event`, never
+  with `is_task`): `send_at` is the (next) start, each date lasts
+  `duration_minutes`, and all-day ones start at midnight and last whole days.
+  `location`, `meeting_url`, and `notify_before` minutes are also stored.
+  - **The worker sends nothing at an event's start.** `createOccurrence`
+    records the date as sent with no deliveries, so the calendar shows it as
+    past and a series moves on. Invites and "starts soon" notices are
+    separate. "Send now" and "Send me a test" are refused for events.
+  - **Guests and assignees see it early:** `invitedSql` lets them open a
+    *scheduled* event or task addressed to them (never while it waits for
+    approval) before anything is sent. It's in both `reminderAccess` and
+    `canViewWhere`; change them together.
 - **Two visibility levels, each with an SQL twin for lists** (PRD 5.4, 8):
   - **full** (`canSeeReminder` / `overseeWhere`): the creator, everyone with
     `view_all`/`approve`, and managers of the creator's departments. They see

@@ -73,7 +73,7 @@ test("every field the server reads exists in the form (catches a renamed field)"
 
 test("a task to my department: saved with its due time, targets, tags and link", async () => {
   const due = new Date(later.getTime() + 3 * 3_600_000);
-  const fd = post([...baseFields().filter(([k]) => k !== "due"), ["isTask", "on"], ["due", local(due)]]);
+  const fd = post([...baseFields().filter(([k]) => k !== "due"), ["kind", "task"], ["due", local(due)]]);
   const r = await save(fd);
   assert.ok("id" in r, JSON.stringify(r));
   const saved = (await getReminder(s.companyId, r.id))!;
@@ -100,7 +100,7 @@ test("the form's mistakes come back as messages, and nothing is saved", async ()
   const before = await count();
   const cases: [string, [string, string][], RegExp][] = [
     ["no title", baseFields().map(([k, v]) => [k, k === "title" ? "" : v]), /title/i],
-    ["a task with no due time", [...baseFields(), ["isTask", "on"]], /due/i],
+    ["a task with no due time", [...baseFields(), ["kind", "task"]], /due/i],
     ["no recipients", baseFields().filter(([k]) => k !== "departments"), /recipient|who/i],
     ["no channel", baseFields().filter(([k]) => k !== "channels"), /channel/i],
   ];

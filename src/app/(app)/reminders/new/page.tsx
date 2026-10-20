@@ -21,6 +21,7 @@ export default async function NewReminder(props: PageProps<"/reminders/new">) {
   // The calendar's time is in the viewer's zone; the form's is the company's.
   const picked = zonedToUtc(firstParam(sp.at) ?? "", timeZone);
   const asTask = firstParam(sp.task) === "1";
+  const asEvent = firstParam(sp.event) === "1";
   const local = (d: Date) => toLocalInput(d, company.timeZone);
 
   return (
@@ -51,6 +52,8 @@ export default async function NewReminder(props: PageProps<"/reminders/new">) {
           repeat: fieldsFromRule(null, ""),
           isTask: asTask,
           dueLocal: picked && asTask ? local(new Date(picked.getTime() + QUICK_TASK_DUE_MINUTES * 60_000)) : "",
+          isEvent: asEvent,
+          endLocal: picked && asEvent ? local(new Date(picked.getTime() + 3_600_000)) : "",
           channels: ["email"],
           slackChannelIds: [],
         }}

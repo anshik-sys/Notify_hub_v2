@@ -76,6 +76,17 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           slackChannelIds: refs("slack_channel"),
           // Same gap after the (next) send as before; "now" if that time has passed.
           dueLocal: r.isTask && r.dueAfterMinutes ? toLocalInput(dueFrom(r.sendAt, r.dueAfterMinutes), r.timeZone) : "",
+          // An event's end, from its (next) start and length.
+          isEvent: r.isEvent,
+          allDay: r.allDay,
+          endLocal: r.isEvent && r.durationMinutes ? toLocalInput(new Date((occurs ?? r.sendAt).getTime() + r.durationMinutes * 60_000), r.timeZone) : "",
+          endDate:
+            r.isEvent && r.allDay && r.durationMinutes
+              ? toLocalInput(new Date((occurs ?? r.sendAt).getTime() + (r.durationMinutes - 1440) * 60_000), r.timeZone).slice(0, 10)
+              : "",
+          location: r.location ?? "",
+          meetingUrl: r.meetingUrl ?? "",
+          notifyBefore: r.notifyBefore,
         }}
       />
     </Page>

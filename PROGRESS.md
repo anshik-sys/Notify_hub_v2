@@ -2,6 +2,67 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — events slice 1: the event itself, visibility, the calendar
+
+- Spec section 11 approved ("spec is fine"). Built in slices: 1 is the event
+  itself and the calendar; 2 invites and replies; 3 "starts soon"; 4 change
+  and cancel notices.
+- **Model:** a third kind on `reminders` (migration 0043).
+  - `is_event` (checked never to be a task too), `duration_minutes` (each
+    date of a series is as long), `all_day` (from midnight, whole days),
+    `location`, `meeting_url`, `notify_before` (minutes; 10 by default on the
+    form).
+  - The start is `send_at`, so repeating, the calendar, drag, copies and
+    splits work unchanged. `inputFromRow` carries the new fields.
+- **Form:** "This is a task" became one choice, Reminder / Task / Event (field
+  `kind`; the form contract test caught nothing missing).
+  - Event shows: All day, Ends (or Last day), Location, Meeting link, and
+    "Tell guests before it starts". `:has()` shows and hides, no JS.
+  - Validation: a start in the future, an end after it (at most 14 days; all
+    day, up to 31), members only as guests (no typed emails, no Slack
+    channels), an http(s) link, offsets from the list.
+- **Worker:** an event's date sends nothing (`createOccurrence` records it as
+  sent with no deliveries or notifications), so its start never sends a
+  reminder email. "Send now" and "Send me a test" are refused and hidden.
+- **Visibility (VS1, VS2):** `invitedSql`. Anyone an event or task is
+  addressed to can open it once it's scheduled, before anything is sent, and
+  never while it waits for approval. It's in `reminderAccess` and
+  `canViewWhere`. This answers the open question from calendar slice 1 for
+  tasks too. One of my calendar tests asserted the old rule and was updated.
+- **Calendar:**
+  - an "Events I'm invited to" layer;
+  - events from start to end in Week/Day view (`layoutDay` uses their
+    length), and a long one shows its title over its times;
+  - all-day events in a strip above the hours, and on each day of a
+    several-day one in Month view;
+  - events that started before the range but run into it are included;
+  - the card shows "2:00 PM – 3:30 PM", the place and a Join button, and a
+    past event reads "Past", not "Sent";
+  - quick create offers Event (an hour, just you) and passes it to the full
+    form.
+- **Reminder page:** "Event: 14:00 – 15:30 (UTC)", Where, Meeting link; no
+  "Sends …" line or send buttons for an event.
+- **Verified:** 342 tests pass, 24 skipped. New tests:
+  - validation (timed length, 3 all-day days from midnight, one day, every
+    refusal, none, task and event at once);
+  - the quick event;
+  - visibility (guest yes, outsider no, waiting no, upcoming task yes, plain
+    reminder only once sent);
+  - the worker recording an event's date with no deliveries;
+  - the calendar (90-minute length, invited layer, three days of an
+    offsite).
+
+  Typecheck, lint. **In Chrome** as Maya (test events deleted afterwards):
+  - the form shows and hides the right fields;
+  - a timed event saved and showed with no Send now;
+  - its block is 72px (90 minutes);
+  - the card has the span, Room 4 and Join;
+  - the three-day all-day event sits in the strip on three days;
+  - quick create made an event;
+  - no console errors.
+- **Not yet (slices 2–4):** invites, replies, "starts soon", change notices.
+  Until then nobody is told about an event, so don't ship it on its own.
+
 ## 2026-10-20 — events spec drafted (v2 step 2, PRD 14.3)
 
 - The user asked how an event differs from a reminder. A reminder tells

@@ -94,9 +94,13 @@ export default async function Calendar(props: PageProps<"/calendar">) {
       ["n", v.view === "days" ? String(v.n) : ""],
       ["person", person?.id ?? ""],
       ["q", q],
-      ...(layers.size !== ALL_LAYERS.length && !skip.includes("layer") ? ([["ls", "1"], ...[...layers].map((l) => ["layer", l])] as [string, string][]) : []),
+      ...(layers.size !== ALL_LAYERS.length && !skip.includes("layer")
+        ? ([["ls", "1"], ...[...layers].map((l) => ["layer", l])] as [string, string][])
+        : []),
     ];
-    return fields.filter(([k, val]) => val && !skip.includes(k)).map(([k, val], i) => <input key={`${k}-${i}`} type="hidden" name={k} value={val} />);
+    return fields
+      .filter(([k, val]) => val && !skip.includes(k))
+      .map(([k, val], i) => <input key={`${k}-${i}`} type="hidden" name={k} value={val} />);
   };
 
   const dayEntries = (day: string) => (cal.days.get(day) ?? []).filter((e) => shownOn(e, layers));
@@ -106,6 +110,13 @@ export default async function Calendar(props: PageProps<"/calendar">) {
   let n = 0;
   const here = href();
   const canCreate = can(access, "reminders.create");
+  // An entry as a one-line chip: Month view and the all-day strip.
+  const chip = (e: CalendarEntry) => (
+    <Entry key={key(e)} e={e} n={n++} tz={tz} now={now} next={here} canCreate={canCreate} className={`${styles.entry} ${stateClass(e)}`}>
+      {!e.event?.allDay && <span className={styles.time}>{time12(e.at, tz)}</span>} {e.title}
+      {e.state !== "scheduled" && <span className={styles.hidden}> ({STATE_LABEL[e.state]})</span>}
+    </Entry>
+  );
 
   return (
     <Page
@@ -215,20 +226,7 @@ export default async function Calendar(props: PageProps<"/calendar">) {
           )}
 
           {v.view === "month" ? (
-            <MonthGrid
-              v={v}
-              today={today}
-              selected={v.date}
-              canCreate={canCreate}
-              href={href}
-              dayEntries={dayEntries}
-              entry={(e) => (
-                <Entry key={key(e)} e={e} n={n++} tz={tz} now={now} next={here} canCreate={canCreate} className={`${styles.entry} ${stateClass(e)}`}>
-                  <span className={styles.time}>{time12(e.at, tz)}</span> {e.title}
-                  {e.state !== "scheduled" && <span className={styles.hidden}> ({STATE_LABEL[e.state]})</span>}
-                </Entry>
-              )}
-            />
+            <MonthGrid v={v} today={today} selected={v.date} canCreate={canCreate} href={href} dayEntries={dayEntries} entry={chip} />
           ) : (
             <HourGrid
               from={v.from}
@@ -240,6 +238,7 @@ export default async function Calendar(props: PageProps<"/calendar">) {
               tz={tz}
               href={href}
               dayEntries={dayEntries}
+              chip={chip}
               block={(p) => (
                 <Entry
                   key={key(p.entry)}
@@ -249,17 +248,21 @@ export default async function Calendar(props: PageProps<"/calendar">) {
                   now={now}
                   next={here}
                   canCreate={canCreate}
-                  className={`${styles.block} ${stateClass(p.entry)}`}
+                  className={`${styles.block} ${p.length >= 45 ? styles.tall : ""} ${stateClass(p.entry)}`}
                   style={{
                     top: `${(p.minute / 1440) * 100}%`,
                     left: `${(p.lane / p.lanes) * 100}%`,
                     width: `calc(${100 / p.lanes}% - 4px)`,
+                    height: `${(p.length / 1440) * 100}%`,
                   }}
                 >
                   <span className={styles.blockTitle}>
                     {p.entry.isTask && <span className={styles.tag}>Task</span>} {p.entry.title}
                   </span>
-                  <span className={styles.time}>{time12(p.entry.at, tz)}</span>
+                  <span className={styles.time}>
+                    {time12(p.entry.at, tz)}
+                    {p.entry.event && ` – ${time12(new Date(p.entry.at.getTime() + p.entry.event.minutes * 60_000), tz)}`}
+                  </span>
                   {p.entry.state !== "scheduled" && <span className={styles.hidden}> ({STATE_LABEL[p.entry.state]})</span>}
                 </Entry>
               )}
@@ -278,7 +281,15 @@ const dayClass = (day: string, today: string, selected: string, base: string) =>
   [base, day === today ? styles.today : "", day === selected ? styles.selected : ""].join(" ");
 
 // Month: one row per week. The arrow at a row's start opens that week; a day number opens Day view (C4).
-function MonthGrid({ v, today, selected, canCreate, href, dayEntries, entry }: Grid & { v: { from: string; to: string }; entry: (e: CalendarEntry) => React.ReactNode }) {
+function MonthGrid({
+  v,
+  today,
+  selected,
+  canCreate,
+  href,
+  dayEntries,
+  entry,
+}: Grid & { v: { from: string; to: string }; entry: (e: CalendarEntry) => React.ReactNode }) {
   const weeks: string[] = [];
   for (let d = weekStart(v.from); d < v.to; d = addDays(d, 7)) weeks.push(d);
   return (
@@ -290,7 +301,13 @@ function MonthGrid({ v, today, selected, canCreate, href, dayEntries, entry }: G
         </div>
       ))}
       {weeks.map((w) => [
-        <Link key={`week-${w}`} href={href({ view: "week", date: w })} className={styles.weekLink} aria-label={`Week of ${w}`} title="Open this week">
+        <Link
+          key={`week-${w}`}
+          href={href({ view: "week", date: w })}
+          className={styles.weekLink}
+          aria-label={`Week of ${w}`}
+          title="Open this week"
+        >
           <Icon name="right" size={14} />
         </Link>,
         ...Array.from({ length: 7 }, (_, i) => {
@@ -302,7 +319,14 @@ function MonthGrid({ v, today, selected, canCreate, href, dayEntries, entry }: G
               {/* The empty part of the day: quick create at 9 AM (Q1). Mouse only;
                   keyboard users have + Create. */}
               {canCreate && (
-                <button type="button" popoverTarget={QUICK_ID} data-quick-at={`${day}T09:00`} className={styles.slot} tabIndex={-1} aria-label={`New on ${day}`} />
+                <button
+                  type="button"
+                  popoverTarget={QUICK_ID}
+                  data-quick-at={`${day}T09:00`}
+                  className={styles.slot}
+                  tabIndex={-1}
+                  aria-label={`New on ${day}`}
+                />
               )}
               <Link href={href({ view: "day", date: day })} className={styles.date} aria-label={`Open ${day}`}>
                 {Number(day.slice(8))}
@@ -335,13 +359,31 @@ function HourGrid({
   tz,
   href,
   dayEntries,
+  chip,
   block,
-}: Grid & { from: string; to: string; now: Date; tz: string; block: (p: ReturnType<typeof layoutDay>[number]) => React.ReactNode }) {
+}: Grid & {
+  from: string;
+  to: string;
+  now: Date;
+  tz: string;
+  chip: (e: CalendarEntry) => React.ReactNode;
+  block: (p: ReturnType<typeof layoutDay>[number]) => React.ReactNode;
+}) {
   const days: string[] = [];
   for (let d = from; d < to; d = addDays(d, 1)) days.push(d);
   const local = toLocalInput(now, tz);
   const nowMinute = Number(local.slice(11, 13)) * 60 + Number(local.slice(14, 16));
-  const placed = new Map(days.map((d) => [d, layoutDay(dayEntries(d), tz)]));
+  // All-day events sit in a strip above the hours (PRD 14.1); the rest are placed in them.
+  const allDay = new Map(days.map((d) => [d, dayEntries(d).filter((e) => e.event?.allDay)]));
+  const placed = new Map(
+    days.map((d) => [
+      d,
+      layoutDay(
+        dayEntries(d).filter((e) => !e.event?.allDay),
+        tz,
+      ),
+    ]),
+  );
   const first = Math.min(...[...placed.values()].flat().map((p) => Math.floor(p.minute / 60)));
   // Opens at the earliest entry in view, or 7 AM (the hour before now on today), whichever is first.
   const scrollHour = Math.min(days.includes(today) ? Math.max(0, Math.floor(nowMinute / 60) - 1) : 7, first);
@@ -349,19 +391,33 @@ function HourGrid({
   return (
     <div className={styles.hours} data-scroll>
       <ScrollTo id={`h-${scrollHour}`} />
-      <div className={styles.hoursHead} style={cols} data-sticky="1">
-        <div className={styles.zone}>{offsetLabel(now, tz)}</div>
-        {days.map((d) => (
-          <Link
-            key={d}
-            href={href({ view: "day", date: d })}
-            className={dayClass(d, today, selected, styles.colHead)}
-            aria-current={d === selected ? "date" : undefined}
-          >
-            <span className={styles.colDay}>{new Date(`${d}T00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}</span>
-            <span className={styles.colDate}>{Number(d.slice(8))}</span>
-          </Link>
-        ))}
+      <div className={styles.hoursTop} data-sticky="1">
+        <div className={styles.hoursHead} style={cols}>
+          <div className={styles.zone}>{offsetLabel(now, tz)}</div>
+          {days.map((d) => (
+            <Link
+              key={d}
+              href={href({ view: "day", date: d })}
+              className={dayClass(d, today, selected, styles.colHead)}
+              aria-current={d === selected ? "date" : undefined}
+            >
+              <span className={styles.colDay}>
+                {new Date(`${d}T00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}
+              </span>
+              <span className={styles.colDate}>{Number(d.slice(8))}</span>
+            </Link>
+          ))}
+        </div>
+        {[...allDay.values()].some((l) => l.length > 0) && (
+          <div className={styles.allDay} style={cols}>
+            <div className={styles.allDayLabel}>All day</div>
+            {days.map((d) => (
+              <div key={d} className={styles.allDayCell}>
+                {allDay.get(d)!.map(chip)}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className={styles.hoursBody} style={cols}>
         <div className={styles.hourLabels}>
@@ -428,7 +484,12 @@ function MiniMonth({ month, today, selected, href }: { month: string; today: str
           <Link
             key={d}
             href={href({ date: d, mini: null })}
-            className={[styles.miniDay, d.slice(0, 7) !== month ? styles.outside : "", d === today ? styles.miniToday : "", d === selected ? styles.miniSelected : ""].join(" ")}
+            className={[
+              styles.miniDay,
+              d.slice(0, 7) !== month ? styles.outside : "",
+              d === today ? styles.miniToday : "",
+              d === selected ? styles.miniSelected : "",
+            ].join(" ")}
             aria-current={d === selected ? "date" : undefined}
           >
             {Number(d.slice(8))}

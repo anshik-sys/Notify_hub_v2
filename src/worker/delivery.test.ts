@@ -540,3 +540,16 @@ test("the daily email limit doesn't hold Slack", async () => {
   assert.notEqual(await deliverOne(id), "held");
   await q("update companies set daily_email_limit = 2000 where id = $1", [s.companyId]);
 });
+
+test("event: its date coming round is recorded as happened, with no deliveries or notifications (PRD 14.3)", async () => {
+  const id = await series("Weekly meeting", "2040-02-01T10:00", daily, "2040-02-01T10:00Z");
+  await q("update reminders set is_event = true, duration_minutes = 30 where id = $1", [id]);
+  const enqueued: string[] = [];
+  await dispatchDue(async (ids) => void enqueued.push(...ids), s.companyId, new Date("2040-02-01T10:00:30Z"));
+  assert.deepEqual(await occurrencesOf(id), ["2040-02-01T10:00 sent"]);
+  assert.equal(enqueued.length, 0);
+  assert.equal((await q("select 1 from deliveries where reminder_id = $1", [id])).length, 0);
+  assert.equal((await q("select 1 from notifications where reminder_id = $1", [id])).length, 0);
+  assert.equal((await q("select send_at from reminders where id = $1", [id]))[0].send_at.toISOString(), "2040-02-02T10:00:00.000Z");
+  await q("update reminders set status = 'cancelled' where id = $1", [id]);
+});

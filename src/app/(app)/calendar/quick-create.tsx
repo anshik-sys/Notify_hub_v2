@@ -16,7 +16,7 @@ export function QuickCreate({ next }: { next: string }) {
   const titleRef = useRef<HTMLInputElement>(null);
   const [at, setAt] = useState("");
   const [title, setTitle] = useState("");
-  const [kind, setKind] = useState<"reminder" | "task">("reminder");
+  const [kind, setKind] = useState<"reminder" | "task" | "event">("reminder");
 
   useEffect(() => {
     let anchored: HTMLElement | null = null;
@@ -44,7 +44,7 @@ export function QuickCreate({ next }: { next: string }) {
     };
   }, []);
 
-  const more = `/reminders/new?${new URLSearchParams({ title, at, ...(kind === "task" && { task: "1" }) })}`;
+  const more = `/reminders/new?${new URLSearchParams({ title, at, ...(kind === "task" && { task: "1" }), ...(kind === "event" && { event: "1" }) })}`;
   return (
     <div id={QUICK_ID} ref={box} popover="auto" role="dialog" aria-label="Quick create" className={styles.box}>
       <form action={quickCreateAction} className={styles.form}>
@@ -61,10 +61,10 @@ export function QuickCreate({ next }: { next: string }) {
           className={styles.title}
         />
         <div className={styles.kinds} role="radiogroup" aria-label="Type">
-          {(["reminder", "task"] as const).map((k) => (
+          {(["reminder", "task", "event"] as const).map((k) => (
             <label key={k} className={kind === k ? `${styles.kind} ${styles.on}` : styles.kind}>
               <input type="radio" name="kind" value={k} checked={kind === k} onChange={() => setKind(k)} />
-              {k === "reminder" ? "Reminder" : "Task"}
+              {k === "reminder" ? "Reminder" : k === "task" ? "Task" : "Event"}
             </label>
           ))}
         </div>
@@ -72,7 +72,10 @@ export function QuickCreate({ next }: { next: string }) {
           When
           <input type="datetime-local" name="at" required value={at} onChange={(e) => setAt(e.target.value)} className={styles.input} />
         </label>
-        <p className={styles.hint}>To you, by email.{kind === "task" && " Due an hour after it's sent."}</p>
+        <p className={styles.hint}>
+          {kind === "event" ? "One hour, just you. Add guests and a place in More options." : "To you, by email."}
+          {kind === "task" && " Due an hour after it's sent."}
+        </p>
         <div className={styles.buttons}>
           <a href={more} className={styles.more}>
             More options

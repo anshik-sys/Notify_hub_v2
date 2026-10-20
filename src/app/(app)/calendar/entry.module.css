@@ -185,6 +185,17 @@
   background: var(--surface);
 }
 
+/* The meeting link: the card's main action for an event. */
+.join {
+  border-color: var(--primary-bg);
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+}
+
+.join:hover {
+  background: var(--primary-hover);
+}
+
 .colours {
   margin: 14px 0 0 24px;
 }

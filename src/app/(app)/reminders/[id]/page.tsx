@@ -10,7 +10,7 @@ import { formatSize } from "@/lib/format";
 import { markReadForReminder } from "@/lib/notifications";
 import { requireMember } from "@/lib/session";
 import { myTaskStatus, taskProgress } from "@/lib/tasks";
-import { formatInZone } from "@/lib/time";
+import { formatInZone, toLocalInput } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
 import { cancelReminderAction, decideReminderAction, deleteReminderAction, markOccurrenceAction, markTaskAction, sendNowAction, sendTestAction, seriesAction } from "../actions";
 import { Discussion } from "./discussion";
@@ -103,6 +103,31 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
         main={
           <>
             <Section title="Details">
+              {/* PRD 14.3: an event's when, where and meeting link. */}
+              {r.isEvent && r.durationMinutes && (
+                <>
+                  <Hint>
+                    Event:{" "}
+                    {r.allDay
+                      ? `all day, ${r.durationMinutes / 1440} day${r.durationMinutes > 1440 ? "s" : ""}`
+                      : (() => {
+                          // The end without its date when it's the same day.
+                          const end = new Date(r.sendAt.getTime() + r.durationMinutes * 60_000);
+                          const sameDay = toLocalInput(end, tz).slice(0, 10) === toLocalInput(r.sendAt, tz).slice(0, 10);
+                          return `${formatInZone(r.sendAt, tz)} – ${sameDay ? toLocalInput(end, tz).slice(11, 16) : formatInZone(end, tz)} (${tz})`;
+                        })()}
+                  </Hint>
+                  {r.location && <Hint>Where: {r.location}</Hint>}
+                  {r.meetingUrl && (
+                    <Hint>
+                      Meeting link:{" "}
+                      <a href={r.meetingUrl} rel="noopener noreferrer" target="_blank">
+                        {r.meetingUrl}
+                      </a>
+                    </Hint>
+                  )}
+                </>
+              )}
               {r.recurrence ? (
                 <>
                   <Hint>Repeats: {describe(r.recurrence, r.anchorLocal)}</Hint>
@@ -114,7 +139,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                         : `Next: ${formatInZone(r.sendAt, tz)} (${tz})`}
                   </Hint>
                 </>
-              ) : (
+              ) : r.isEvent ? null : (
                 <Hint>
                   {r.status === "sent" ? "Sent" : "Sends"} {formatInZone(r.sendAt, tz)} ({tz})
                 </Hint>
@@ -302,13 +327,13 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
 
             {(seeAs === "full" || mayDelete) && (
               <Section title="Actions">
-                {seeAs === "full" && (
+                {seeAs === "full" && !r.isEvent && (
                   <form action={sendTestAction}>
                     <input type="hidden" name="id" value={r.id} />
                     <Button variant="secondary">Send me a test</Button>
                   </form>
                 )}
-                {maySendNow && (
+                {maySendNow && !r.isEvent && (
                   <Form action={sendNowAction}>
                     <input type="hidden" name="id" value={r.id} />
                     {/* A required checkbox stands in for a confirm dialog, without client JS. */}

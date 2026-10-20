@@ -890,3 +890,62 @@ test("delete from the calendar: one skips that date, following ends the series, 
   assert.ok((await rowOf(b)).deleted_at);
   assert.match((await deleteEntry(await actor(carol), s.companyId, a, Z("2031-05-03T09:00"), "one"))!, /not found/);
 });
+
+test("events: start and end, all day, members only as guests, where and a meeting link (EV1–EV6)", () => {
+  const ev = (over: Partial<RawReminder>) =>
+    validateInput(raw({ userIds: ["u"], when: "later", sendAtLocal: "2031-07-01T14:00", isEvent: true, endLocal: "2031-07-01T15:30", notifyBefore: ["10"], ...over }), "UTC", "A");
+  const ok = ev({ location: " Room 4 ", meetingUrl: "https://meet.example.test/abc" }).input!;
+  assert.deepEqual(
+    [ok.isEvent, ok.durationMinutes, ok.allDay, ok.location, ok.meetingUrl, ok.notifyBefore, ok.isTask, ok.sendAt.toISOString()],
+    [true, 90, false, "Room 4", "https://meet.example.test/abc", [10], false, "2031-07-01T14:00:00.000Z"],
+  );
+  const days = ev({ allDay: true, sendAtLocal: "2031-07-12T09:00", endDate: "2031-07-14" }).input!;
+  assert.deepEqual([days.durationMinutes, days.anchorLocal, days.sendAt.toISOString()], [3 * 1440, "2031-07-12T00:00", "2031-07-12T00:00:00.000Z"]);
+  assert.equal(ev({ allDay: true, endDate: "" }).input!.durationMinutes, 1440); // one day
+  const err = (over: Partial<RawReminder>) => (ev(over) as { error: string }).error;
+  assert.match(err({ endLocal: "2031-07-01T14:00" }), /end after/);
+  assert.match(err({ endLocal: "2031-07-01T13:00" }), /end after/);
+  assert.match(err({ endLocal: "" }), /ends/);
+  assert.match(err({ allDay: true, endDate: "2031-06-30" }), /last day/);
+  assert.match(err({ emails: "out@x.test" }), /people in the company/);
+  assert.match(err({ meetingUrl: "javascript:alert(1)" }), /http/);
+  assert.match(err({ notifyBefore: ["7"] }), /from the list/);
+  assert.match(err({ when: "now" }), /start/);
+  assert.equal(ev({ notifyBefore: [] }).input!.notifyBefore!.length, 0); // none
+  // A task can't also be an event: the form's one choice decides (kind), and the server keeps them apart.
+  assert.match((validateInput(raw({ userIds: ["u"], when: "later", sendAtLocal: "2031-07-01T14:00", isEvent: true, isTask: true, endLocal: "2031-07-01T15:00" }), "UTC", "A") as { error: string }).error, /one/);
+});
+
+test("quick event: an hour, just you, told 10 minutes before (CL5)", async () => {
+  const me = await actor(alice);
+  const r = (await quickCreate(me, s.companyId, { title: "Focus time", at: later(), kind: "event", timeZone: "UTC", senderName: "S" })) as { id: string };
+  const [row] = (await s.owner.query("select is_event, duration_minutes, notify_before, is_task, status from reminders where id = $1", [r.id])).rows;
+  assert.deepEqual(row, { is_event: true, duration_minutes: 60, notify_before: [10], is_task: false, status: "scheduled" });
+  await cancelReminder(me, s.companyId, r.id);
+});
+
+test("visibility: guests open a scheduled event and assignees a scheduled task before anything is sent (VS1–VS3)", async () => {
+  const opsEvent = (await createReminder(await actor(bob), s.companyId, {
+    ...oneTime,
+    title: "Ops sync",
+    description: "",
+    links: [],
+    senderName: "S",
+    sendAt: later(),
+    targets: [{ kind: "department", ref: ops }],
+    isEvent: true,
+    durationMinutes: 30,
+    notifyBefore: [10],
+  })) as { id: string };
+  const row = { id: opsEvent.id, createdBy: bob };
+  const as = async (u: string) => reminderAccess(s.companyId, { ...(await actor(u)), email: `${u}@x.test` }, row);
+  assert.equal(await as(alice), "viewer"); // in Ops: a guest, nothing sent yet
+  assert.equal(await as(carol), null); // Sales: not a guest
+  await s.owner.query("update reminders set status = 'pending_approval' where id = $1", [opsEvent.id]);
+  assert.equal(await as(alice), null); // waiting for approval: not yet
+  await s.owner.query("update reminders set status = 'scheduled', is_event = false, duration_minutes = null, is_task = true, due_after_minutes = 60 where id = $1", [opsEvent.id]);
+  assert.equal(await as(alice), "viewer"); // an upcoming task: its assignee too (VS2)
+  await s.owner.query("update reminders set is_task = false, due_after_minutes = null where id = $1", [opsEvent.id]);
+  assert.equal(await as(alice), null); // a plain reminder: only once it's sent (unchanged)
+  await cancelReminder(await actor(bob), s.companyId, opsEvent.id);
+});

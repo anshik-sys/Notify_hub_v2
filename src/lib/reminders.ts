@@ -30,6 +30,13 @@ export type ReminderInput = {
   targets: Target[];
   // PRD 5.4: who else may see it. "mine" = the creator's departments, expanded at save.
   shares: Share[];
+  // PRD 14.3 events (left out = not an event; on an update, unchanged).
+  isEvent?: boolean;
+  durationMinutes?: number | null;
+  allDay?: boolean;
+  location?: string | null;
+  meetingUrl?: string | null;
+  notifyBefore?: number[];
 };
 export type Share = { kind: "mine" | "department" | "group" | "company"; ref: string | null };
 type Actor = { id: string; access: Access };
@@ -63,6 +70,14 @@ export type RawReminder = {
   shareDepartmentIds: string[];
   shareGroupIds: string[];
   shareCompany: boolean;
+  // PRD 14.3 (missing = not an event).
+  isEvent?: boolean;
+  endLocal?: string; // datetime-local, company zone
+  allDay?: boolean;
+  endDate?: string; // YYYY-MM-DD, all-day: the last day
+  location?: string;
+  meetingUrl?: string;
+  notifyBefore?: string[]; // minutes, from NOTIFY_BEFORE
 };
 
 // The New/Edit form's post (reminder-form.tsx) -> RawReminder. The field names
@@ -91,7 +106,15 @@ export function formToRaw(fd: FormData): RawReminder {
     shareDepartmentIds: all("shareDepartments"),
     shareGroupIds: all("shareGroups"),
     shareCompany: fd.get("shareCompany") === "on",
-    isTask: fd.get("isTask") === "on",
+    // Reminder / Task / Event: one choice (spec EV9).
+    isTask: str("kind") === "task",
+    isEvent: str("kind") === "event",
+    endLocal: str("endsAt"),
+    allDay: fd.get("allDay") === "on",
+    endDate: str("endDate"),
+    location: str("location"),
+    meetingUrl: str("meetingUrl"),
+    notifyBefore: all("notifyBefore"),
     dueLocal: str("due"),
     repeat: {
       repeat: str("repeat"),
@@ -188,10 +211,54 @@ export function validateInput(
     if (!first) return { error: "That repeat never happens. Check the end date." };
     sendAt = first;
   }
+  // Events (PRD 14.3): members only as guests, a start and an end (or whole
+  // days), where, a meeting link, and when to say "starts soon".
+  let event: Pick<ReminderInput, "isEvent" | "durationMinutes" | "allDay" | "location" | "meetingUrl" | "notifyBefore"> = {};
+  if (raw.isEvent) {
+    if (raw.isTask) return { error: "Pick one: reminder, task or event." };
+    if (targets.some((t) => t.kind === "email") || slackChannels.length)
+      return { error: "An event's guests must be people in the company: no outside emails or Slack channels." };
+    if (raw.when !== "later") return { error: "An event needs a start date and time." };
+    let durationMinutes: number;
+    if (raw.allDay) {
+      const first = raw.sendAtLocal.slice(0, 10);
+      const last = raw.endDate || first;
+      const days = Math.round((Date.parse(`${last}T00:00Z`) - Date.parse(`${first}T00:00Z`)) / 86_400_000) + 1;
+      if (!(days >= 1)) return { error: "The last day must be on or after the first." };
+      if (days > 31) return { error: "An event can last at most 31 days." };
+      durationMinutes = days * 1440;
+      // All-day: from midnight on the first day.
+      const midnight = zonedToUtc(`${first}T00:00`, timeZone);
+      if (!midnight) return { error: "Pick a start date." };
+      sendAt = recurrence ? firstAtOrAfter(recurrence, `${first}T00:00`, timeZone, midnight)! : midnight;
+    } else {
+      const end = zonedToUtc(raw.endLocal ?? "", timeZone);
+      if (!end) return { error: "Pick when the event ends." };
+      durationMinutes = Math.round((end.getTime() - zonedToUtc(anchorLocal, timeZone)!.getTime()) / 60_000);
+      if (durationMinutes < 1) return { error: "The event must end after it starts." };
+      if (durationMinutes > 14 * 1440) return { error: "An event can last at most 14 days; use all day for longer." };
+    }
+    const location = raw.location?.trim() || null;
+    if (location && location.length > 200) return { error: "Location must be at most 200 characters." };
+    let meetingUrl: string | null = null;
+    if (raw.meetingUrl?.trim()) {
+      let u: URL;
+      try {
+        u = new URL(raw.meetingUrl.trim());
+      } catch {
+        return { error: "The meeting link isn't a valid link." };
+      }
+      if (u.protocol !== "http:" && u.protocol !== "https:") return { error: "The meeting link must start with http:// or https://." };
+      meetingUrl = u.href.slice(0, 2000);
+    }
+    const before = [...new Set((raw.notifyBefore ?? []).filter(Boolean).map(Number))];
+    if (before.some((m) => !NOTIFY_BEFORE.includes(m))) return { error: "Pick when to be told from the list." };
+    event = { isEvent: true, durationMinutes, allDay: Boolean(raw.allDay), location, meetingUrl, notifyBefore: before.sort((a, b) => b - a) };
+  }
   // Tasks: due is a wall-clock time after the first send, stored as an offset
   // so each occurrence of a repeating task is due the same time after it's sent.
   let dueAfterMinutes: number | null = null;
-  if (raw.isTask) {
+  if (raw.isTask && !raw.isEvent) {
     const due = zonedToUtc(raw.dueLocal, timeZone);
     if (!due) return { error: "A task needs a due date and time." };
     dueAfterMinutes = Math.round((due.getTime() - sendAt.getTime()) / 60_000);
@@ -224,9 +291,15 @@ export function validateInput(
       dueAfterMinutes,
       channels,
       targets,
+      ...event,
+      // An all-day event is anchored at midnight on its first day.
+      ...(event.allDay ? { anchorLocal: `${raw.sendAtLocal.slice(0, 10)}T00:00` } : {}),
     } satisfies ReminderInput,
   };
 }
+
+// PRD 14.3 "starts soon": the times offered, in minutes before the start.
+export const NOTIFY_BEFORE = [10, 30, 60, 1440];
 
 // "" = the type's default (null); a palette name; anything else = undefined (refused).
 const colorFrom = (raw: string): CalendarColor | null | undefined =>
@@ -679,19 +752,23 @@ export async function setMyColor(viewer: Actor & { email: string }, companyId: s
 // PRD 14.2 quick create (Q1–Q4): a one-time reminder or task to yourself, by
 // email, at `at`. Built as ordinary input and saved by createReminder, so the
 // usual rules apply; you're always in your own scope, so it never waits for
-// approval. A quick task is due an hour after it's sent (decided 2026-10-20).
+// approval. A quick task is due an hour after it's sent (decided 2026-10-20);
+// a quick event lasts an hour.
 export const QUICK_TASK_DUE_MINUTES = 60;
 export async function quickCreate(
   actor: Actor,
   companyId: string,
-  q: { title: string; at: Date; kind: "reminder" | "task"; timeZone: string; senderName: string },
+  q: { title: string; at: Date; kind: "reminder" | "task" | "event"; timeZone: string; senderName: string },
   now = new Date(),
 ) {
   const title = q.title.trim();
   if (!title || title.length > 200) return { error: "Title must be 1–200 characters." };
   if (q.at.getTime() <= now.getTime()) return { error: "Pick a time in the future." };
   const task = q.kind === "task";
+  // An event: an hour long, told 10 minutes before (spec CL5).
+  const event = q.kind === "event" ? { isEvent: true, durationMinutes: 60, allDay: false, location: null, meetingUrl: null, notifyBefore: [10] } : {};
   return createReminder(actor, companyId, {
+    ...event,
     title,
     description: "",
     links: [],
@@ -786,6 +863,12 @@ async function inputFromRow(tx: Tx, r: typeof reminders.$inferSelect): Promise<R
     tags: r.tags,
     targets,
     shares,
+    isEvent: r.isEvent,
+    durationMinutes: r.durationMinutes,
+    allDay: r.allDay,
+    location: r.location,
+    meetingUrl: r.meetingUrl,
+    notifyBefore: r.notifyBefore,
   };
 }
 
@@ -1125,6 +1208,10 @@ export async function reminderAccess(
   );
   if (got) return "viewer";
   if (await sharedWith(companyId, viewer.id, r.id)) return "viewer";
+  const [invited] = await withTenant(companyId, (tx) =>
+    tx.select({ id: reminders.id }).from(reminders).where(and(eq(reminders.id, r.id), invitedSql(viewer.id))).limit(1),
+  );
+  if (invited) return "viewer";
   // A manager told that someone is late on it (src/worker/escalation.ts).
   const [told] = await withTenant(companyId, (tx) =>
     tx
@@ -1148,6 +1235,18 @@ async function sharedWith(companyId: string, userId: string, reminderId: string)
   );
   return Boolean(row);
 }
+
+// PRD 14.3 (VS1, VS2): guests of an event and assignees of a task can open it
+// once it's scheduled (not while it waits for approval), before anything is
+// sent, so they can see what's coming and answer. Addressed to them by the
+// targets: directly, a department or group they're in, or the whole company.
+// SQL twin of the check in reminderAccess; canViewWhere uses it too.
+export const invitedSql = (userId: string) => sql`((${reminders.isEvent} or ${reminders.isTask})
+  and ${reminders.status} in ('scheduled', 'paused', 'sending', 'sent')
+  and exists (select 1 from reminder_targets t where t.reminder_id = ${reminders.id} and (
+    t.kind = 'company' or (t.kind = 'user' and t.ref = ${userId})
+    or (t.kind = 'department' and t.ref in (select department_id::text from department_members where user_id = ${userId}))
+    or (t.kind = 'group' and t.ref in (select group_id::text from group_members where user_id = ${userId})))))`;
 
 export const sharedWithSql = (userId: string) =>
   sql`(${reminderShares.kind} = 'company'

@@ -3,7 +3,7 @@ import { withTenant } from "@/db";
 import { type CalendarColor, REMINDER_STATUSES, reminderOccurrences, reminderShares, reminders, taskAssignments, user, type ReminderStatus } from "@/db/schema";
 import { type Access, can } from "./permissions";
 import { between, describe, type Rule } from "./recurrence";
-import { sharedWithSql } from "./reminders";
+import { invitedSql, sharedWithSql } from "./reminders";
 import { toLocalInput, zonedToUtc } from "./time";
 
 // The list screens (PRD 8): All reminders, the dashboard, the calendar.
@@ -12,7 +12,8 @@ import { toLocalInput, zonedToUtc } from "./time";
 //   managed departments' (full access). Dashboard counts use this.
 // - canViewWhere = reminderAccess: that, plus shared with you or sent to you.
 //   Lists, search and the calendar use this: what you can open, you can find.
-//   "Sent to you" includes a manager told someone is late on it (escalation).
+//   "Sent to you" includes a manager told someone is late on it (escalation),
+//   and a scheduled event or task addressed to you (invitedSql, PRD 14.3).
 // Both leave out deleted reminders, like getReminder.
 
 type Viewer = { id: string; access: Access };
@@ -38,7 +39,7 @@ const escalatedToMe = (viewer: Viewer) =>
   sql`exists (select 1 from notifications n where n.reminder_id = ${reminders.id} and n.user_id = ${viewer.id} and n.kind = 'escalated')`;
 
 export function canViewWhere(viewer: Viewer): SQL | undefined {
-  return seesAll(viewer) ? live : and(live, or(mineOrManaged(viewer), sharedWithMe(viewer), sentToMe(viewer), escalatedToMe(viewer)));
+  return seesAll(viewer) ? live : and(live, or(mineOrManaged(viewer), sharedWithMe(viewer), sentToMe(viewer), escalatedToMe(viewer), invitedSql(viewer.id)));
 }
 
 // --- All reminders: filters live in the URL ----------------------------------
@@ -225,6 +226,7 @@ export function upcoming(companyId: string, viewer: Viewer, limit = 8) {
 export const LAYERS = {
   mine: "Created by me",
   assigned: "Tasks assigned to me",
+  invited: "Events I'm invited to",
   departments: "My departments",
   company: "Company-wide",
   other: "Everything else I can see",
@@ -247,6 +249,8 @@ export type CalendarEntry = {
   recipients: string | null; // labels, only for those with full access (PRD 5.4)
   canChange: boolean; // mayChange's twin: edit, delete, colour
   assignment: { id: string; done: boolean } | null; // the viewer's, on a sent task
+  // PRD 14.3 events: length (minutes), all-day, where, and the meeting link.
+  event: { minutes: number; allDay: boolean; location: string | null; meetingUrl: string | null } | null;
 };
 // PRD 14.2 defaults when the viewer hasn't picked a colour (colours are personal).
 export const DEFAULT_COLOR = { reminder: "lavender", task: "sage" } as const;
@@ -285,6 +289,7 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
   const flags = {
     mine: sql<boolean>`${reminders.createdBy} = ${viewer.id}`,
     assigned: sql<boolean>`${reminders.isTask} and ${addressedTo(viewer.id)}`,
+    invited: sql<boolean>`${reminders.isEvent} and ${reminders.createdBy} <> ${viewer.id} and ${addressedTo(viewer.id)}`,
     departments: sql<boolean>`exists (select 1 from reminder_targets t where t.reminder_id = ${reminders.id} and t.kind = 'department' and t.ref in ${myDepartments(viewer.id)})
       or exists (select 1 from reminder_shares sh where sh.reminder_id = ${reminders.id} and sh.kind = 'department' and sh.ref in ${myDepartments(viewer.id)})`,
     company: sql<boolean>`exists (select 1 from reminder_targets t where t.reminder_id = ${reminders.id} and t.kind = 'company')
@@ -305,6 +310,11 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
       left join "user" u on t.kind = 'user' and u.id = t.ref
       where t.reminder_id = "reminders"."id")`, // qualified: d, g and u have an id too
     createdBy: reminders.createdBy,
+    isEvent: reminders.isEvent,
+    durationMinutes: reminders.durationMinutes,
+    allDay: reminders.allDay,
+    location: reminders.location,
+    meetingUrl: reminders.meetingUrl,
     color: sql<CalendarColor | null>`(select rc.color from reminder_colors rc where rc.reminder_id = "reminders"."id" and rc.user_id = ${viewer.id})`,
   };
   const { rows, recorded, sent } = await withTenant(companyId, async (tx) => {
@@ -325,7 +335,12 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
         and(
           inArray(reminders.status, ["scheduled", "pending_approval"]),
           lt(reminders.sendAt, end),
-          or(sql`${reminders.recurrence} is not null`, gte(reminders.sendAt, start)),
+          // An event that started before the range but runs into it counts too.
+          or(
+            sql`${reminders.recurrence} is not null`,
+            gte(reminders.sendAt, start),
+            sql`${reminders.isEvent} and ${reminders.sendAt} + make_interval(mins => ${reminders.durationMinutes}) > ${start}`,
+          ),
           canViewWhere(viewer),
         ),
       )
@@ -372,15 +387,21 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
     assigned: boolean;
     departments: boolean;
     company: boolean;
+    invited: boolean;
     theirs: boolean;
     full: boolean;
+    isEvent: boolean;
+    durationMinutes: number | null;
+    allDay: boolean;
+    location: string | null;
+    meetingUrl: string | null;
     recipients: string | null;
     createdBy: string;
     color: CalendarColor | null;
   };
   const mayEdit = can(viewer.access, "reminders.edit");
   const base = (r: Flagged) => {
-    const layers = (["mine", "assigned", "departments", "company"] as const).filter((l) => r[l]);
+    const layers = (["mine", "assigned", "invited", "departments", "company"] as const).filter((l) => r[l]);
     return {
       reminderId: r.id,
       title: r.title,
@@ -393,13 +414,17 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
       canChange: r.createdBy === viewer.id || (r.full && mayEdit),
       repeat: null,
       assignment: null,
+      event: r.isEvent ? { minutes: r.durationMinutes ?? 60, allDay: r.allDay, location: r.location, meetingUrl: r.meetingUrl } : null,
     };
   };
   const done = new Set(recorded.map((o) => `${o.reminderId}:${o.at.getTime()}`));
   const days = new Map<string, CalendarEntry[]>();
+  const push = (key: string, e: CalendarEntry) => days.set(key, [...(days.get(key) ?? []), e]);
   const add = (e: CalendarEntry) => {
     const key = toLocalInput(e.at, timeZone).slice(0, 10);
-    days.set(key, [...(days.get(key) ?? []), e]);
+    push(key, e);
+    // An all-day event of several days is on each of them (PRD 14.1).
+    if (e.event?.allDay) for (let d = 1; d < Math.round(e.event.minutes / 1440); d++) push(addDays(key, d), e);
   };
   for (const r of sent)
     add({ ...base(r), at: r.at, state: "sent", assignment: r.assignmentId ? { id: r.assignmentId, done: Boolean(r.doneAt) } : null });
@@ -413,7 +438,9 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
       add({ ...entry, at: r.sendAt });
       continue;
     }
-    const from = r.sendAt > start ? r.sendAt : start;
+    // Events: from far enough back that one still running when the range starts is included.
+    const back = r.isEvent ? (r.durationMinutes ?? 0) * 60_000 : 0;
+    const from = r.sendAt.getTime() > start.getTime() - back ? r.sendAt : new Date(start.getTime() - back);
     for (const at of between(r.recurrence as Rule, r.anchorLocal, r.timeZone, from, new Date(end.getTime() - 1)))
       if (!done.has(`${r.id}:${at.getTime()}`)) add({ ...entry, at });
   }
@@ -461,16 +488,20 @@ export function calendarView(p: { view?: string; date?: string; n?: string }, to
 // --- Blocks in the hour grid (Week, Day, N days) ----------------------------------
 
 export const BLOCK_MINUTES = 30;
-export type Placed = { entry: CalendarEntry; minute: number; lane: number; lanes: number };
+export type Placed = { entry: CalendarEntry; minute: number; length: number; lane: number; lanes: number };
 
-// Places one day's entries as 30-minute blocks: `minute` from local midnight,
-// and a lane so blocks that overlap sit side by side (as many lanes as the
-// most that overlap at once in their cluster; each takes the lowest free one).
+// Places one day's entries as blocks: `minute` from local midnight, `length`
+// in minutes (an event's own, cut at midnight; 30 for reminders and tasks,
+// which are a moment), and a lane so blocks that overlap sit side by side
+// (as many lanes as the most that overlap at once in their cluster; each takes
+// the lowest free one). All-day events aren't placed here: they go in the strip.
 export function layoutDay(entries: CalendarEntry[], timeZone: string): Placed[] {
   const placed = entries
     .map((entry) => {
       const t = toLocalInput(entry.at, timeZone);
-      return { entry, minute: Number(t.slice(11, 13)) * 60 + Number(t.slice(14, 16)), lane: 0, lanes: 1 };
+      const minute = Number(t.slice(11, 13)) * 60 + Number(t.slice(14, 16));
+      const length = entry.event ? Math.max(BLOCK_MINUTES, Math.min(entry.event.minutes, 1440 - minute)) : BLOCK_MINUTES;
+      return { entry, minute, length, lane: 0, lanes: 1 };
     })
     .sort((a, b) => a.minute - b.minute);
   let cluster: Placed[] = [];
@@ -482,10 +513,10 @@ export function layoutDay(entries: CalendarEntry[], timeZone: string): Placed[] 
   };
   for (const p of placed) {
     if (p.minute >= clusterEnd) close();
-    const busy = new Set(cluster.filter((q) => q.minute + BLOCK_MINUTES > p.minute).map((q) => q.lane));
+    const busy = new Set(cluster.filter((q) => q.minute + q.length > p.minute).map((q) => q.lane));
     while (busy.has(p.lane)) p.lane++;
     cluster.push(p);
-    clusterEnd = Math.max(clusterEnd, p.minute + BLOCK_MINUTES);
+    clusterEnd = Math.max(clusterEnd, p.minute + p.length);
   }
   close();
   return placed;

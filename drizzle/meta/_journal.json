@@ -302,6 +302,13 @@
       "when": 1792487892025,
       "tag": "0042_personal_colors",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1792495453031,
+      "tag": "0043_events",
+      "breakpoints": true
     }
   ]
 }

@@ -426,12 +426,34 @@ a.date:hover {
   display: grid;
 }
 
-.hoursHead {
+/* The day headings and the all-day strip stay in view while the hours scroll. */
+.hoursTop {
   position: sticky;
   top: 0;
   z-index: 2;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
+}
+
+.allDay {
+  display: grid;
+  border-top: 1px solid var(--border);
+}
+
+.allDayLabel {
+  padding: 4px 6px;
+  color: var(--muted);
+  font-size: 0.625rem;
+  text-align: right;
+}
+
+.allDayCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 2px;
+  border-left: 1px solid var(--border);
 }
 
 .zone {
@@ -515,7 +537,7 @@ a.date:hover {
   align-items: center;
   gap: 4px;
   overflow: hidden;
-  height: 24px;
+  min-height: 24px;
   margin-left: 2px;
   padding: 2px 6px;
   border: 1px solid var(--bg);
@@ -552,6 +574,14 @@ a.date:hover {
 .block .time {
   flex: none;
   font-size: 0.6875rem;
+}
+
+/* A long event: title on top, its times under it (like Google's). */
+.block.tall {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding-top: 4px;
 }
 
 /* Side by side (several at one time), a block is narrow: the title wins. */

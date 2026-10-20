@@ -38,6 +38,12 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0043: event columns on `reminders` (`is_event`, `duration_minutes`,
+`all_day`, `location`, `meeting_url`, `notify_before`), with checks (not a
+task and an event at once; an event has a length). Existing reminders aren't
+events. **Deploy the worker with it:** an older worker would send an event at
+its start like a reminder.
+
 Migration 0042: colours become personal. It creates `reminder_colors`
 (tenant RLS), copies any colour already set (0041) to that reminder's
 creator, drops `reminders.color`, and replaces `erase_person()` so it also

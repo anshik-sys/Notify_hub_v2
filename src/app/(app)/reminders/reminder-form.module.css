@@ -179,14 +179,20 @@
 }
 
 .sendAt,
-.due {
+.due,
+.event,
+.endsAt,
+.endDate {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
 .when:has(input[name="when"][value="now"]:checked) .sendAt,
-.task:not(:has(input[name="isTask"]:checked)) .due,
+.task:not(:has(input[name="kind"][value="task"]:checked)) .due,
+.task:not(:has(input[name="kind"][value="event"]:checked)) .event,
+.event:has(input[name="allDay"]:checked) .endsAt,
+.event:not(:has(input[name="allDay"]:checked)) .endDate,
 .channels:not(:has(input[name="channels"][value="slack"]:checked)) .slackPicks,
 .repeat:not(:has(select[name="repeat"] option[value="custom"]:checked)) .custom,
 .custom:not(:has(select[name="unit"] option[value="week"]:checked)) .weekdays,

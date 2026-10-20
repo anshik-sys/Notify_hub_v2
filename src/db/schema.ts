@@ -314,6 +314,16 @@ export const reminders = pgTable(
     // Delivery channels (PRD 5.3): email and/or slack.
     channels: text().array().$type<("email" | "slack")[]>().notNull().default(sql`'{email}'`),
     dueAfterMinutes: integer(),
+    // PRD 14.3 events: a third kind next to reminder and task. The start is
+    // send_at (the next one, for a series); each date lasts duration_minutes.
+    // All-day ones start at midnight (company zone) and last whole days.
+    isEvent: boolean().notNull().default(false),
+    durationMinutes: integer(),
+    allDay: boolean().notNull().default(false),
+    location: text(),
+    meetingUrl: text(),
+    // Minutes before the start for "starts soon" notices; [] = none.
+    notifyBefore: integer().array().notNull().default(sql`'{}'`),
     // Free-form labels for filtering (PRD 5.1): lowercase, validated in validateInput.
     tags: text().array().notNull().default(sql`'{}'`),
     status: text().$type<ReminderStatus>().notNull(),
@@ -338,6 +348,8 @@ export const reminders = pgTable(
     index("reminders_send_now_idx").on(t.sendNowAt).where(sql`${t.sendNowAt} is not null`),
     index("reminders_tags_idx").using("gin", t.tags),
     check("reminders_task_due", sql`not ${t.isTask} or ${t.dueAfterMinutes} > 0`),
+    check("reminders_event_kind", sql`not (${t.isTask} and ${t.isEvent})`),
+    check("reminders_event_length", sql`not ${t.isEvent} or ${t.durationMinutes} > 0`),
     check("reminders_channels_valid", sql`cardinality(${t.channels}) > 0 and ${t.channels} <@ array['email','slack']`),
     check("reminders_status_valid", sql`${t.status} in ('pending_approval','rejected','scheduled','paused','sending','sent','cancelled')`),
     tenantPolicy("company_id"),

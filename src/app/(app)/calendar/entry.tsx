@@ -38,7 +38,10 @@ export function Entry({
 }) {
   const id = `peek-${n}`;
   const anchor = `--peek-${n}`;
-  const label = [e.title, STATE[e.state]].filter(Boolean).join(" · ");
+  // An event that happened is "Past"; nothing was "sent" (PRD 14.3).
+  const stateLabel = e.event && e.state === "sent" ? "Past" : STATE[e.state];
+  const label = [e.title, stateLabel].filter(Boolean).join(" · ");
+  const ends = e.event && new Date(e.at.getTime() + e.event.minutes * 60_000);
   const sent = e.state === "sent";
   const series = e.repeat !== null; // an upcoming date of a repeating reminder
   const movable = e.canChange && !sent;
@@ -73,14 +76,24 @@ export function Entry({
           </button>
         </div>
         <p className={styles.meta}>
-          {day(e.at, tz)} · {time12(e.at, tz)}
+          {e.event?.allDay
+            ? `${day(e.at, tz)}${e.event.minutes > 1440 ? ` – ${day(new Date(ends!.getTime() - 86_400_000), tz)}` : ""} · All day`
+            : ends
+              ? `${day(e.at, tz)} · ${time12(e.at, tz)} – ${time12(ends, tz)}`
+              : `${day(e.at, tz)} · ${time12(e.at, tz)}`}
           {e.isTask && " · Task"}
-          {STATE[e.state] && <span className={styles.badge}>{STATE[e.state]}</span>}
+          {stateLabel && <span className={styles.badge}>{stateLabel}</span>}
         </p>
+        {e.event?.location && <p className={styles.meta}>{e.event.location}</p>}
         {e.repeat && <p className={styles.meta}>{e.repeat}</p>}
         {e.recipients && <p className={styles.meta}>To: {e.recipients}</p>}
 
         <div className={styles.actions}>
+          {e.event?.meetingUrl && (
+            <a href={e.event.meetingUrl} target="_blank" rel="noopener noreferrer" className={`${styles.action} ${styles.join}`}>
+              Join
+            </a>
+          )}
           <Link href={`/reminders/${e.reminderId}`} className={styles.action}>
             Open
           </Link>
