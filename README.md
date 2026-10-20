@@ -440,6 +440,14 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     preference, like `notification_mutes`). It's in `erase_person()` (0042)
     and `exportPerson`. Tokens `--cal-<name>-bg/fg` are in all three theme
     blocks (text on fill ≥ 6:1). Only calendar entries are coloured.
+  - **Quick create (`calendar/quick-create.tsx`, `quickCreate`):** empty
+    slots are buttons with `data-quick-at` pointing at one shared popover; a
+    click listener fills in the time and anchors the box to the slot. Saving
+    goes through `createReminder` as a one-time reminder to yourself by email
+    (a task is due `QUICK_TASK_DUE_MINUTES` after), so you're always in
+    scope. "More options" passes `title`, `at` (the viewer's zone) and `task`
+    to `/reminders/new`, which converts the time to the company's zone for
+    the form.
   - **Duplicate (`duplicateReminder`):** a one-time copy owned by whoever
     copies it, approval checked as them, files copied, comments and history
     not. Rate-limited (it copies files).

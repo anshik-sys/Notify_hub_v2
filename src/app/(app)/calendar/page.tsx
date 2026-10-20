@@ -24,6 +24,7 @@ import {
 } from "@/lib/views";
 import { AutoSubmit } from "./auto-submit";
 import { Entry } from "./entry";
+import { QUICK_ID, QuickCreate } from "./quick-create";
 import { ScrollTo } from "./scroll-to";
 import { ViewMenu } from "./view-menu";
 import styles from "./page.module.css";
@@ -137,6 +138,7 @@ export default async function Calendar(props: PageProps<"/calendar">) {
         </div>
       }
     >
+      {canCreate && <QuickCreate next={here} />}
       <div className={styles.layout} data-rail>
         <aside className={styles.side}>
           <LinkButton href="/reminders/new">
@@ -215,6 +217,7 @@ export default async function Calendar(props: PageProps<"/calendar">) {
               v={v}
               today={today}
               selected={v.date}
+              canCreate={canCreate}
               href={href}
               dayEntries={dayEntries}
               entry={(e) => (
@@ -230,6 +233,7 @@ export default async function Calendar(props: PageProps<"/calendar">) {
               to={v.to}
               today={today}
               selected={v.date}
+              canCreate={canCreate}
               now={now}
               tz={tz}
               href={href}
@@ -267,12 +271,12 @@ export default async function Calendar(props: PageProps<"/calendar">) {
 
 type Href = (over?: { view?: string; date?: string; mini?: string | null; q?: string | null }) => string;
 // selected: the date picked (mini month, search, a day link), marked in the grid too.
-type Grid = { today: string; selected: string; href: Href; dayEntries: (day: string) => CalendarEntry[] };
+type Grid = { today: string; selected: string; canCreate: boolean; href: Href; dayEntries: (day: string) => CalendarEntry[] };
 const dayClass = (day: string, today: string, selected: string, base: string) =>
   [base, day === today ? styles.today : "", day === selected ? styles.selected : ""].join(" ");
 
 // Month: one row per week. The arrow at a row's start opens that week; a day number opens Day view (C4).
-function MonthGrid({ v, today, selected, href, dayEntries, entry }: Grid & { v: { from: string; to: string }; entry: (e: CalendarEntry) => React.ReactNode }) {
+function MonthGrid({ v, today, selected, canCreate, href, dayEntries, entry }: Grid & { v: { from: string; to: string }; entry: (e: CalendarEntry) => React.ReactNode }) {
   const weeks: string[] = [];
   for (let d = weekStart(v.from); d < v.to; d = addDays(d, 7)) weeks.push(d);
   return (
@@ -293,6 +297,11 @@ function MonthGrid({ v, today, selected, href, dayEntries, entry }: Grid & { v: 
           const list = dayEntries(day);
           return (
             <div key={day} className={dayClass(day, today, selected, styles.day)} aria-current={day === selected ? "date" : undefined}>
+              {/* The empty part of the day: quick create at 9 AM (Q1). Mouse only;
+                  keyboard users have + Create. */}
+              {canCreate && (
+                <button type="button" popoverTarget={QUICK_ID} data-quick-at={`${day}T09:00`} className={styles.slot} tabIndex={-1} aria-label={`New on ${day}`} />
+              )}
               <Link href={href({ view: "day", date: day })} className={styles.date} aria-label={`Open ${day}`}>
                 {Number(day.slice(8))}
               </Link>
@@ -319,6 +328,7 @@ function HourGrid({
   to,
   today,
   selected,
+  canCreate,
   now,
   tz,
   href,
@@ -361,6 +371,21 @@ function HourGrid({
         </div>
         {days.map((d) => (
           <div key={d} className={styles.column}>
+            {/* Empty hours: quick create there (the lower half picks :30). Mouse only; keyboard users have + Create. */}
+            {canCreate &&
+              HOURS.map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  popoverTarget={QUICK_ID}
+                  data-quick-at={`${d}T${String(h).padStart(2, "0")}:00`}
+                  data-half=""
+                  className={styles.hourSlot}
+                  style={{ top: `${(h / 24) * 100}%` }}
+                  tabIndex={-1}
+                  aria-label={`New on ${d} at ${hourLabel(h)}`}
+                />
+              ))}
             {d === today && <span className={styles.now} style={{ top: `${(nowMinute / 1440) * 100}%` }} aria-hidden="true" />}
             {placed.get(d)!.map(block)}
           </div>

@@ -245,12 +245,44 @@
 }
 
 .day {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
   min-height: 104px;
   padding: 6px;
+}
+
+/* Quick-create targets (Q1) behind everything in a day or an hour. */
+.slot,
+.hourSlot {
+  position: absolute;
+  z-index: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.slot {
+  inset: 0;
+}
+
+.hourSlot {
+  right: 0;
+  left: 0;
+  height: calc(100% / 24);
+}
+
+.slot:hover,
+.hourSlot:hover {
+  background: var(--surface);
+}
+
+.day > :not(.slot) {
+  position: relative;
+  z-index: 1;
 }
 
 .blank {

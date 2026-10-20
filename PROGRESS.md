@@ -2,6 +2,50 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — calendar slice 3: quick create
+
+- Spec Q1–Q6. Clicking an empty hour (Week, Day, N days) or the empty part of
+  a day (Month, 9 AM) opens a small box beside it.
+  - The title has focus; pick Reminder or Task; the time comes from the
+    slot, and the lower half of an hour row picks :30.
+  - Save makes a one-time reminder to yourself by email, which shows at once
+    ("Task created.").
+  - "More options" opens the full New form with title, time and type, plus
+    you as recipient and the due time for a task.
+  - Esc or clicking outside closes it.
+- **How:**
+  - one shared popover (`quick-create.tsx`), not one per slot (168 in Week
+    view);
+  - the slots are plain buttons with `data-quick-at`, and a capture-phase
+    click listener sets the time and anchors the box to the clicked slot;
+  - `quickCreate` builds ordinary input and calls `createReminder`, so every
+    rule still applies. You're always in your own scope (`outOfScope` starts
+    with your own id), so it never waits for approval, even with no
+    department;
+  - a quick task is due an hour after it's sent (`QUICK_TASK_DUE_MINUTES`,
+    spec Q3);
+  - the New form converts the calendar's time (the viewer's zone) to the
+    company's zone it uses.
+- **Keyboard:** the slots are `tabIndex={-1}`; 168 extra tab stops per week
+  would bury everything else. Keyboard users have "+ Create".
+- **Verified:** 294 tests pass, 8 skipped. New test: a member in no
+  department gets a scheduled reminder and a 60-minute task to themselves;
+  an empty, too-long or past one is refused and creates nothing. Typecheck,
+  lint.
+
+  **In Chrome** as Maya (test reminders deleted afterwards with their audit
+  rows):
+  - the lower half of 2 PM gave 2:30 PM;
+  - the box opened beside the slot with the title focused;
+  - Save created the task and it showed with the notice;
+  - Month gave 9:00 AM;
+  - Esc closed it;
+  - "More options" filled title, 9:00, Task and due 10:00;
+  - no console errors.
+- **Not verified:** Safari, and a person whose time zone differs from the
+  company's in the browser (the conversion is the tested `zonedToUtc` /
+  `toLocalInput`).
+
 ## 2026-10-20 — calendar colours are personal, like Google Calendar's
 
 - The user, signed in as Alice (a member), saw no colour dots. That was by

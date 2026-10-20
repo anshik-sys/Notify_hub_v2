@@ -12,6 +12,7 @@ import {
   detachOccurrence,
   duplicateReminder,
   formToRaw,
+  quickCreate,
   setOccurrenceDone,
   pauseReminder,
   resumeReminder,
@@ -209,4 +210,24 @@ export async function duplicateAction(fd: FormData) {
   const r = await duplicateReminder({ id: user.id, access, email: user.email }, companyId, id, at);
   if ("error" in r) redirect(errorUrl(back, r.error));
   redirect(withNotice(`/reminders/${r.id}`, "Duplicated."));
+}
+
+// PRD 14.2 quick create, from a calendar slot: a reminder or task to yourself
+// at the picked time (the viewer's time zone). Back to the calendar, where it
+// now shows.
+export async function quickCreateAction(fd: FormData) {
+  const { user, companyId, company, access, timeZone } = await requireMember();
+  if (!can(access, "reminders.create")) notFound();
+  const back = safeNext(fd.get("next"));
+  const at = zonedToUtc(str(fd, "at"), timeZone);
+  if (!at) redirect(errorUrl(back, "Pick a date and time."));
+  const r = await quickCreate({ id: user.id, access }, companyId, {
+    title: str(fd, "title"),
+    at,
+    kind: fd.get("kind") === "task" ? "task" : "reminder",
+    timeZone,
+    senderName: senderDefault(company),
+  });
+  if ("error" in r) redirect(errorUrl(back, r.error));
+  redirect(withNotice(back, fd.get("kind") === "task" ? "Task created." : "Reminder created."));
 }

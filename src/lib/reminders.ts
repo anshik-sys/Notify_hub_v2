@@ -665,6 +665,39 @@ export async function setMyColor(viewer: Actor & { email: string }, companyId: s
   return null;
 }
 
+// PRD 14.2 quick create (Q1–Q4): a one-time reminder or task to yourself, by
+// email, at `at`. Built as ordinary input and saved by createReminder, so the
+// usual rules apply; you're always in your own scope, so it never waits for
+// approval. A quick task is due an hour after it's sent (decided 2026-10-20).
+export const QUICK_TASK_DUE_MINUTES = 60;
+export async function quickCreate(
+  actor: Actor,
+  companyId: string,
+  q: { title: string; at: Date; kind: "reminder" | "task"; timeZone: string; senderName: string },
+  now = new Date(),
+) {
+  const title = q.title.trim();
+  if (!title || title.length > 200) return { error: "Title must be 1–200 characters." };
+  if (q.at.getTime() <= now.getTime()) return { error: "Pick a time in the future." };
+  const task = q.kind === "task";
+  return createReminder(actor, companyId, {
+    title,
+    description: "",
+    links: [],
+    senderName: q.senderName,
+    sendAt: q.at,
+    recurrence: null,
+    anchorLocal: toLocalInput(q.at, q.timeZone),
+    timeZone: q.timeZone,
+    isTask: task,
+    dueAfterMinutes: task ? QUICK_TASK_DUE_MINUTES : null,
+    channels: ["email"],
+    tags: [],
+    targets: [{ kind: "user", ref: actor.id }],
+    shares: [],
+  });
+}
+
 // PRD 14.2 duplicate: a one-time copy at `at` with the same content,
 // recipients, channels, task settings, files and sharing. It belongs
 // to whoever duplicates it, so approval is checked as them (PRD 5.2): copying

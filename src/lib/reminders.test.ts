@@ -26,6 +26,7 @@ import {
   mayDecide,
   mayChange,
   duplicateReminder,
+  quickCreate,
   setMyColor,
 } from "./reminders";
 import { sendNow } from "./send-now";
@@ -754,4 +755,29 @@ test("duplicate: a one-time copy owned by whoever duplicates it, approval checke
   assert.match(((await duplicateReminder({ ...(await actor(carol)), email: "" }, s.companyId, mine.id, at)) as { error: string }).error, /not found|can't create/);
   assert.match(((await duplicateReminder({ ...(await actor(bob)), email: "" }, s.companyId, mine.id, at)) as { error: string }).error, /can't create/); // bob has no role
   for (const id of [orig, copy.id, mine.id, asAlice.id]) await s.owner.query("update reminders set status = 'cancelled' where id = $1", [id]);
+});
+
+test("quick create: a reminder or task to yourself, never waiting for approval; refused when empty or in the past", async () => {
+  const loner = await s.user({ roles: [MEMBER_ROLE_ID] }); // in no department
+  const me = await actor(loner);
+  const at = later();
+  const base = { at, timeZone: "Asia/Kolkata", senderName: "Alerts | Co" };
+  const r = (await quickCreate(me, s.companyId, { ...base, title: "  Call the bank ", kind: "reminder" })) as { id: string };
+  const t = (await quickCreate(me, s.companyId, { ...base, title: "File the report", kind: "task" })) as { id: string };
+  const row = async (id: string) =>
+    (await s.owner.query("select title, status, created_by, is_task, due_after_minutes, recurrence, channels, time_zone, send_at from reminders where id = $1", [id])).rows[0];
+  assert.deepEqual(
+    { ...(await row(r.id)), send_at: (await row(r.id)).send_at.getTime() },
+    { title: "Call the bank", status: "scheduled", created_by: loner, is_task: false, due_after_minutes: null, recurrence: null, channels: ["email"], time_zone: "Asia/Kolkata", send_at: at.getTime() },
+  );
+  assert.deepEqual([(await row(t.id)).is_task, (await row(t.id)).due_after_minutes, (await row(t.id)).status], [true, 60, "scheduled"]);
+  const targets = (await s.owner.query("select kind, ref from reminder_targets where reminder_id = $1", [r.id])).rows;
+  assert.deepEqual(targets, [{ kind: "user", ref: loner }]);
+
+  const before = (await s.owner.query("select count(*)::int as n from reminders where created_by = $1", [loner])).rows[0].n;
+  assert.match(((await quickCreate(me, s.companyId, { ...base, title: "   ", kind: "reminder" })) as { error: string }).error, /Title/);
+  assert.match(((await quickCreate(me, s.companyId, { ...base, title: "x".repeat(201), kind: "reminder" })) as { error: string }).error, /Title/);
+  assert.match(((await quickCreate(me, s.companyId, { ...base, at: new Date(Date.now() - 60_000), title: "Late", kind: "task" })) as { error: string }).error, /future/);
+  assert.equal((await s.owner.query("select count(*)::int as n from reminders where created_by = $1", [loner])).rows[0].n, before); // nothing more
+  for (const id of [r.id, t.id]) await s.owner.query("update reminders set status = 'cancelled' where id = $1", [id]);
 });

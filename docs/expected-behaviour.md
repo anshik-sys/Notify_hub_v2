@@ -343,7 +343,7 @@ deleted = hidden everywhere.
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| Q1 | Click an empty time slot (Week/Day) or a day (Month) | A small box: title, date and time (prefilled from the slot; Month uses 09:00), type Reminder / Task | PRD 14.2. **(proposed: 09:00 for a day click)** | |
+| Q1 | Click an empty time slot (Week/Day) or a day (Month) | A small box beside the slot: title (focused), date and time (prefilled from the slot: the lower half of an hour picks :30; Month uses 09:00), type Reminder / Task. The slots are for the mouse; the keyboard path is "+ Create" | PRD 14.2. **(proposed: 09:00 for a day click)** | |
 | Q2 | Save | A one-time reminder to **yourself**, by email, scheduled (no approval: you're always in your own scope); it appears at once | PRD 14.2 | |
 | Q3 | Type Task | Also a task assigned to you, due **1 hour after** it's sent | **(proposed: 1 hour)** | |
 | Q4 | Empty title; a time in the past; title over the usual limit | Refused with the form's usual messages; nothing created | Existing rules | |

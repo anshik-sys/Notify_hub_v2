@@ -1,0 +1,156 @@
+.box {
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: var(--shadow-pop);
+  color: var(--fg);
+}
+
+/* Beside the clicked slot where anchor positioning works (flipping at the
+   edges); elsewhere the browser's default, centred placement. */
+@supports (position-try-fallbacks: flip-inline) {
+  .box {
+    position-anchor: --quick-slot;
+    inset: auto;
+    top: anchor(top);
+    left: anchor(right);
+    margin-left: 8px;
+    position-try-fallbacks: flip-inline, flip-block, flip-inline flip-block;
+  }
+}
+
+@supports not (position-try-fallbacks: flip-inline) {
+  .box {
+    margin: auto;
+  }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Like Google's: a big borderless title with an underline. */
+.title {
+  padding: 4px 0;
+  border: 0;
+  border-bottom: 2px solid var(--input-border);
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.title:focus {
+  border-bottom-color: var(--brand);
+  outline: none;
+}
+
+.kinds {
+  display: flex;
+  gap: 6px;
+}
+
+.kind {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.kind input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.kind:hover {
+  background: var(--surface);
+}
+
+.kind:has(input:focus-visible) {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.on {
+  background: var(--accent-bg);
+  color: var(--accent-fg);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.input {
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 400;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.hint {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.more {
+  color: var(--fg);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.save {
+  min-height: 36px;
+  padding: 6px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.save:hover {
+  background: var(--primary-hover);
+}
+
+.more:focus-visible,
+.save:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
