@@ -2,6 +2,19 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — top-bar search hidden where a page has its own
+
+- The top bar's "Search reminders…" sat above Team's people search and the
+  Audit log's search, so those pages had two boxes searching different
+  things. It now hides on `/users` and `/settings/audit` too, as it already
+  did on `/reminders`. Everywhere else it stays: it's the way to find a
+  reminder from any page.
+- **Rejected:** dropping it from every page but Reminders; finding a
+  reminder from Home or Calendar would then always take an extra click.
+- **Verified:** in Chrome (throwaway session for Maya): the top-bar search
+  is on Home and My tasks, and absent on Reminders, Team and Audit log.
+  Typecheck, lint.
+
 ## 2026-10-20 — one "New reminder" button on the Reminders page
 
 - The user saw two: the top bar's pill and the page's own action. On

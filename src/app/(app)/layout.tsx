@@ -58,7 +58,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
 
           {seesReminders && (
-            <HideOn paths={["/reminders"]}>
+            <HideOn paths={["/reminders", "/users", "/settings/audit"]}>
               <form action="/reminders" role="search" className={styles.search}>
                 <Icon name="search" />
                 <input name="q" type="search" placeholder="Search reminders…" aria-label="Search reminders" className={styles.searchInput} />
