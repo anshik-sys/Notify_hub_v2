@@ -2,6 +2,32 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — calendar: picking today marks it too; a stronger mark
+
+- The user reported that a date clicked in the mini month wasn't marked in
+  Month view. Reproduced in Chrome with 8, 20 and 27 in both themes: the ring
+  was there for 8 and 27, but **not for today (20)**. I'd left today unmarked
+  because it already has its filled number, so clicking it changed nothing.
+  The 2px ring alone was also easy to miss.
+- **Now:** the picked day is marked even when it's today, and the cell is
+  shaded (`--surface`) as well as ringed. When the page opens, today is the
+  picked date, so it starts marked, as in Google.
+- **Verified in Chrome:** clicking 27, then 20, marks each one in light and
+  dark (computed ring colour checked; screenshot). Typecheck, lint.
+
+## 2026-10-20 — calendar: the picked date is marked in the grid
+
+- The user asked for a date clicked in the mini month to show in the main
+  calendar too. The picked date (`?date=`, also set by search and the day
+  links) is now ringed in Month view, with its number filled. In the hour grid
+  its number is ringed and its weekday coloured. Both carry
+  `aria-current="date"`. Today keeps its own dark circle; if today is the
+  picked date, only today's mark shows.
+- **Rejected:** a tint on the whole day cell; scheduled entries already use
+  that colour, so they blended in.
+- **Verified in Chrome:** clicking 23 in the mini month marks the 23rd in Month
+  and Week view (screenshots). Typecheck, lint. **Not verified:** dark mode.
+
 ## 2026-10-20 — calendar laid out like Google Calendar
 
 - The user shared a Google Calendar screenshot. Theirs is easy to navigate;

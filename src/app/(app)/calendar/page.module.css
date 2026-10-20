@@ -274,6 +274,28 @@ a.date:hover {
   color: var(--fg);
 }
 
+/* The picked date (mini month, search, a day link), today included: a
+   shaded, ringed cell in Month view; its number ringed in the hour grid.
+   Today's own filled number stays (the .today rules come after). */
+.day.selected {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--accent-fg);
+}
+
+.selected .date {
+  background: var(--accent-fg);
+  color: var(--bg);
+}
+
+.selected .colDate {
+  box-shadow: inset 0 0 0 2px var(--accent-fg);
+  color: var(--accent-fg);
+}
+
+.selected .colDay {
+  color: var(--accent-fg);
+}
+
 .today .date {
   background: var(--primary-bg);
   color: var(--primary-fg);

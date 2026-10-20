@@ -208,6 +208,7 @@ export default async function Calendar(props: PageProps<"/calendar">) {
             <MonthGrid
               v={v}
               today={today}
+              selected={v.date}
               href={href}
               dayEntries={dayEntries}
               entry={(e) => (
@@ -222,6 +223,7 @@ export default async function Calendar(props: PageProps<"/calendar">) {
               from={v.from}
               to={v.to}
               today={today}
+              selected={v.date}
               now={now}
               tz={tz}
               href={href}
@@ -254,10 +256,13 @@ export default async function Calendar(props: PageProps<"/calendar">) {
 }
 
 type Href = (over?: { view?: string; date?: string; mini?: string | null; q?: string | null }) => string;
-type Grid = { today: string; href: Href; dayEntries: (day: string) => CalendarEntry[] };
+// selected: the date picked (mini month, search, a day link), marked in the grid too.
+type Grid = { today: string; selected: string; href: Href; dayEntries: (day: string) => CalendarEntry[] };
+const dayClass = (day: string, today: string, selected: string, base: string) =>
+  [base, day === today ? styles.today : "", day === selected ? styles.selected : ""].join(" ");
 
 // Month: one row per week. The arrow at a row's start opens that week; a day number opens Day view (C4).
-function MonthGrid({ v, today, href, dayEntries, entry }: Grid & { v: { from: string; to: string }; entry: (e: CalendarEntry) => React.ReactNode }) {
+function MonthGrid({ v, today, selected, href, dayEntries, entry }: Grid & { v: { from: string; to: string }; entry: (e: CalendarEntry) => React.ReactNode }) {
   const weeks: string[] = [];
   for (let d = weekStart(v.from); d < v.to; d = addDays(d, 7)) weeks.push(d);
   return (
@@ -277,7 +282,7 @@ function MonthGrid({ v, today, href, dayEntries, entry }: Grid & { v: { from: st
           if (day < v.from || day >= v.to) return <div key={day} className={styles.blank} />;
           const list = dayEntries(day);
           return (
-            <div key={day} className={day === today ? `${styles.day} ${styles.today}` : styles.day}>
+            <div key={day} className={dayClass(day, today, selected, styles.day)} aria-current={day === selected ? "date" : undefined}>
               <Link href={href({ view: "day", date: day })} className={styles.date} aria-label={`Open ${day}`}>
                 {Number(day.slice(8))}
               </Link>
@@ -303,6 +308,7 @@ function HourGrid({
   from,
   to,
   today,
+  selected,
   now,
   tz,
   href,
@@ -324,7 +330,12 @@ function HourGrid({
       <div className={styles.hoursHead} style={cols} data-sticky="1">
         <div className={styles.zone}>{offsetLabel(now, tz)}</div>
         {days.map((d) => (
-          <Link key={d} href={href({ view: "day", date: d })} className={d === today ? `${styles.colHead} ${styles.today}` : styles.colHead}>
+          <Link
+            key={d}
+            href={href({ view: "day", date: d })}
+            className={dayClass(d, today, selected, styles.colHead)}
+            aria-current={d === selected ? "date" : undefined}
+          >
             <span className={styles.colDay}>{new Date(`${d}T00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}</span>
             <span className={styles.colDate}>{Number(d.slice(8))}</span>
           </Link>
