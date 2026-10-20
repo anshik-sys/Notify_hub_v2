@@ -61,3 +61,18 @@ export function isTimeZone(tz: string) {
     return false;
   }
 }
+
+// 12-hour labels for the calendar's hour grid (PRD 14.1): "12 AM", "9 AM", "12 PM".
+export const hourLabel = (h: number) => `${h % 12 || 12} ${h < 12 ? "AM" : "PM"}`;
+
+// "9:30 AM" in the zone.
+export function time12(date: Date, tz: string) {
+  const [h, m] = toLocalInput(date, tz).slice(11, 16).split(":").map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+}
+
+// "GMT+05:30" for the zone at that moment.
+export function offsetLabel(date: Date, tz: string) {
+  const name = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "longOffset" }).formatToParts(date).find((p) => p.type === "timeZoneName")?.value;
+  return name ?? "GMT";
+}

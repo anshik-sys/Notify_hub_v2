@@ -12,8 +12,7 @@ export function Page({
   actions,
   children,
 }: {
-  /** Usually text; a page may make it a control (the calendar's month picker). */
-  title: React.ReactNode;
+  title: string;
   /** Shown above the title, e.g. { href: "/users", label: "People" }. */
   back?: { href: string; label: string };
   error?: string;

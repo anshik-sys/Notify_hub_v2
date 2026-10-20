@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { toLocalInput, zonedToUtc } from "./time";
+import { hourLabel, offsetLabel, time12, toLocalInput, zonedToUtc } from "./time";
 
 const iso = (local: string, tz: string) => zonedToUtc(local, tz)?.toISOString();
 
@@ -23,4 +23,13 @@ test("toLocalInput round-trips", () => {
     ["2026-12-31T23:59", "Pacific/Auckland"],
   ])
     assert.equal(toLocalInput(zonedToUtc(local, tz)!, tz), local);
+});
+
+test("12-hour labels: midnight, morning, noon, evening; zone offsets", () => {
+  assert.deepEqual([0, 9, 12, 13, 23].map(hourLabel), ["12 AM", "9 AM", "12 PM", "1 PM", "11 PM"]);
+  assert.equal(time12(new Date("2026-10-20T04:30Z"), "Asia/Kolkata"), "10:00 AM");
+  assert.equal(time12(new Date("2026-10-20T00:05Z"), "UTC"), "12:05 AM");
+  assert.equal(time12(new Date("2026-10-20T12:00Z"), "UTC"), "12:00 PM");
+  assert.equal(offsetLabel(new Date("2026-10-20T00:00Z"), "Asia/Kolkata"), "GMT+05:30");
+  assert.equal(offsetLabel(new Date("2026-10-20T00:00Z"), "UTC"), "GMT+00:00");
 });

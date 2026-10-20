@@ -423,6 +423,10 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   to me", …) are computed from **targets**, not deliveries, so they work for
   sends still to come; visibility is still `canViewWhere`. View, date,
   layers, colleague and search all live in the URL (`calendarView`).
+  The page is laid out like Google Calendar: it carries `data-rail`, which
+  turns the app sidebar into the icon rail through CSS `:has()`
+  (`layout.module.css`), with no flash and no cookie change. In Week and Day
+  view, entries are 30-minute blocks placed by `layoutDay`.
 - **Groups (PRD 4)** resolve to their active members at send time, like
   departments. Anyone with `groups.create` (given to the Member role by
   migration 0021) makes one; the creator or `groups.manage` edits it.

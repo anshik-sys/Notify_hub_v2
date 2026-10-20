@@ -399,6 +399,39 @@ export function calendarView(p: { view?: string; date?: string; n?: string }, to
   return { view, date, n, from, to, prev: step(-1), next: step(1), title };
 }
 
+// --- Blocks in the hour grid (Week, Day, N days) ----------------------------------
+
+export const BLOCK_MINUTES = 30;
+export type Placed = { entry: CalendarEntry; minute: number; lane: number; lanes: number };
+
+// Places one day's entries as 30-minute blocks: `minute` from local midnight,
+// and a lane so blocks that overlap sit side by side (as many lanes as the
+// most that overlap at once in their cluster; each takes the lowest free one).
+export function layoutDay(entries: CalendarEntry[], timeZone: string): Placed[] {
+  const placed = entries
+    .map((entry) => {
+      const t = toLocalInput(entry.at, timeZone);
+      return { entry, minute: Number(t.slice(11, 13)) * 60 + Number(t.slice(14, 16)), lane: 0, lanes: 1 };
+    })
+    .sort((a, b) => a.minute - b.minute);
+  let cluster: Placed[] = [];
+  let clusterEnd = -1;
+  const close = () => {
+    const lanes = Math.max(1, ...cluster.map((p) => p.lane + 1));
+    for (const p of cluster) p.lanes = lanes;
+    cluster = [];
+  };
+  for (const p of placed) {
+    if (p.minute >= clusterEnd) close();
+    const busy = new Set(cluster.filter((q) => q.minute + BLOCK_MINUTES > p.minute).map((q) => q.lane));
+    while (busy.has(p.lane)) p.lane++;
+    cluster.push(p);
+    clusterEnd = Math.max(clusterEnd, p.minute + BLOCK_MINUTES);
+  }
+  close();
+  return placed;
+}
+
 // Shown if any of its layers is on (C8), or it's the overlaid colleague's (C10).
 export const shownOn = (e: CalendarEntry, on: ReadonlySet<Layer>) => e.theirs || e.layers.some((l) => on.has(l));
 

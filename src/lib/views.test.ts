@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { db } from "@/db";
 import { COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "./permissions";
 import { seeder } from "./test-helpers";
-import { calendarMonth, calendarRange, calendarView, dashboardStats, filterUrl, parseFilters, searchReminders, shownOn } from "./views";
+import { type CalendarEntry, calendarMonth, calendarRange, calendarView, dashboardStats, filterUrl, layoutDay, parseFilters, searchReminders, shownOn } from "./views";
 
 const s = seeder();
 let admin: string, mgr: string, alice: string, bob: string, ops: string;
@@ -223,4 +223,18 @@ test("calendarRange: waiting and sent entries, layers, a colleague's overlay", a
 
 test("search finds a reminder by its creator's name", async () => {
   assert.ok((await titles(admin, { q: "Bob Build" })).includes("Bob's own"));
+});
+
+test("layoutDay: minutes from midnight; overlapping blocks share the width", () => {
+  const e = (hhmm: string, title = hhmm): CalendarEntry => ({
+    reminderId: title, title, at: new Date(`2031-05-06T${hhmm}:00Z`), isTask: false, state: "scheduled", layers: ["mine"], theirs: false,
+  });
+  const lay = (...es: CalendarEntry[]) => layoutDay(es, "UTC").map((p) => [p.entry.title, p.minute, p.lane, p.lanes]);
+  assert.deepEqual(lay(e("09:00"), e("11:00")), [["09:00", 540, 0, 1], ["11:00", 660, 0, 1]]); // apart: full width
+  assert.deepEqual(lay(e("09:00", "a"), e("09:00", "b")), [["a", 540, 0, 2], ["b", 540, 1, 2]]); // same minute: side by side
+  // A chain: 9:00 overlaps 9:20, 9:20 overlaps 9:40; 9:00 and 9:40 don't, so two lanes do.
+  assert.deepEqual(lay(e("09:40"), e("09:00"), e("09:20")), [["09:00", 540, 0, 2], ["09:20", 560, 1, 2], ["09:40", 580, 0, 2]]);
+  assert.deepEqual(lay(e("09:30"), e("10:00")), [["09:30", 570, 0, 1], ["10:00", 600, 0, 1]]); // touching isn't overlapping
+  assert.deepEqual(lay(e("23:45")), [["23:45", 1425, 0, 1]]);
+  assert.deepEqual(layoutDay([], "UTC"), []);
 });

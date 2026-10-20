@@ -1,0 +1,96 @@
+/* Sized like a secondary button so it sits in the toolbar's row. */
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 14px 8px 18px;
+  border: 1px solid var(--input-border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  anchor-name: --view-menu;
+  transition: background-color var(--duration) var(--ease-out);
+}
+
+.trigger:hover,
+.trigger:has(+ .panel:popover-open) {
+  background: var(--surface);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.chevron {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform var(--duration) var(--ease-out);
+}
+
+.trigger:has(+ .panel:popover-open) .chevron {
+  transform: rotate(180deg);
+}
+
+/* Under the button, right-aligned, where anchor positioning works; elsewhere
+   the browser's default (centred) placement. */
+.panel {
+  min-width: 160px;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: var(--shadow-pop);
+  color: var(--fg);
+}
+
+.panel:popover-open {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+@supports (position-anchor: --view-menu) {
+  .panel {
+    position-anchor: --view-menu;
+    inset: auto;
+    top: anchor(bottom);
+    right: anchor(right);
+    margin-top: 6px;
+  }
+}
+
+@supports not (position-anchor: --view-menu) {
+  .panel {
+    margin: auto;
+  }
+}
+
+.item {
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--fg);
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+
+.item:hover {
+  background: var(--surface);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.current {
+  background: var(--accent-bg);
+  color: var(--accent-fg);
+  font-weight: 600;
+}

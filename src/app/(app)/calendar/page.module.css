@@ -1,22 +1,102 @@
-/* Side panel (mini month, layers, colleague, search) beside the calendar;
-   stacked below 1100px. */
+/* Left panel (Create, mini month, colleague, layers) beside the calendar. */
 .layout {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 248px minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
 
+/* --- Toolbar: Today ‹ › · search · view menu --- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.round {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: var(--fg);
+  transition: background-color var(--duration) var(--ease-out);
+}
+
+.round:hover {
+  background: var(--surface);
+}
+
+.round:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.search {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  margin-left: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--input-border);
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--muted);
+}
+
+.search:focus-within {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.search input {
+  width: 160px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.9375rem;
+  outline: none;
+}
+
+/* Narrower panel on small laptops; below 860px the calendar comes first and
+   the panel follows it. */
 @media (max-width: 1100px) {
   .layout {
+    grid-template-columns: 208px minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 860px) {
+  .layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .main {
+    order: -1;
+  }
+
+  .mini {
+    max-width: 320px;
   }
 }
 
 .side {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 16px;
+}
+
+/* "+ Create" sizes to its label, like Google's. */
+.side > a:first-child {
+  align-self: flex-start;
+  gap: 6px;
 }
 
 .main {
@@ -131,7 +211,7 @@
 
 .grid {
   display: grid;
-  grid-template-columns: 44px repeat(7, minmax(0, 1fr));
+  grid-template-columns: 28px repeat(7, minmax(0, 1fr));
   border-top: 1px solid var(--border);
   border-left: 1px solid var(--border);
 }
@@ -153,14 +233,11 @@
 }
 
 .weekLink {
-  padding: 8px 4px;
+  display: flex;
+  justify-content: center;
+  padding-top: 8px;
   background: var(--surface);
   color: var(--muted);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
 }
 
 .weekLink:hover {
@@ -276,11 +353,12 @@ a.date:hover {
 /* --- Week, Day, N days --- */
 
 .hours {
-  max-height: calc(100vh - 260px);
+  max-height: calc(100vh - 220px);
   min-height: 420px;
   overflow-y: auto;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
+  background: var(--bg);
 }
 
 .hoursHead,
@@ -291,56 +369,163 @@ a.date:hover {
 .hoursHead {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--bg);
 }
 
-.colHead {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 6px;
-  border-left: 1px solid var(--border);
+.zone {
+  align-self: end;
+  padding: 0 6px 6px;
   color: var(--muted);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.colHead:hover {
-  color: var(--fg);
-}
-
-.hourLabel {
-  padding: 2px 6px;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
+  font-size: 0.625rem;
   text-align: right;
 }
 
-.slot {
-  position: relative;
+/* "WED" over a big "7"; today's number in a filled circle. */
+.colHead {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 2px;
-  min-width: 0;
-  min-height: 44px;
-  padding: 2px;
-  border-bottom: 1px solid var(--border);
+  padding: 8px 4px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.colDay {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.colDate {
+  min-width: 40px;
+  border-radius: 999px;
+  color: var(--fg);
+  font-size: 1.5rem;
+  line-height: 40px;
+  text-align: center;
+  transition: background-color var(--duration) var(--ease-out);
+}
+
+.colHead:hover .colDate {
+  background: var(--surface);
+}
+
+.today .colDay {
+  color: var(--brand);
+}
+
+.today .colDate,
+.colHead.today:hover .colDate {
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+}
+
+/* 24 rows of 48px; each day column draws the hour lines itself. */
+.hourLabels {
+  display: grid;
+  grid-template-rows: repeat(24, 48px);
+}
+
+.hourLabel {
+  position: relative;
+  padding-right: 8px;
+  color: var(--muted);
+  font-size: 0.6875rem;
+  text-align: right;
+  white-space: nowrap;
+  transform: translateY(-0.5em);
+}
+
+.column {
+  position: relative;
+  height: calc(24 * 48px);
   border-left: 1px solid var(--border);
+  background-image: repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px 48px);
+}
+
+/* A 30-minute block (24px: the minimum target) at its exact minute. */
+.block {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  height: 24px;
+  margin-left: 2px;
+  padding: 2px 6px;
+  border: 1px solid var(--bg);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 0.75rem;
+  line-height: 1.15;
+  text-decoration: none;
+  transition: box-shadow var(--duration) var(--ease-out);
+}
+
+.block:hover,
+.block:focus-visible {
+  z-index: 3;
+  box-shadow: var(--shadow-pop);
+}
+
+.block:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+/* One line, like Google's short events: the title gives way to the time. */
+.blockTitle {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.block .time {
+  flex: none;
+  font-size: 0.6875rem;
+}
+
+/* The states again for blocks (their border rule above would win otherwise):
+   sent ones sit back, waiting ones are dashed, a colleague's are outlined. */
+.block.sent {
+  background: var(--surface);
+}
+
+.block.pending {
+  border: 1px dashed var(--input-border);
+}
+
+.block.theirs {
+  border-color: var(--brand);
 }
 
 .now {
   position: absolute;
   right: 0;
   left: 0;
+  z-index: 2;
   height: 2px;
   background: var(--brand);
   pointer-events: none;
+}
+
+.now::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--brand);
 }
 
 /* --- Mini month --- */
@@ -361,13 +546,19 @@ a.date:hover {
   font-weight: 600;
 }
 
+.miniArrows {
+  display: inline-flex;
+  gap: 2px;
+}
+
 .miniHead a {
-  min-width: 28px;
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   color: var(--muted);
-  text-align: center;
-  text-decoration: none;
 }
 
 .miniHead a:hover {

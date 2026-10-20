@@ -40,33 +40,38 @@
 }
 
 /* Collapsed sidebar: an icon rail. Desktop only; narrow windows already turn
-   the sidebar into a row. */
+   the sidebar into a row. A page carrying [data-rail] (Calendar) always gets
+   the rail, server-rendered, and the toggle hides there. */
 @media (min-width: 768px) {
+  .frame:has([data-rail]) .collapse {
+    display: none;
+  }
+
   .frame {
     transition: grid-template-columns var(--duration) var(--ease-out);
   }
 
-  .frame[data-collapsed] {
+  .frame:is([data-collapsed], :has([data-rail])) {
     grid-template-columns: 52px 1fr;
   }
 
   /* Just the logo and the expand button. */
-  .frame[data-collapsed] .brandArea {
+  .frame:is([data-collapsed], :has([data-rail])) .brandArea {
     width: auto;
   }
 
-  .frame[data-collapsed] .brand {
+  .frame:is([data-collapsed], :has([data-rail])) .brand {
     flex: none;
   }
 
-  .frame[data-collapsed] .chevron {
+  .frame:is([data-collapsed], :has([data-rail])) .chevron {
     display: none;
   }
 
   /* Visually hidden, still read out: the names of the icon-only links. */
-  .frame[data-collapsed] .brandText,
-  .frame[data-collapsed] .label,
-  .frame[data-collapsed] .userText {
+  .frame:is([data-collapsed], :has([data-rail])) .brandText,
+  .frame:is([data-collapsed], :has([data-rail])) .label,
+  .frame:is([data-collapsed], :has([data-rail])) .userText {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -75,7 +80,7 @@
     white-space: nowrap;
   }
 
-  .frame[data-collapsed] .navLabel {
+  .frame:is([data-collapsed], :has([data-rail])) .navLabel {
     height: 1px;
     margin: 10px 8px;
     overflow: hidden;
@@ -83,29 +88,29 @@
     color: transparent;
   }
 
-  .frame[data-collapsed] .navItem {
+  .frame:is([data-collapsed], :has([data-rail])) .navItem {
     justify-content: center;
     padding: 0;
   }
 
-  .frame[data-collapsed] .user {
+  .frame:is([data-collapsed], :has([data-rail])) .user {
     justify-content: center;
     padding: 4px;
     background: none;
   }
 
   /* Tooltips need room outside the rail. */
-  .frame[data-collapsed] .sidebar {
+  .frame:is([data-collapsed], :has([data-rail])) .sidebar {
     overflow: visible;
   }
 
-  .frame[data-collapsed] .navItem,
-  .frame[data-collapsed] .user {
+  .frame:is([data-collapsed], :has([data-rail])) .navItem,
+  .frame:is([data-collapsed], :has([data-rail])) .user {
     position: relative;
   }
 
-  .frame[data-collapsed] .navItem:is(:hover, :focus-visible)::after,
-  .frame[data-collapsed] .user:is(:hover, :focus-visible)::after {
+  .frame:is([data-collapsed], :has([data-rail])) .navItem:is(:hover, :focus-visible)::after,
+  .frame:is([data-collapsed], :has([data-rail])) .user:is(:hover, :focus-visible)::after {
     content: attr(data-label);
     position: absolute;
     top: 50%;

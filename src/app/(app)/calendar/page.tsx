@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button, Checkbox, firstParam, LinkButton, Page } from "@/components/form";
-import { Tabs } from "@/components/tabs";
+import { Icon } from "@/components/icon";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
-import { toLocalInput } from "@/lib/time";
+import { hourLabel, offsetLabel, time12, toLocalInput } from "@/lib/time";
 import { listUsers } from "@/lib/users";
 import { isUserId } from "@/lib/validate";
 import {
@@ -15,14 +15,16 @@ import {
   calendarView,
   type Layer,
   LAYERS,
+  layoutDay,
   parseFilters,
   searchReminders,
   shownOn,
   VIEWS,
   weekStart,
 } from "@/lib/views";
-import { MonthPicker } from "./month-picker";
+import { AutoSubmit } from "./auto-submit";
 import { ScrollTo } from "./scroll-to";
+import { ViewMenu } from "./view-menu";
 import styles from "./page.module.css";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -31,9 +33,11 @@ const HOURS = Array.from({ length: 24 }, (_, h) => h);
 const ALL_LAYERS = Object.keys(LAYERS) as Layer[];
 const STATE_LABEL = { scheduled: "", pending: "Needs approval", sent: "Sent" } as const;
 
-// PRD 14.1: Month, Week, Day and N-day views of what the viewer can open, in
-// their time zone. Everything is in the URL (GET forms and links, no client
-// state), so reload, back and deep links work.
+// PRD 14.1, laid out like Google Calendar (the user's reference): a toolbar
+// (Today, ‹ ›, the date, search, the view menu), a left panel (Create, the
+// mini month, a colleague, the layers) and the grid. The app sidebar is an
+// icon rail here ([data-rail], layout.module.css). Everything is in the URL
+// (links and GET forms), so reload, back and deep links work.
 export default async function Calendar(props: PageProps<"/calendar">) {
   const { user, companyId, access, timeZone: tz } = await requireMember();
   if (!can(access, "reminders.create") && !can(access, "reminders.view_all")) notFound();
@@ -79,88 +83,70 @@ export default async function Calendar(props: PageProps<"/calendar">) {
     const s = u.toString();
     return `/calendar${s ? `?${s}` : ""}`;
   };
-  const hidden = (skip: string[]) =>
-    [
+  // The current settings as hidden fields, for the GET forms.
+  const hidden = (skip: string[]) => {
+    const fields: [string, string][] = [
       ["view", v.view],
       ["date", v.date],
       ["n", v.view === "days" ? String(v.n) : ""],
       ["person", person?.id ?? ""],
       ["q", q],
-    ]
-      .filter(([k, val]) => val && !skip.includes(k))
-      .map(([k, val]) => <input key={k} type="hidden" name={k} value={val} />);
+      ...(layers.size !== ALL_LAYERS.length && !skip.includes("layer") ? ([["ls", "1"], ...[...layers].map((l) => ["layer", l])] as [string, string][]) : []),
+    ];
+    return fields.filter(([k, val]) => val && !skip.includes(k)).map(([k, val], i) => <input key={`${k}-${i}`} type="hidden" name={k} value={val} />);
+  };
 
-  const time = (d: Date) => toLocalInput(d, tz).slice(11, 16);
   const dayEntries = (day: string) => (cal.days.get(day) ?? []).filter((e) => shownOn(e, layers));
-  const entry = (e: CalendarEntry) => (
-    <Link
-      key={`${e.reminderId}-${e.at.getTime()}-${e.state}`}
-      href={`/reminders/${e.reminderId}`}
-      className={[styles.entry, styles[e.state], e.theirs ? styles.theirs : ""].join(" ")}
-      title={[e.title, STATE_LABEL[e.state], e.theirs && person ? `${person.name}’s` : ""].filter(Boolean).join(" · ")}
-    >
-      <span className={styles.time}>{time(e.at)}</span> {e.isTask && <span className={styles.tag}>Task</span>} {e.title}
-      {e.state !== "scheduled" && <span className={styles.hidden}> ({STATE_LABEL[e.state]})</span>}
-    </Link>
-  );
-
-  const viewTabs = (Object.keys(VIEWS) as (keyof typeof VIEWS)[]).map((k) => ({
-    href: href({ view: k }),
-    label: k === "days" ? `${v.n} days` : VIEWS[k],
-    current: v.view === k,
-  }));
+  const stateClass = (e: CalendarEntry) => [styles[e.state], e.theirs ? styles.theirs : ""].join(" ");
+  const label = (e: CalendarEntry) => [e.title, STATE_LABEL[e.state], e.theirs && person ? `${person.name}’s` : ""].filter(Boolean).join(" · ");
+  const key = (e: CalendarEntry) => `${e.reminderId}-${e.at.getTime()}-${e.state}`;
 
   return (
     <Page
-      title={<MonthPicker title={v.title} month={v.from.slice(0, 7)} today={today} href={href({ date: "__DATE__", mini: null })} />}
+      title={v.title}
       actions={
-        <>
-          <LinkButton href={href({ date: v.prev })} variant="secondary">
-            Previous
-          </LinkButton>
+        <div className={styles.toolbar}>
           <LinkButton href={href({ date: today, mini: null })} variant="secondary">
             Today
           </LinkButton>
-          <LinkButton href={href({ date: v.next })} variant="secondary">
-            Next
-          </LinkButton>
-        </>
+          <Link href={href({ date: v.prev })} className={styles.round} aria-label="Previous" title="Previous">
+            <Icon name="left" />
+          </Link>
+          <Link href={href({ date: v.next })} className={styles.round} aria-label="Next" title="Next">
+            <Icon name="right" />
+          </Link>
+          <form action="/calendar" role="search" className={styles.search}>
+            {hidden(["q", "date"])}
+            <Icon name="search" />
+            <input name="q" type="search" defaultValue={q} placeholder="Search" aria-label="Search the calendar: title, tag or person" />
+          </form>
+          <ViewMenu
+            label={v.view === "days" ? `${v.n} days` : VIEWS[v.view]}
+            items={(["day", "week", "month", "days"] as const).map((k) => ({
+              href: href({ view: k }),
+              label: k === "days" ? `${v.view === "days" ? v.n : 4} days` : VIEWS[k],
+              current: v.view === k,
+            }))}
+          />
+        </div>
       }
     >
-      <div className={styles.layout}>
+      <div className={styles.layout} data-rail>
         <aside className={styles.side}>
-          {/* In Month view the grid itself is the month; the title picks other months. */}
-          {v.view !== "month" && <MiniMonth month={mini} today={today} selected={v.date} href={href} />}
+          <LinkButton href="/reminders/new">
+            <Icon name="plus" /> Create
+          </LinkButton>
 
-          <form action="/calendar" className={styles.panel}>
-            {hidden(["q"])}
-            <input type="hidden" name="ls" value="1" />
-            <fieldset className={styles.fieldset}>
-              <legend className={styles.legend}>Show</legend>
-              {ALL_LAYERS.map((l) => (
-                <Checkbox key={l} label={LAYERS[l]} name="layer" value={l} defaultChecked={layers.has(l)} />
-              ))}
-            </fieldset>
-            <Button size="small" variant="secondary">
-              Apply
-            </Button>
-          </form>
+          <MiniMonth month={mini} today={today} selected={v.date} href={href} />
 
           {people.length > 0 && (
             <form action="/calendar" className={styles.panel}>
               {hidden(["person"])}
-              {layers.size !== ALL_LAYERS.length && (
-                <>
-                  <input type="hidden" name="ls" value="1" />
-                  {[...layers].map((l) => (
-                    <input key={l} type="hidden" name="layer" value={l} />
-                  ))}
-                </>
-              )}
+              <AutoSubmit />
               <label className={styles.label}>
-                A colleague’s calendar
+                Meet with…
                 <select name="person" defaultValue={person?.id ?? ""} className={styles.select}>
-                  <option value="">Nobody</option>
+                  <option value="">Nobody: just my calendar</option>
                   {people.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -168,26 +154,33 @@ export default async function Calendar(props: PageProps<"/calendar">) {
                   ))}
                 </select>
               </label>
-              <Button size="small" variant="secondary">
-                Show
-              </Button>
+              <noscript>
+                <Button size="small" variant="secondary">
+                  Show
+                </Button>
+              </noscript>
             </form>
           )}
 
-          <form action="/calendar" role="search" className={styles.panel}>
-            {hidden(["q", "date"])}
-            <label className={styles.label}>
-              Search
-              <input name="q" type="search" defaultValue={q} placeholder="Title, tag or person" className={styles.select} />
-            </label>
-            <Button size="small" variant="secondary">
-              Find
-            </Button>
+          <form action="/calendar" className={styles.panel}>
+            {hidden(["layer", "q"])}
+            <input type="hidden" name="ls" value="1" />
+            <AutoSubmit />
+            <fieldset className={styles.fieldset}>
+              <legend className={styles.legend}>My calendars</legend>
+              {ALL_LAYERS.map((l) => (
+                <Checkbox key={l} label={LAYERS[l]} name="layer" value={l} defaultChecked={layers.has(l)} />
+              ))}
+            </fieldset>
+            <noscript>
+              <Button size="small" variant="secondary">
+                Apply
+              </Button>
+            </noscript>
           </form>
         </aside>
 
         <div className={styles.main}>
-          <Tabs label="View" tabs={viewTabs} />
           {results && (
             <section className={styles.results} aria-label="Search results">
               <div className={styles.resultsHead}>
@@ -204,16 +197,55 @@ export default async function Calendar(props: PageProps<"/calendar">) {
               })}
             </section>
           )}
-          <p className={styles.hint}>
-            In {tz}. Faded: already sent. Dashed: waiting for approval.
-            {person && ` Outlined: ${person.name}’s.`}
-            {cal.truncated && ` Only the first ${CALENDAR_LIMIT} reminders are shown; use Reminders to filter.`}
-          </p>
+          {(person || cal.truncated) && (
+            <p className={styles.hint}>
+              {person && `Outlined: ${person.name}’s. `}
+              {cal.truncated && `Only the first ${CALENDAR_LIMIT} reminders are shown; use Reminders to filter.`}
+            </p>
+          )}
 
           {v.view === "month" ? (
-            <MonthGrid v={v} today={today} href={href} dayEntries={dayEntries} entry={entry} />
+            <MonthGrid
+              v={v}
+              today={today}
+              href={href}
+              dayEntries={dayEntries}
+              entry={(e) => (
+                <Link key={key(e)} href={`/reminders/${e.reminderId}`} className={`${styles.entry} ${stateClass(e)}`} title={label(e)}>
+                  <span className={styles.time}>{time12(e.at, tz)}</span> {e.title}
+                  {e.state !== "scheduled" && <span className={styles.hidden}> ({STATE_LABEL[e.state]})</span>}
+                </Link>
+              )}
+            />
           ) : (
-            <HourGrid from={v.from} to={v.to} today={today} now={now} tz={tz} href={href} dayEntries={dayEntries} entry={entry} />
+            <HourGrid
+              from={v.from}
+              to={v.to}
+              today={today}
+              now={now}
+              tz={tz}
+              href={href}
+              dayEntries={dayEntries}
+              block={(p) => (
+                <Link
+                  key={key(p.entry)}
+                  href={`/reminders/${p.entry.reminderId}`}
+                  className={`${styles.block} ${stateClass(p.entry)}`}
+                  title={label(p.entry)}
+                  style={{
+                    top: `${(p.minute / 1440) * 100}%`,
+                    left: `${(p.lane / p.lanes) * 100}%`,
+                    width: `calc(${100 / p.lanes}% - 4px)`,
+                  }}
+                >
+                  <span className={styles.blockTitle}>
+                    {p.entry.isTask && <span className={styles.tag}>Task</span>} {p.entry.title}
+                  </span>
+                  <span className={styles.time}>{time12(p.entry.at, tz)}</span>
+                  {p.entry.state !== "scheduled" && <span className={styles.hidden}> ({STATE_LABEL[p.entry.state]})</span>}
+                </Link>
+              )}
+            />
           )}
         </div>
       </div>
@@ -222,10 +254,10 @@ export default async function Calendar(props: PageProps<"/calendar">) {
 }
 
 type Href = (over?: { view?: string; date?: string; mini?: string | null; q?: string | null }) => string;
-type Grid = { today: string; href: Href; dayEntries: (day: string) => CalendarEntry[]; entry: (e: CalendarEntry) => React.ReactNode };
+type Grid = { today: string; href: Href; dayEntries: (day: string) => CalendarEntry[] };
 
-// Month: one row per week. The week's label opens Week view; a day number opens Day view (C4).
-function MonthGrid({ v, today, href, dayEntries, entry }: Grid & { v: { from: string; to: string } }) {
+// Month: one row per week. The arrow at a row's start opens that week; a day number opens Day view (C4).
+function MonthGrid({ v, today, href, dayEntries, entry }: Grid & { v: { from: string; to: string }; entry: (e: CalendarEntry) => React.ReactNode }) {
   const weeks: string[] = [];
   for (let d = weekStart(v.from); d < v.to; d = addDays(d, 7)) weeks.push(d);
   return (
@@ -237,8 +269,8 @@ function MonthGrid({ v, today, href, dayEntries, entry }: Grid & { v: { from: st
         </div>
       ))}
       {weeks.map((w) => [
-        <Link key={w} href={href({ view: "week", date: w })} className={styles.weekLink} aria-label={`Week of ${w}`}>
-          Week
+        <Link key={`week-${w}`} href={href({ view: "week", date: w })} className={styles.weekLink} aria-label={`Week of ${w}`} title="Open this week">
+          <Icon name="right" size={14} />
         </Link>,
         ...Array.from({ length: 7 }, (_, i) => {
           const day = addDays(w, i);
@@ -264,43 +296,54 @@ function MonthGrid({ v, today, href, dayEntries, entry }: Grid & { v: { from: st
   );
 }
 
-// Week, Day and N days: a column per day, a row per hour; entries sit in their
-// hour (several in one hour stack). A line marks now on today.
-function HourGrid({ from, to, today, now, tz, href, dayEntries, entry }: Grid & { from: string; to: string; now: Date; tz: string }) {
+// Week, Day and N days: a column per day over 24 hour rows. Entries are
+// 30-minute blocks at their exact minute (layoutDay); blocks that overlap sit
+// side by side. A line marks now on today.
+function HourGrid({
+  from,
+  to,
+  today,
+  now,
+  tz,
+  href,
+  dayEntries,
+  block,
+}: Grid & { from: string; to: string; now: Date; tz: string; block: (p: ReturnType<typeof layoutDay>[number]) => React.ReactNode }) {
   const days: string[] = [];
   for (let d = from; d < to; d = addDays(d, 1)) days.push(d);
   const local = toLocalInput(now, tz);
-  const [nowHour, nowMin] = [Number(local.slice(11, 13)), Number(local.slice(14, 16))];
-  const hourOf = (e: CalendarEntry) => Number(toLocalInput(e.at, tz).slice(11, 13));
-  const showsToday = days.includes(today);
-  const cols = { gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))` };
+  const nowMinute = Number(local.slice(11, 13)) * 60 + Number(local.slice(14, 16));
+  const placed = new Map(days.map((d) => [d, layoutDay(dayEntries(d), tz)]));
+  const first = Math.min(...[...placed.values()].flat().map((p) => Math.floor(p.minute / 60)));
+  // Opens at the earliest entry in view, or 7 AM (the hour before now on today), whichever is first.
+  const scrollHour = Math.min(days.includes(today) ? Math.max(0, Math.floor(nowMinute / 60) - 1) : 7, first);
+  const cols = { gridTemplateColumns: `64px repeat(${days.length}, minmax(0, 1fr))` };
   return (
     <div className={styles.hours} data-scroll>
-      {/* Opens at the earliest entry in view, or 07:00 (the hour before now on today), whichever is first. */}
-      <ScrollTo id={`h-${Math.min(showsToday ? Math.max(0, nowHour - 1) : 7, ...days.flatMap(dayEntries).map(hourOf))}`} />
+      <ScrollTo id={`h-${scrollHour}`} />
       <div className={styles.hoursHead} style={cols} data-sticky="1">
-        <div />
+        <div className={styles.zone}>{offsetLabel(now, tz)}</div>
         {days.map((d) => (
           <Link key={d} href={href({ view: "day", date: d })} className={d === today ? `${styles.colHead} ${styles.today}` : styles.colHead}>
-            <span>{new Date(`${d}T00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}</span>
-            <span className={styles.date}>{Number(d.slice(8))}</span>
+            <span className={styles.colDay}>{new Date(`${d}T00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })}</span>
+            <span className={styles.colDate}>{Number(d.slice(8))}</span>
           </Link>
         ))}
       </div>
       <div className={styles.hoursBody} style={cols}>
-        {HOURS.map((h) => [
-          <div key={`l${h}`} id={`h-${h}`} className={styles.hourLabel}>
-            {String(h).padStart(2, "0")}:00
-          </div>,
-          ...days.map((d) => (
-            <div key={`${d}-${h}`} className={styles.slot}>
-              {d === today && h === nowHour && <span className={styles.now} style={{ top: `${(nowMin / 60) * 100}%` }} aria-hidden="true" />}
-              {dayEntries(d)
-                .filter((e) => hourOf(e) === h)
-                .map(entry)}
+        <div className={styles.hourLabels}>
+          {HOURS.map((h) => (
+            <div key={h} id={`h-${h}`} className={styles.hourLabel}>
+              {h > 0 && hourLabel(h)}
             </div>
-          )),
-        ])}
+          ))}
+        </div>
+        {days.map((d) => (
+          <div key={d} className={styles.column}>
+            {d === today && <span className={styles.now} style={{ top: `${(nowMinute / 1440) * 100}%` }} aria-hidden="true" />}
+            {placed.get(d)!.map(block)}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -317,13 +360,15 @@ function MiniMonth({ month, today, selected, href }: { month: string; today: str
   return (
     <nav className={styles.mini} aria-label="Pick a date">
       <div className={styles.miniHead}>
-        <Link href={href({ mini: prev })} aria-label="Previous month">
-          ‹
-        </Link>
         <span>{name}</span>
-        <Link href={href({ mini: next })} aria-label="Next month">
-          ›
-        </Link>
+        <span className={styles.miniArrows}>
+          <Link href={href({ mini: prev })} aria-label="Previous month">
+            <Icon name="left" size={16} />
+          </Link>
+          <Link href={href({ mini: next })} aria-label="Next month">
+            <Icon name="right" size={16} />
+          </Link>
+        </span>
       </div>
       <div className={styles.miniGrid}>
         {WEEKDAYS.map((d) => (

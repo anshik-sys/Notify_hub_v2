@@ -2,6 +2,53 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — calendar laid out like Google Calendar
+
+- The user shared a Google Calendar screenshot. Theirs is easy to navigate;
+  ours had a big title with buttons on the right, view tabs, a side panel of
+  forms with Apply buttons, no mini month in Month view, and entries listed
+  inside hour cells. The user's choices: collapse the app sidebar on Calendar,
+  blocks at the exact time, drop the title month picker (the mini month is
+  always there now), 12-hour labels.
+- **Toolbar:** Today, ‹ ›, a search field, and a view menu ("Week ▾", a native
+  popover). The view tabs and `MonthPicker` are gone, and `Page`'s title is a
+  string again.
+- **Left panel in every view:** + Create, the mini month, "Meet with…" (the
+  colleague) and "My calendars" (the layers). Both apply on change through a
+  tiny `AutoSubmit`, with a `<noscript>` Apply button kept.
+- **App sidebar:** an icon rail on Calendar only. The page carries `data-rail`;
+  the shell's collapsed rules match `:is([data-collapsed], :has([data-rail]))`,
+  so it's server-rendered with no flash and no cookie change. The collapse
+  toggle hides there. Rejected: collapsing from a client effect (a flash on
+  every visit, and it would fight the user's saved choice).
+- **Hour grid:**
+  - "MON / 19" column heads, the zone offset ("GMT+05:30") top left, and
+    12-hour labels;
+  - each entry is a 30-minute block at its exact minute, title and time on
+    one line (two lines didn't fit 24px);
+  - `layoutDay` gives overlapping blocks lanes so they sit side by side
+    (tested: same minute, a chain, touching isn't overlapping);
+  - a "now" line with a dot;
+  - new helpers `hourLabel` / `time12` / `offsetLabel` in `time.ts`.
+- **Bugs caught in Chrome:**
+  - the month grid's week link and the blank cell before the 1st shared a
+    React key (console error);
+  - block states lost their borders to the block rule;
+  - at 1000px the panel stacked above and pushed the calendar below the fold.
+    The panel now stays beside the grid down to 860px, and below that the
+    grid comes first.
+- **Verified:** 291 tests pass, 8 skipped. Typecheck, lint. In Chrome as Maya:
+  - rail 52px on Calendar, 216px on Home;
+  - mini month in all four views;
+  - unticking a layer and picking a colleague apply at once;
+  - the view menu switches to Day and closes;
+  - blocks at 4:30 AM on each day;
+  - no console errors apart from the known dev-only CSP noise;
+  - screenshots in light and dark, and at 1000px with no sideways scroll.
+- **Not verified:** below 860px, Firefox and Safari (anchor positioning falls
+  back to a centred menu), and two reminders at the same minute in the
+  browser (the lane maths is unit-tested).
+
 ## 2026-10-20 — calendar: pick a month from the title
 
 - The user asked what the mini month is for. In Month view it repeated the
