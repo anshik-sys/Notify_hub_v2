@@ -286,3 +286,36 @@
   outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
+
+.foldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.scopes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.scopesLegend {
+  margin-bottom: 2px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+}
+
+.scope input {
+  accent-color: var(--brand);
+}

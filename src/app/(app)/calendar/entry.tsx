@@ -4,7 +4,7 @@ import { Icon } from "@/components/icon";
 import { CALENDAR_COLORS } from "@/db/schema";
 import { time12, toLocalInput } from "@/lib/time";
 import type { CalendarEntry } from "@/lib/views";
-import { deleteReminderAction, duplicateAction, markTaskAction, setColorAction } from "../reminders/actions";
+import { deleteEntryAction, duplicateAction, editFollowingAction, markTaskAction, moveEntryAction, setColorAction } from "../reminders/actions";
 import styles from "./entry.module.css";
 
 const STATE = { scheduled: "", pending: "Needs approval", sent: "Sent" } as const;
@@ -40,6 +40,11 @@ export function Entry({
   const anchor = `--peek-${n}`;
   const label = [e.title, STATE[e.state]].filter(Boolean).join(" · ");
   const sent = e.state === "sent";
+  const series = e.repeat !== null; // an upcoming date of a repeating reminder
+  const movable = e.canChange && !sent;
+  // "This one" / "This and following" need an approved series (spec M10).
+  const scopes: readonly Scope[] | null = series ? (e.state === "pending" ? ["all"] : ["one", "following", "all"]) : null;
+  const occurs = e.at.toISOString();
   // Duplicate defaults to the same time a day later (in the future either way).
   const copyAt = toLocalInput(new Date(Math.max(e.at.getTime(), now.getTime()) + 86_400_000), tz);
   return (
@@ -51,6 +56,11 @@ export function Entry({
         style={{ ...style, anchorName: anchor } as React.CSSProperties}
         title={label}
         aria-haspopup="dialog"
+        // Drag to move (M1, M5): drag.tsx reads these.
+        data-drag-id={movable ? e.reminderId : undefined}
+        data-drag-at={movable ? occurs : undefined}
+        data-drag-local={movable ? toLocalInput(e.at, tz) : undefined}
+        data-drag-scopes={movable && scopes ? scopes.join(",") : undefined}
       >
         {children}
       </button>
@@ -74,7 +84,7 @@ export function Entry({
           <Link href={`/reminders/${e.reminderId}`} className={styles.action}>
             Open
           </Link>
-          {e.canChange && !sent && (
+          {movable && !series && (
             <Link href={`/reminders/${e.reminderId}/edit`} className={styles.action}>
               Edit
             </Link>
@@ -134,14 +144,56 @@ export function Entry({
           </details>
         )}
 
-        {/* Repeating ones: deleting one date or the rest comes with the series choices (slice 4). */}
-        {e.canChange && !sent && !e.repeat && (
+        {movable && series && (
+          <details className={styles.fold}>
+            <summary>Edit…</summary>
+            <div className={styles.foldRow}>
+              {scopes!.includes("one") && (
+                <Link href={`/reminders/${e.reminderId}/edit?occurs=${encodeURIComponent(occurs)}`} className={styles.action}>
+                  This one
+                </Link>
+              )}
+              {scopes!.includes("following") && (
+                <form action={editFollowingAction}>
+                  <input type="hidden" name="id" value={e.reminderId} />
+                  <input type="hidden" name="occursAt" value={occurs} />
+                  <input type="hidden" name="next" value={next} />
+                  <button className={styles.action}>This and following</button>
+                </form>
+              )}
+              <Link href={`/reminders/${e.reminderId}/edit`} className={styles.action}>
+                All
+              </Link>
+            </div>
+          </details>
+        )}
+
+        {movable && (
+          <details className={styles.fold}>
+            <summary>Move to…</summary>
+            <form action={moveEntryAction} className={styles.foldForm}>
+              <input type="hidden" name="id" value={e.reminderId} />
+              <input type="hidden" name="occursAt" value={occurs} />
+              <input type="hidden" name="next" value={next} />
+              <label className={styles.field}>
+                New date and time
+                <input type="datetime-local" name="at" defaultValue={toLocalInput(e.at, tz)} required className={styles.input} />
+              </label>
+              {scopes ? <ScopeChoice scopes={scopes} /> : <input type="hidden" name="scope" value="one" />}
+              <Button size="small">Move</Button>
+            </form>
+          </details>
+        )}
+
+        {movable && (
           <details className={styles.fold}>
             <summary>Delete…</summary>
-            <form action={deleteReminderAction} className={styles.foldForm}>
+            <form action={deleteEntryAction} className={styles.foldForm}>
               <input type="hidden" name="id" value={e.reminderId} />
+              <input type="hidden" name="occursAt" value={occurs} />
               <input type="hidden" name="next" value={next} />
-              <Checkbox label="Delete it for everyone" name="confirm" required />
+              {scopes ? <ScopeChoice scopes={scopes} /> : <input type="hidden" name="scope" value="all" />}
+              <Checkbox label={series ? "Yes, delete what I picked" : "Delete it for everyone"} name="confirm" required />
               <Button size="small" variant="danger">
                 Delete
               </Button>
@@ -150,5 +202,23 @@ export function Entry({
         )}
       </div>
     </>
+  );
+}
+
+type Scope = "one" | "following" | "all";
+const SCOPE_LABEL = { one: "This one", following: "This and following", all: "All" } as const;
+
+// PRD 14.2's choice for a repeating entry (M5, M11, M12); the first is preselected.
+function ScopeChoice({ scopes }: { scopes: readonly Scope[] }) {
+  return (
+    <fieldset className={styles.scopes}>
+      <legend className={styles.scopesLegend}>Which dates</legend>
+      {scopes.map((sc, i) => (
+        <label key={sc} className={styles.scope}>
+          <input type="radio" name="scope" value={sc} defaultChecked={i === 0} />
+          {SCOPE_LABEL[sc]}
+        </label>
+      ))}
+    </fieldset>
   );
 }

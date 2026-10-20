@@ -140,6 +140,7 @@ export function ReminderForm({
   attachments = [],
   brand,
   nextLabel,
+  occursAt,
 }: {
   defaults: ReminderDefaults;
   departments: DepartmentChoice[];
@@ -155,6 +156,8 @@ export function ReminderForm({
   brand?: Brand;
   /** Edit of a scheduled series: its next occurrence, for "only the next one" (PRD 5.6). */
   nextLabel?: string;
+  /** A chosen upcoming date (the calendar's "Edit → This one"): "only this one" is preselected. */
+  occursAt?: string;
 }) {
   const mine = departments.filter((d) => d.mine);
   const others = departments.filter((d) => !d.mine);
@@ -337,12 +340,13 @@ export function ReminderForm({
             <RadioGroup
               legend="Change"
               name="scope"
-              value="all"
+              value={occursAt ? "one" : "all"}
               options={[
                 { value: "all", label: "This and all future ones" },
-                { value: "one", label: `Only the next one (${nextLabel})` },
+                { value: "one", label: `${occursAt ? "Only this one" : "Only the next one"} (${nextLabel})` },
               ]}
             />
+            {occursAt && <input type="hidden" name="occursAt" value={occursAt} />}
             <Hint>
               Only the next one: it becomes a separate one-time reminder at the time below, and the series skips that date. The repeat
               settings are ignored.

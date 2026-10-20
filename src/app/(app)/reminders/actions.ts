@@ -8,11 +8,14 @@ import {
   cancelReminder,
   createReminder,
   decideReminder,
+  deleteEntry,
   deleteReminder,
   detachOccurrence,
   duplicateReminder,
   formToRaw,
+  moveEntry,
   quickCreate,
+  type Scope,
   setOccurrenceDone,
   pauseReminder,
   resumeReminder,
@@ -80,7 +83,10 @@ export async function saveReminder(fd: FormData) {
     ? `?notice=${encodeURIComponent(`${gone.join(", ")} unsubscribed from your company’s reminders and won’t receive this.`)}`
     : "";
   if (onlyNext) {
-    const made = await detachOccurrence(me, companyId, id, parsed.input, files, removeAttachmentIds);
+    // From the calendar, "this one" can be any upcoming date of the series.
+    const occurs = str(fd, "occursAt") ? new Date(str(fd, "occursAt")) : undefined;
+    if (occurs && Number.isNaN(occurs.getTime())) notFound();
+    const made = await detachOccurrence(me, companyId, id, parsed.input, files, removeAttachmentIds, occurs);
     if ("error" in made) redirect(errorUrl(back, made.error));
     redirect(`/reminders/${made.id}${notice || `?notice=${encodeURIComponent("Saved as a separate reminder. The series skips that date.")}`}`);
   }
@@ -230,4 +236,52 @@ export async function quickCreateAction(fd: FormData) {
   });
   if ("error" in r) redirect(errorUrl(back, r.error));
   redirect(withNotice(back, fd.get("kind") === "task" ? "Task created." : "Reminder created."));
+}
+
+const SCOPES: Scope[] = ["one", "following", "all"];
+// An occurrence time from a form (ISO) and its scope; anything else is a 404.
+function occurrence(fd: FormData) {
+  const at = new Date(str(fd, "occursAt"));
+  const scope = str(fd, "scope") || "one";
+  if (Number.isNaN(at.getTime()) || !SCOPES.includes(scope as Scope)) notFound();
+  return { occursAt: at, scope: scope as Scope };
+}
+
+// PRD 14.2: drag an entry, or "Move to…" on its card. The new time is in the
+// viewer's zone. Back to the calendar.
+export async function moveEntryAction(fd: FormData) {
+  const { user, companyId, access, timeZone } = await requireMember();
+  const id = str(fd, "id");
+  if (!isUuid(id)) notFound();
+  const { occursAt, scope } = occurrence(fd);
+  const back = safeNext(fd.get("next"));
+  const to = zonedToUtc(str(fd, "at"), timeZone);
+  if (!to) redirect(errorUrl(back, "Pick a date and time."));
+  const r = await moveEntry({ id: user.id, access }, companyId, id, occursAt, to, scope);
+  if ("error" in r) redirect(errorUrl(back, r.error));
+  redirect(withNotice(back, "Moved."));
+}
+
+// PRD 14.2: delete from the card, with "this one / this and following / all" for a series.
+export async function deleteEntryAction(fd: FormData) {
+  const { user, companyId, access } = await requireMember();
+  const id = str(fd, "id");
+  if (!isUuid(id)) notFound();
+  const { occursAt, scope } = occurrence(fd);
+  const back = safeNext(fd.get("next"));
+  const error = await deleteEntry({ id: user.id, access }, companyId, id, occursAt, scope);
+  redirect(error ? errorUrl(back, error) : withNotice(back, scope === "one" ? "That date was removed." : "Deleted."));
+}
+
+// PRD 14.2 "Edit this and following": split the series at that date (nothing
+// moves), then edit the new part, so the earlier dates keep the old content.
+export async function editFollowingAction(fd: FormData) {
+  const { user, companyId, access } = await requireMember();
+  const id = str(fd, "id");
+  if (!isUuid(id)) notFound();
+  const { occursAt } = occurrence(fd);
+  const back = safeNext(fd.get("next"));
+  const r = await moveEntry({ id: user.id, access }, companyId, id, occursAt, occursAt, "following");
+  if ("error" in r) redirect(errorUrl(back, r.error));
+  redirect(`/reminders/${r.id}/edit`);
 }

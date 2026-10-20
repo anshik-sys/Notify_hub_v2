@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { between, describe, firstAtOrAfter, nextAfter, occurrences, type Rule, ruleFromForm } from "./recurrence";
+import { between, describe, firstAtOrAfter, nextAfter, occurrences, type Rule, ruleFromForm, shiftSeries, splitRule } from "./recurrence";
 import { toLocalInput } from "./time";
 
 const never = { type: "never" } as const;
@@ -143,4 +143,41 @@ test("ruleFromForm", () => {
   assert.match(err({ weekdays: [] }), /at least one day/);
   assert.match(err({ ends: "until", until: "2026-10-01" }), /before the start/);
   assert.match(err({ ends: "count", count: "501" }), /1–500/);
+});
+
+test("shiftSeries: weekdays turn with the drag, the time follows, monthly follows the start", () => {
+  const weekly: Rule = { freq: "weekly", interval: 1, weekdays: [0, 2], end: { type: "never" } }; // Mon, Wed
+  // Monday 9:00 dragged to Tuesday 10:00: every Tue and Thu at 10:00.
+  const s1 = shiftSeries(weekly, "2026-10-05T09:00", "2026-10-19T09:00", "2026-10-20T10:00");
+  assert.deepEqual(s1, { rule: { ...weekly, weekdays: [1, 3] }, anchorLocal: "2026-10-06T10:00" });
+  // Sunday back over the week's edge: Sun (6) + 1 = Mon (0).
+  assert.deepEqual(shiftSeries({ ...weekly, weekdays: [6] }, "2026-10-04T09:00", "2026-10-18T09:00", "2026-10-19T09:00").rule.weekdays, [0]);
+  // Two days earlier: Mon (0) - 2 = Sat (5).
+  assert.deepEqual(shiftSeries({ ...weekly, weekdays: [0] }, "2026-10-05T09:00", "2026-10-19T09:00", "2026-10-17T09:00").rule.weekdays, [5]);
+  // Daily, same day, later time: only the time changes.
+  const daily: Rule = { freq: "daily", interval: 1, end: { type: "never" } };
+  assert.deepEqual(shiftSeries(daily, "2026-10-01T04:30", "2026-10-21T04:30", "2026-10-21T08:00"), { rule: daily, anchorLocal: "2026-10-01T08:00" });
+  // Monthly on the 5th, dragged to the 7th: the start moves, so it's the 7th from now on.
+  const monthly: Rule = { freq: "monthly", interval: 1, end: { type: "never" } };
+  const m = shiftSeries(monthly, "2026-01-05T09:00", "2026-10-05T09:00", "2026-10-07T09:00");
+  assert.equal(m.anchorLocal, "2026-01-07T09:00");
+  assert.equal(firstAtOrAfter(m.rule, m.anchorLocal, "UTC", new Date("2026-10-06T00:00Z"))?.toISOString(), "2026-10-07T09:00:00.000Z");
+});
+
+test("splitRule: before ends just before the date; a count is shared; nothing before = null", () => {
+  const tz = "UTC";
+  const ten: Rule = { freq: "daily", interval: 1, end: { type: "count", count: 10 } }; // 1–10 Oct
+  const { before, after } = splitRule(ten, "2026-10-01T09:00", tz, new Date("2026-10-04T09:00Z"));
+  assert.deepEqual(before?.end, { type: "count", count: 3 });
+  assert.deepEqual(after.end, { type: "count", count: 7 });
+  assert.equal([...occurrences(before!, "2026-10-01T09:00", tz)].length + [...occurrences(after, "2026-10-04T09:00", tz)].length, 10);
+  const never: Rule = { freq: "weekly", interval: 1, weekdays: [0, 3], end: { type: "never" } };
+  const s = splitRule(never, "2026-10-05T09:00", tz, new Date("2026-10-15T09:00Z")); // Thu 15th
+  assert.deepEqual(s.before?.end, { type: "until", date: "2026-10-12" }); // the Monday before
+  assert.equal([...occurrences(s.before!, "2026-10-05T09:00", tz)].at(-1)?.toISOString(), "2026-10-12T09:00:00.000Z");
+  assert.deepEqual(s.after, never);
+  assert.deepEqual(splitRule(never, "2026-10-05T09:00", tz, new Date("2026-10-05T09:00Z")), { before: null, after: never });
+  // An end date stays with the later part.
+  const until: Rule = { freq: "daily", interval: 1, end: { type: "until", date: "2026-10-31" } };
+  assert.deepEqual(splitRule(until, "2026-10-01T09:00", tz, new Date("2026-10-10T09:00Z")).after.end, { type: "until", date: "2026-10-31" });
 });

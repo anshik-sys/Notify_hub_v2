@@ -28,6 +28,8 @@ import {
   duplicateReminder,
   quickCreate,
   setMyColor,
+  moveEntry,
+  deleteEntry,
 } from "./reminders";
 import { sendNow } from "./send-now";
 import { checkFile } from "./attachments";
@@ -37,6 +39,7 @@ import { setMutes } from "./notifications";
 import { seeder } from "./test-helpers";
 import { parseFilters, searchReminders } from "./views";
 import { toLocalInput } from "./time";
+import type { Rule } from "./recurrence";
 
 const s = seeder();
 const other = seeder();
@@ -780,4 +783,110 @@ test("quick create: a reminder or task to yourself, never waiting for approval; 
   assert.match(((await quickCreate(me, s.companyId, { ...base, at: new Date(Date.now() - 60_000), title: "Late", kind: "task" })) as { error: string }).error, /future/);
   assert.equal((await s.owner.query("select count(*)::int as n from reminders where created_by = $1", [loner])).rows[0].n, before); // nothing more
   for (const id of [r.id, t.id]) await s.owner.query("update reminders set status = 'cancelled' where id = $1", [id]);
+});
+
+// Far-future dates: a live worker never sends these mid-test.
+const series = async (by: string, title: string, rule: Rule, anchorLocal: string, status = "scheduled") => {
+  const r = (await createReminder(await actor(by), s.companyId, {
+    ...oneTime,
+    title,
+    description: "",
+    links: [],
+    senderName: "S",
+    recurrence: rule,
+    anchorLocal,
+    sendAt: new Date(`${anchorLocal}:00Z`),
+    targets: [{ kind: "department", ref: ops }],
+  })) as { id: string };
+  if (status !== "scheduled") await s.owner.query("update reminders set status = $2 where id = $1", [r.id, status]);
+  return r.id;
+};
+const rowOf = async (id: string) => (await s.owner.query("select status, send_at, anchor_local, recurrence, deleted_at, created_by from reminders where id = $1", [id])).rows[0];
+const skipped = async (id: string) => (await s.owner.query("select occurs_at from reminder_occurrences where reminder_id = $1 and status = 'skipped' order by occurs_at", [id])).rows.map((r) => r.occurs_at.toISOString());
+const Z = (t: string) => new Date(`${t}:00Z`);
+
+test("move a one-time entry: new time, same recipients and approval; refused in the past or for someone who can't change it", async () => {
+  const r = (await createReminder(await actor(alice), s.companyId, { ...oneTime, title: "Move me", description: "", links: [], senderName: "S", sendAt: Z("2031-03-02T09:00"), anchorLocal: "2031-03-02T09:00", targets: [{ kind: "user", ref: bob }] })) as { id: string };
+  assert.deepEqual(await moveEntry(await actor(alice), s.companyId, r.id, Z("2031-03-02T09:00"), Z("2031-03-05T14:30"), "one"), { id: r.id });
+  const row = await rowOf(r.id);
+  assert.deepEqual([row.send_at.toISOString(), row.anchor_local, row.status], ["2031-03-05T14:30:00.000Z", "2031-03-05T14:30", "scheduled"]);
+  assert.match(((await moveEntry(await actor(alice), s.companyId, r.id, row.send_at, new Date(Date.now() - 1000), "one")) as { error: string }).error, /future/);
+  assert.match(((await moveEntry(await actor(carol), s.companyId, r.id, row.send_at, Z("2031-03-06T09:00"), "one")) as { error: string }).error, /not found/);
+  await cancelReminder(await actor(alice), s.companyId, r.id);
+});
+
+test("move one date of a series: a one-time copy there, the series skips it; only real upcoming dates", async () => {
+  const id = await series(alice, "Daily", { freq: "daily", interval: 1, end: { type: "never" } }, "2031-03-02T09:00");
+  const me = await actor(alice);
+  const moved = (await moveEntry(me, s.companyId, id, Z("2031-03-04T09:00"), Z("2031-03-04T15:00"), "one")) as { id: string };
+  assert.notEqual(moved.id, id);
+  const copy = await rowOf(moved.id);
+  assert.deepEqual([copy.send_at.toISOString(), copy.recurrence, copy.status, copy.created_by], ["2031-03-04T15:00:00.000Z", null, "scheduled", alice]);
+  assert.deepEqual(await skipped(id), ["2031-03-04T09:00:00.000Z"]);
+  assert.equal((await rowOf(id)).send_at.toISOString(), "2031-03-02T09:00:00.000Z"); // "Next" unchanged
+  assert.match(((await moveEntry(me, s.companyId, id, Z("2031-03-04T09:00"), Z("2031-03-04T16:00"), "one")) as { error: string }).error, /already skipped/);
+  assert.match(((await moveEntry(me, s.companyId, id, Z("2031-03-05T10:00"), Z("2031-03-05T16:00"), "one")) as { error: string }).error, /isn't one of/);
+  for (const x of [id, moved.id]) await cancelReminder(me, s.companyId, x);
+});
+
+test("move this and following: the series ends before; a new one carries on at the new day and time", async () => {
+  const id = await series(alice, "Weekly sync", { freq: "weekly", interval: 1, weekdays: [0], end: { type: "never" } }, "2031-03-03T09:00"); // Mondays
+  const me = await actor(alice);
+  const split = (await moveEntry(me, s.companyId, id, Z("2031-03-17T09:00"), Z("2031-03-18T10:00"), "following")) as { id: string };
+  const old = await rowOf(id);
+  assert.deepEqual(old.recurrence.end, { type: "until", date: "2031-03-10" });
+  assert.equal(old.send_at.toISOString(), "2031-03-03T09:00:00.000Z");
+  const next = await rowOf(split.id);
+  assert.deepEqual([next.anchor_local, next.recurrence.weekdays, next.send_at.toISOString(), next.created_by, next.status], ["2031-03-18T10:00", [1], "2031-03-18T10:00:00.000Z", alice, "scheduled"]);
+  const targets = (await s.owner.query("select kind, ref from reminder_targets where reminder_id = $1", [split.id])).rows;
+  assert.deepEqual(targets, [{ kind: "department", ref: ops }]);
+  // A date skipped later in the series moves to the new one, at the new day and time.
+  const id2 = await series(alice, "Weekly two", { freq: "weekly", interval: 1, weekdays: [0], end: { type: "never" } }, "2031-03-03T09:00");
+  await s.owner.query("insert into reminder_occurrences (company_id, reminder_id, occurs_at, status) values ($1, $2, '2031-03-24T09:00Z', 'skipped')", [s.companyId, id2]);
+  const split2 = (await moveEntry(me, s.companyId, id2, Z("2031-03-17T09:00"), Z("2031-03-18T10:00"), "following")) as { id: string };
+  assert.deepEqual(await skipped(id2), []);
+  assert.deepEqual(await skipped(split2.id), ["2031-03-25T10:00:00.000Z"]);
+  for (const x of [id2, split2.id]) await cancelReminder(me, s.companyId, x);
+  for (const x of [id, split.id]) await cancelReminder(me, s.companyId, x);
+});
+
+test("move all: the whole series shifts; waiting for approval, only all can move", async () => {
+  const id = await series(alice, "Every day", { freq: "daily", interval: 1, end: { type: "never" } }, "2031-03-02T09:00");
+  const me = await actor(alice);
+  assert.deepEqual(await moveEntry(me, s.companyId, id, Z("2031-03-05T09:00"), Z("2031-03-05T11:00"), "all"), { id });
+  const row = await rowOf(id);
+  assert.deepEqual([row.anchor_local, row.send_at.toISOString()], ["2031-03-02T11:00", "2031-03-02T11:00:00.000Z"]);
+  await cancelReminder(me, s.companyId, id);
+
+  // A date moved with "this one", then the whole series moved: the skip moves too, so that date doesn't send twice.
+  const both = await series(alice, "Both", { freq: "daily", interval: 1, end: { type: "never" } }, "2031-03-10T08:00");
+  const copy = (await moveEntry(me, s.companyId, both, Z("2031-03-12T08:00"), Z("2031-03-12T16:30"), "one")) as { id: string };
+  assert.deepEqual(await moveEntry(me, s.companyId, both, Z("2031-03-13T08:00"), Z("2031-03-13T09:30"), "all"), { id: both });
+  assert.deepEqual(await skipped(both), ["2031-03-12T09:30:00.000Z"]);
+  assert.equal((await s.owner.query("select replaces_occurs_at from reminders where id = $1", [copy.id])).rows[0].replaces_occurs_at.toISOString(), "2031-03-12T09:30:00.000Z");
+  for (const x of [both, copy.id]) await cancelReminder(me, s.companyId, x);
+
+  const waiting = await series(alice, "Waiting", { freq: "daily", interval: 1, end: { type: "never" } }, "2031-04-01T09:00", "pending_approval");
+  assert.match(((await moveEntry(me, s.companyId, waiting, Z("2031-04-02T09:00"), Z("2031-04-02T10:00"), "one")) as { error: string }).error, /scheduled/);
+  assert.match(((await moveEntry(me, s.companyId, waiting, Z("2031-04-02T09:00"), Z("2031-04-02T10:00"), "following")) as { error: string }).error, /scheduled/);
+  assert.deepEqual(await moveEntry(me, s.companyId, waiting, Z("2031-04-02T09:00"), Z("2031-04-02T10:00"), "all"), { id: waiting });
+  assert.equal((await rowOf(waiting)).status, "pending_approval");
+  await cancelReminder(me, s.companyId, waiting);
+});
+
+test("delete from the calendar: one skips that date, following ends the series, all deletes it", async () => {
+  const me = await actor(alice);
+  const a = await series(alice, "Del one", { freq: "daily", interval: 1, end: { type: "never" } }, "2031-05-01T09:00");
+  assert.equal(await deleteEntry(me, s.companyId, a, Z("2031-05-01T09:00"), "one"), null); // the next one: "Next" moves on
+  assert.deepEqual(await skipped(a), ["2031-05-01T09:00:00.000Z"]);
+  assert.equal((await rowOf(a)).send_at.toISOString(), "2031-05-02T09:00:00.000Z");
+  assert.equal(await deleteEntry(me, s.companyId, a, Z("2031-05-05T09:00"), "following"), null);
+  assert.deepEqual((await rowOf(a)).recurrence.end, { type: "until", date: "2031-05-04" });
+  assert.equal(await deleteEntry(me, s.companyId, a, Z("2031-05-02T09:00"), "all"), null);
+  assert.ok((await rowOf(a)).deleted_at);
+  // Following from its very first date: nothing would be left, so it's deleted.
+  const b = await series(alice, "Del all", { freq: "daily", interval: 1, end: { type: "never" } }, "2031-06-01T09:00");
+  assert.equal(await deleteEntry(me, s.companyId, b, Z("2031-06-01T09:00"), "following"), null);
+  assert.ok((await rowOf(b)).deleted_at);
+  assert.match((await deleteEntry(await actor(carol), s.companyId, a, Z("2031-05-03T09:00"), "one"))!, /not found/);
 });

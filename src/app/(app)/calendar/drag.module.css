@@ -1,0 +1,62 @@
+/* While dragging: the entry being moved, the cursor, and the slot under it. */
+.dragging {
+  opacity: 0.5;
+}
+
+.grabbing,
+.grabbing * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.target {
+  background: var(--accent-bg) !important;
+  box-shadow: inset 0 0 0 2px var(--accent-fg);
+}
+
+/* "This one / This and following / All", where the entry was dropped. */
+.ask {
+  inset: auto;
+  width: 280px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: var(--shadow-pop);
+  color: var(--fg);
+}
+
+.title {
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.choice {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--input-border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.choice:hover {
+  background: var(--surface);
+}
+
+.choice:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}

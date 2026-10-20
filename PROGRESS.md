@@ -2,6 +2,65 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — calendar slice 4: drag, and this one / this and following / all
+
+- Spec M1–M14, the last calendar slice. Entries you may change can be
+  dragged onto a slot.
+  - In Week/Day view the lower half of an hour means :30; in Month view a
+    day keeps the time.
+  - A one-time reminder moves at once. A repeating one asks "This one /
+    This and following / All" where it was dropped (Esc cancels). Waiting
+    for approval, only "All".
+  - The card gained "Move to…" (the keyboard path), "Edit…" with the three
+    choices, and "Delete…" with them.
+- **Lib:**
+  - `moveEntry` and `deleteEntry`, plus `detachOccurrence` for any upcoming
+    date;
+  - pure `shiftSeries` (the start moves by the drag's days and takes the new
+    time; chosen weekdays turn, Sunday wrapping to Monday) and `splitRule`
+    (before ends at the last date before; a count is shared; an end date
+    stays after);
+  - `assertUpcoming`: only the series' real upcoming, unrecorded dates.
+
+  Delete: "this one" is a skip, "following" ends the series (all of it =
+  deleted), "all" is `deleteReminder`. `duplicateReminder` now shares
+  `inputFromRow` / `filesOf`.
+- **Drag uses pointer events.** The first version used HTML5 drag and drop.
+  In Chrome, a press that landed on the title text inside the entry's
+  `<button>` never started a drag (no `dragstart`; it became a click), and
+  Firefox won't drag buttons at all. Now: a 6px threshold, the slot found
+  with `elementsFromPoint`, and the click after a drag swallowed (guard
+  removed on the next tick so it can't eat a later click).
+- **Found in Chrome:** the "which dates?" choice opened and closed at once.
+  The mouse release ending the drag counted as a click outside the new
+  popover. It now opens 60ms after the drop.
+- **Found by testing the flow end to end, a double send:** after "this one"
+  (a skip on the 22nd plus a copy), "All" moved the series to 9:30 but left
+  the skip at 8:00, so the 22nd would get the copy and the series. "All"
+  now moves upcoming skips and waiting copies' `replaces_occurs_at`;
+  "following" moves those after the split to the new series. Both tested.
+- **Verified:** 301 tests pass, 8 skipped.
+  - Pure: `shiftSeries` (weekly turn, wrap both ways, daily time, monthly
+    day) and `splitRule` (count shared and summing to 10, until, nothing
+    before, an end date kept).
+  - Lib: one-time move; "this one" with "Next" unchanged and bad dates
+    refused; split weekdays and time; "all"; waiting = "all" only; delete
+    one / following / all, and following-from-the-start deletes; carried
+    skips both ways.
+
+  Typecheck, lint. **In Chrome** as Maya, on throwaway reminders deleted
+  afterwards:
+  - dragged a one-time reminder to 2 PM;
+  - dragged a series date to 4:30 PM → asked → "This one" made a copy and a
+    skip;
+  - Esc cancelled with nothing changed;
+  - "Move to… All" shifted the series;
+  - "Delete… This one" added a skip;
+  - no console errors.
+- **Not verified:** Safari and Firefox drag, a touchscreen, "Edit → This one"
+  and "This and following" through the full form in the browser (their lib
+  paths are tested).
+
 ## 2026-10-20 — calendar slice 3: quick create
 
 - Spec Q1–Q6. Clicking an empty hour (Week, Day, N days) or the empty part of

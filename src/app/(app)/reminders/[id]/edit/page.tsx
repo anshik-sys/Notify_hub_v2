@@ -6,7 +6,7 @@ import { companyBrand, senderDefault } from "@/lib/company";
 import { brandFor } from "@/lib/email-render";
 import { formatInZone, toLocalInput } from "@/lib/time";
 import { isUuid } from "@/lib/validate";
-import { fieldsFromRule } from "@/lib/recurrence";
+import { fieldsFromRule, firstAtOrAfter } from "@/lib/recurrence";
 import { channelChoices } from "@/lib/slack-installations";
 import { recipientChoices } from "../../form-data";
 import { REMINDER_FORM_ID, ReminderForm } from "../../reminder-form";
@@ -28,7 +28,14 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
     channelChoices(companyId),
     listAttachments(companyId, r.id),
   ]);
-  const error = firstParam((await props.searchParams).error);
+  const sp = await props.searchParams;
+  const error = firstParam(sp.error);
+  // From the calendar's "Edit → This one": that upcoming date of the series.
+  const occursRaw = new Date(firstParam(sp.occurs) ?? "");
+  const occurs =
+    r.recurrence && r.status === "scheduled" && occursRaw >= r.sendAt && firstAtOrAfter(r.recurrence, r.anchorLocal, r.timeZone, occursRaw)?.getTime() === occursRaw.getTime()
+      ? occursRaw
+      : null;
   const refs = (kind: string) => r.targets.filter((t) => t.kind === kind).map((t) => t.ref!);
 
   return (
@@ -40,7 +47,8 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
         attachments={files}
         timeZone={company.timeZone}
         defaultSender={senderDefault(company)}
-        nextLabel={r.recurrence && r.status === "scheduled" ? formatInZone(r.sendAt, r.timeZone) : undefined}
+        nextLabel={r.recurrence && r.status === "scheduled" ? formatInZone(occurs ?? r.sendAt, r.timeZone) : undefined}
+        occursAt={occurs?.toISOString()}
         defaults={{
           id: r.id,
           title: r.title,
@@ -55,7 +63,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           // A "Now" reminder (or one whose time has passed while it waited for
           // approval) reopens as "Now"; a past "later" time would fail validation.
           when: isPast(r.sendAt) ? "now" : "later",
-          sendAtLocal: isPast(r.sendAt) ? "" : toLocalInput(r.sendAt, r.timeZone),
+          sendAtLocal: occurs ? toLocalInput(occurs, r.timeZone) : isPast(r.sendAt) ? "" : toLocalInput(r.sendAt, r.timeZone),
           tags: r.tags.join(", "),
           // Saved shares are explicit department ids ("my departments" was expanded at save).
           shareMine: false,

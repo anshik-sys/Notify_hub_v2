@@ -448,6 +448,22 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     scope. "More options" passes `title`, `at` (the viewer's zone) and `task`
     to `/reminders/new`, which converts the time to the company's zone for
     the form.
+  - **Move, edit and delete with "this one / this and following / all"
+    (`moveEntry`, `deleteEntry`, `calendar/drag.tsx`):**
+    - **Drag** is pointer events, not HTML5 drag and drop (some browsers won't
+      drag a `<button>`). The slots from quick create are the drop targets,
+      and the click after a drag is swallowed so the card doesn't open.
+      "Move to…" on the card is the keyboard path.
+    - **"This one"** is `detachOccurrence` for any upcoming date (the #7
+      rules).
+    - **"This and following"** ends the series before that date (`splitRule`)
+      and inserts a new series. It has a new id, so comments and history stay
+      on the old one.
+    - **"All"** shifts the start and weekdays (`shiftSeries`).
+    - **Both moves carry the upcoming skips and the dates that waiting copies
+      replace** (`replaces_occurs_at`). Without that, a date moved with "this
+      one" would send twice. Don't drop it.
+    - Every date must be a real upcoming one (`assertUpcoming`).
   - **Duplicate (`duplicateReminder`):** a one-time copy owned by whoever
     copies it, approval checked as them, files copied, comments and history
     not. Rate-limited (it copies files).

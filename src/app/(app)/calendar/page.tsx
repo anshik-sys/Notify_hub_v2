@@ -23,6 +23,7 @@ import {
   weekStart,
 } from "@/lib/views";
 import { AutoSubmit } from "./auto-submit";
+import { DragMove } from "./drag";
 import { Entry } from "./entry";
 import { QUICK_ID, QuickCreate } from "./quick-create";
 import { ScrollTo } from "./scroll-to";
@@ -139,6 +140,7 @@ export default async function Calendar(props: PageProps<"/calendar">) {
       }
     >
       {canCreate && <QuickCreate next={here} />}
+      <DragMove next={here} />
       <div className={styles.layout} data-rail>
         <aside className={styles.side}>
           <LinkButton href="/reminders/new">

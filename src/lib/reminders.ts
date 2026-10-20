@@ -9,7 +9,7 @@ import { dmLink } from "./slack-installations";
 import { getBlob, putBlob } from "./storage";
 import { resolveRecipients, type Target, type Tx } from "./recipients";
 import { type Access, can, COMPANY_ADMIN_ROLE_ID, loadAccess } from "./permissions";
-import { firstAtOrAfter, nextAfter, type RepeatFields, type Rule, ruleFromForm } from "./recurrence";
+import { firstAtOrAfter, nextAfter, type RepeatFields, type Rule, ruleFromForm, shiftSeries, splitRule } from "./recurrence";
 import { toLocalInput, zonedToUtc } from "./time";
 
 export type { Target };
@@ -583,6 +583,8 @@ export async function detachOccurrence(
   input: ReminderInput,
   files: CheckedFile[] = [],
   removeAttachmentIds: string[] = [],
+  // Any upcoming date of the series (the calendar, PRD 14.2); the next one by default.
+  occursAt?: Date,
 ) {
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
@@ -595,6 +597,8 @@ export async function detachOccurrence(
       if (!series.recurrence || series.status !== "scheduled")
         throw new Refused("Only a scheduled repeating reminder can change just its next one.");
       if (input.recurrence) throw new Refused("Only the next one can't repeat.");
+      const at = occursAt ?? series.sendAt;
+      if (occursAt) await assertUpcoming(tx, { ...series, recurrence: series.recurrence }, occursAt);
 
       const creator = { id: series.createdBy, access: await loadAccess(companyId, series.createdBy) };
       const out = await checked(tx, companyId, creator, input);
@@ -620,7 +624,7 @@ export async function detachOccurrence(
           createdBy: series.createdBy,
           status,
           replacesSeriesId: id,
-          replacesOccursAt: series.sendAt,
+          replacesOccursAt: at,
           ...(status === "scheduled" && passOn ? { decidedBy: series.decidedBy, decidedAt: series.decidedAt } : {}),
         },
         [...copies, ...files],
@@ -631,10 +635,13 @@ export async function detachOccurrence(
       if (status === "scheduled") {
         await tx
           .insert(reminderOccurrences)
-          .values({ companyId, reminderId: id, occursAt: series.sendAt, status: "skipped" })
+          .values({ companyId, reminderId: id, occursAt: at, status: "skipped" })
           .onConflictDoNothing();
-        const next = nextAfter(series.recurrence, series.anchorLocal, series.timeZone, series.sendAt);
-        await tx.update(reminders).set(next ? { sendAt: next } : { status: "sent" }).where(eq(reminders.id, id));
+        // A later date leaves "Next" where it is.
+        if (at.getTime() === series.sendAt.getTime()) {
+          const next = await nextFree(tx, { ...series, recurrence: series.recurrence }, at, false);
+          await tx.update(reminders).set(next ? { sendAt: next } : { status: "sent" }).where(eq(reminders.id, id));
+        }
       }
       return { id: newId, approvers: status === "pending_approval" ? await approversToTell(tx, companyId, newId) : [] };
     }),
@@ -713,29 +720,10 @@ export async function duplicateReminder(actor: Actor & { email: string }, compan
   if (!orig || !(await reminderAccess(companyId, actor, orig))) return { error: "Reminder not found." };
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
-      const targets = (await tx.select().from(reminderTargets).where(eq(reminderTargets.reminderId, id))).map(({ kind, ref, label }) => ({ kind, ref, label }));
-      const shares = await tx.select({ kind: reminderShares.kind, ref: reminderShares.ref }).from(reminderShares).where(eq(reminderShares.reminderId, id));
-      const input: ReminderInput = {
-        title: orig.title,
-        description: orig.description,
-        links: orig.links,
-        senderName: orig.senderName,
-        sendAt: at,
-        recurrence: null,
-        anchorLocal: toLocalInput(at, orig.timeZone),
-        timeZone: orig.timeZone,
-        isTask: orig.isTask,
-        dueAfterMinutes: orig.dueAfterMinutes,
-        channels: orig.channels,
-        tags: orig.tags,
-        targets,
-        shares,
-      };
+      const input: ReminderInput = { ...(await inputFromRow(tx, orig)), sendAt: at, recurrence: null, anchorLocal: toLocalInput(at, orig.timeZone) };
       const out = await checked(tx, companyId, actor, input);
       const status: ReminderStatus = out.length ? "pending_approval" : "scheduled";
-      const files: CheckedFile[] = [];
-      for (const a of await tx.select().from(attachments).where(eq(attachments.reminderId, id)).orderBy(attachments.createdAt))
-        files.push({ fileName: a.fileName, contentType: a.contentType, size: a.size, sha256: a.sha256, data: (await getBlob(tx, a.id))! });
+      const files = await filesOf(tx, id);
       const newId = await insertReminder(tx, companyId, actor.id, { ...input, createdBy: actor.id, status }, files);
       return { id: newId, approvers: status === "pending_approval" ? await approversToTell(tx, companyId, newId) : [] };
     }),
@@ -743,6 +731,206 @@ export async function duplicateReminder(actor: Actor & { email: string }, compan
   if ("error" in result) return result;
   await notifyApprovers(companyId, result.approvers, orig.title, result.id);
   return { id: result.id };
+}
+
+// --- The calendar's move, edit and delete (PRD 14.2, M1–M14) ---------------------
+
+type Series = typeof reminders.$inferSelect & { recurrence: Rule };
+
+// `at` must be one of the series' dates still to come: not before its next
+// one, not past, and not already recorded (skipped or sent).
+async function assertUpcoming(tx: Tx, r: Series, at: Date, now = new Date()) {
+  if (at < r.sendAt || at <= now) throw new Refused("That date has already gone.");
+  if (firstAtOrAfter(r.recurrence, r.anchorLocal, r.timeZone, at)?.getTime() !== at.getTime())
+    throw new Refused("That isn't one of this reminder's dates.");
+  const [taken] = await tx
+    .select({ id: reminderOccurrences.id })
+    .from(reminderOccurrences)
+    .where(and(eq(reminderOccurrences.reminderId, r.id), eq(reminderOccurrences.occursAt, at)));
+  if (taken) throw new Refused("That date is already skipped or sent.");
+}
+
+// The series' first date at/after `from` (or after it) that isn't recorded yet.
+async function nextFree(tx: Tx, r: Series, from: Date, inclusive: boolean) {
+  const taken = new Set(
+    (await tx.select({ at: reminderOccurrences.occursAt }).from(reminderOccurrences).where(and(eq(reminderOccurrences.reminderId, r.id), gte(reminderOccurrences.occursAt, from)))).map(
+      (o) => o.at.getTime(),
+    ),
+  );
+  let next = inclusive ? firstAtOrAfter(r.recurrence, r.anchorLocal, r.timeZone, from) : nextAfter(r.recurrence, r.anchorLocal, r.timeZone, from);
+  while (next && taken.has(next.getTime())) next = nextAfter(r.recurrence, r.anchorLocal, r.timeZone, next);
+  return next;
+}
+
+// A reminder row as input again (for a copy or a split): same content,
+// recipients, channels, task settings and sharing.
+async function inputFromRow(tx: Tx, r: typeof reminders.$inferSelect): Promise<ReminderInput> {
+  const targets = (await tx.select().from(reminderTargets).where(eq(reminderTargets.reminderId, r.id))).map(({ kind, ref, label }) => ({ kind, ref, label }));
+  const shares = await tx.select({ kind: reminderShares.kind, ref: reminderShares.ref }).from(reminderShares).where(eq(reminderShares.reminderId, r.id));
+  return {
+    title: r.title,
+    description: r.description,
+    links: r.links,
+    senderName: r.senderName,
+    sendAt: r.sendAt,
+    recurrence: r.recurrence as Rule | null,
+    anchorLocal: r.anchorLocal,
+    timeZone: r.timeZone,
+    isTask: r.isTask,
+    dueAfterMinutes: r.dueAfterMinutes,
+    channels: r.channels,
+    tags: r.tags,
+    targets,
+    shares,
+  };
+}
+
+async function filesOf(tx: Tx, reminderId: string) {
+  const files: CheckedFile[] = [];
+  for (const a of await tx.select().from(attachments).where(eq(attachments.reminderId, reminderId)).orderBy(attachments.createdAt))
+    files.push({ fileName: a.fileName, contentType: a.contentType, size: a.size, sha256: a.sha256, data: (await getBlob(tx, a.id))! });
+  return files;
+}
+
+export type Scope = "one" | "following" | "all";
+
+// PRD 14.2: drag (or "Move to…") an entry. A one-time reminder just moves;
+// its recipients and approval stay. For a series:
+// - one: that date becomes its own one-time reminder (detachOccurrence) and the series skips it;
+// - following: the series ends before that date and a new series starts at the new time,
+//   with the same rule (moved the same way), content, recipients, files, sharing and approval;
+// - all: the whole series shifts by the same amount; what was already sent stays as it was.
+// Waiting for approval: one-time ones and "all" move; "one"/"following" wait for the approval.
+// Returns the reminder that now holds that date.
+export async function moveEntry(actor: Actor, companyId: string, id: string, occursAt: Date, newAt: Date, scope: Scope, now = new Date()) {
+  if (newAt.getTime() <= now.getTime()) return { error: "Pick a time in the future." };
+  const [row] = await withTenant(companyId, (tx) => tx.select().from(reminders).where(and(eq(reminders.id, id), isNull(reminders.deletedAt))));
+  if (!row || !(await mayChange(companyId, actor, row.createdBy))) return { error: "Reminder not found." };
+  if (row.recurrence && scope === "one") {
+    if (row.status !== "scheduled") return { error: "Only a scheduled repeating reminder can move just one date." };
+    const input = await withTenant(companyId, (tx) => inputFromRow(tx, row));
+    return detachOccurrence(actor, companyId, id, { ...input, recurrence: null, sendAt: newAt, anchorLocal: toLocalInput(newAt, row.timeZone) }, [], [], occursAt);
+  }
+  return refusals(() =>
+    withTenant(companyId, async (tx) => {
+      const [r] = await tx.select().from(reminders).where(and(eq(reminders.id, id), isNull(reminders.deletedAt))).for("update");
+      if (!r) throw new Refused("Reminder not found.");
+      const local = (d: Date) => toLocalInput(d, r.timeZone);
+      if (!r.recurrence) {
+        if (r.status !== "scheduled" && r.status !== "pending_approval") throw new Refused("This reminder can no longer be moved.");
+        await tx.update(reminders).set({ sendAt: newAt, anchorLocal: local(newAt) }).where(eq(reminders.id, id));
+        await notifyIfDue(tx, r.status, newAt);
+        return { id };
+      }
+      const series: Series = { ...r, recurrence: r.recurrence };
+      if (scope === "all") {
+        if (!["scheduled", "pending_approval", "paused"].includes(r.status)) throw new Refused("This reminder can no longer be moved.");
+        if (firstAtOrAfter(series.recurrence, r.anchorLocal, r.timeZone, occursAt)?.getTime() !== occursAt.getTime())
+          throw new Refused("That isn't one of this reminder's dates.");
+        const moved = shiftSeries(series.recurrence, r.anchorLocal, local(occursAt), local(newAt));
+        // Upcoming skips (and the dates waiting copies replace) move with the
+        // series, or a date moved with "this one" would send twice.
+        const shift = (d: Date) => zonedToUtc(shiftSeries(series.recurrence, local(d), local(occursAt), local(newAt)).anchorLocal, r.timeZone)!;
+        for (const o of await tx
+          .select({ id: reminderOccurrences.id, at: reminderOccurrences.occursAt })
+          .from(reminderOccurrences)
+          .where(and(eq(reminderOccurrences.reminderId, id), eq(reminderOccurrences.status, "skipped"), gte(reminderOccurrences.occursAt, now))))
+          await tx.update(reminderOccurrences).set({ occursAt: shift(o.at) }).where(eq(reminderOccurrences.id, o.id));
+        for (const c of await tx
+          .select({ id: reminders.id, at: reminders.replacesOccursAt })
+          .from(reminders)
+          .where(and(eq(reminders.replacesSeriesId, id), gte(reminders.replacesOccursAt, now))))
+          await tx.update(reminders).set({ replacesOccursAt: shift(c.at!) }).where(eq(reminders.id, c.id));
+        const next = await nextFree(tx, { ...series, ...moved, recurrence: moved.rule }, now, true);
+        await tx
+          .update(reminders)
+          .set({ recurrence: moved.rule, anchorLocal: moved.anchorLocal, ...(next ? { sendAt: next } : { status: "sent" }) })
+          .where(eq(reminders.id, id));
+        if (next) await notifyIfDue(tx, r.status, next);
+        return { id };
+      }
+      // following
+      if (r.status !== "scheduled") throw new Refused("Only a scheduled repeating reminder can be split.");
+      await assertUpcoming(tx, series, occursAt, now);
+      const { before, after } = splitRule(series.recurrence, r.anchorLocal, r.timeZone, occursAt);
+      const moved = shiftSeries(after, local(occursAt), local(occursAt), local(newAt));
+      const input = await inputFromRow(tx, r);
+      const newId = await insertReminder(
+        tx,
+        companyId,
+        actor.id,
+        {
+          ...input,
+          recurrence: moved.rule,
+          anchorLocal: moved.anchorLocal,
+          sendAt: newAt,
+          createdBy: r.createdBy,
+          status: "scheduled",
+          decidedBy: r.decidedBy,
+          decidedAt: r.decidedAt,
+        },
+        await filesOf(tx, id),
+      );
+      // Skips from that date on, and the dates waiting copies replace, go to the
+      // new series (moved the same way), so no date sends twice.
+      const shift = (d: Date) => zonedToUtc(shiftSeries(series.recurrence, local(d), local(occursAt), local(newAt)).anchorLocal, r.timeZone)!;
+      for (const o of await tx
+        .select({ id: reminderOccurrences.id, at: reminderOccurrences.occursAt })
+        .from(reminderOccurrences)
+        .where(and(eq(reminderOccurrences.reminderId, id), eq(reminderOccurrences.status, "skipped"), gte(reminderOccurrences.occursAt, occursAt))))
+        await tx.update(reminderOccurrences).set({ reminderId: newId, occursAt: shift(o.at) }).where(eq(reminderOccurrences.id, o.id));
+      for (const c of await tx
+        .select({ id: reminders.id, at: reminders.replacesOccursAt })
+        .from(reminders)
+        .where(and(eq(reminders.replacesSeriesId, id), gte(reminders.replacesOccursAt, occursAt))))
+        await tx.update(reminders).set({ replacesSeriesId: newId, replacesOccursAt: shift(c.at!) }).where(eq(reminders.id, c.id));
+      await endBefore(tx, series, before);
+      return { id: newId };
+    }),
+  );
+}
+
+// The series stops before the split: it keeps `before`'s dates (nothing left
+// to send = finished); with none at all it never sent anything, so it goes.
+async function endBefore(tx: Tx, r: Series, before: Rule | null) {
+  if (!before) {
+    await tx.update(reminders).set({ deletedAt: new Date(), status: "cancelled" }).where(eq(reminders.id, r.id));
+    await tx.delete(notifications).where(eq(notifications.reminderId, r.id));
+    return;
+  }
+  const next = await nextFree(tx, { ...r, recurrence: before }, r.sendAt, true);
+  await tx
+    .update(reminders)
+    .set({ recurrence: before, ...(next ? { sendAt: next } : { status: "sent" }) })
+    .where(eq(reminders.id, r.id));
+}
+
+// PRD 14.2 / 5.6: delete from the calendar. One-time, or "all": the reminder
+// goes (hidden everywhere, deleteReminder). A series' "one" skips that date;
+// "following" ends the series before it.
+export async function deleteEntry(actor: Actor, companyId: string, id: string, occursAt: Date, scope: Scope, now = new Date()) {
+  const [row] = await withTenant(companyId, (tx) => tx.select().from(reminders).where(and(eq(reminders.id, id), isNull(reminders.deletedAt))));
+  if (!row || !(await mayChange(companyId, actor, row.createdBy))) return "Reminder not found.";
+  if (!row.recurrence || scope === "all") return deleteReminder(actor, companyId, id);
+  const result = await refusals(() =>
+    withTenant(companyId, async (tx) => {
+      const [r] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update");
+      if (r.status !== "scheduled" && r.status !== "paused") throw new Refused("Only an upcoming repeating reminder can lose a date.");
+      const series: Series = { ...r, recurrence: r.recurrence! };
+      await assertUpcoming(tx, series, occursAt, now);
+      if (scope === "one") {
+        await tx.insert(reminderOccurrences).values({ companyId, reminderId: id, occursAt, status: "skipped" }).onConflictDoNothing();
+        if (occursAt.getTime() === r.sendAt.getTime()) {
+          const next = await nextFree(tx, series, occursAt, false);
+          await tx.update(reminders).set(next ? { sendAt: next } : { status: "sent" }).where(eq(reminders.id, id));
+        }
+        return null;
+      }
+      await endBefore(tx, series, splitRule(series.recurrence, r.anchorLocal, r.timeZone, occursAt).before);
+      return null;
+    }),
+  );
+  return result && "error" in result ? result.error : null;
 }
 
 // Group members were added (PRD 4): a scheduled reminder to that group whose

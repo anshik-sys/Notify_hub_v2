@@ -397,6 +397,19 @@ deleted = hidden everywhere.
 | L4 | Who may pick it | Anyone who can open the reminder, for themselves; someone who can't open it is refused | User's decision 2026-10-20 | |
 | L5 | Other screens | Only calendar entries are coloured; day cells, lists and emails stay as they are | PRD 14.2 | |
 
+### Notes from building (2026-10-20)
+
+- **M7:** the new series from "this and following" has its own id. Comments
+  and history stay on the original, as with M6's copy.
+- **M6–M8:** skips already recorded, and dates waiting copies replace, move
+  with the series. Otherwise a date moved with "this one" would also send
+  from the series.
+- **M11:** "Edit → This and following" splits at that date first (nothing
+  moves), then opens the new part's form. Leaving the form without saving
+  keeps the split, which sends the same as before.
+- **M3/M4:** the slots to drop on exist only for people who can create
+  reminders. Someone who can only edit uses "Move to…".
+
 ### Not in this step
 
 Events, RSVP and the all-day strip (step 2), the calendar feed (14.4),

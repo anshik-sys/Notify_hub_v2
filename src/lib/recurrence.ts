@@ -99,6 +99,46 @@ export function between(rule: Rule, anchorLocal: string, tz: string, from: Date,
   return out;
 }
 
+// --- Moving and splitting a series (PRD 14.2, calendar drag) ---------------------
+
+const dayIndex = (d: string) => Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000);
+const shiftDate = (d: string, n: number) => {
+  const { y, m, d: dd } = addDays({ y: +d.slice(0, 4), m: +d.slice(5, 7), d: +d.slice(8, 10) }, n);
+  return `${y}-${pad(m)}-${pad(dd)}`;
+};
+
+// "All": the whole series moves by the same amount as one occurrence was
+// dragged (fromLocal -> toLocal, wall clock in the series' zone). The start
+// moves by those days and takes the new time; chosen weekdays turn with it
+// (every Monday -> every Tuesday). Monthly/yearly days follow the start.
+export function shiftSeries(rule: Rule, anchorLocal: string, fromLocal: string, toLocal: string): { rule: Rule; anchorLocal: string } {
+  const days = dayIndex(toLocal.slice(0, 10)) - dayIndex(fromLocal.slice(0, 10));
+  const turned = rule.weekdays && { weekdays: [...new Set(rule.weekdays.map((w) => (((w + days) % 7) + 7) % 7))].sort() };
+  return {
+    rule: { ...rule, ...turned },
+    anchorLocal: `${shiftDate(anchorLocal.slice(0, 10), days)}T${toLocal.slice(11, 16)}`,
+  };
+}
+
+// "This and following": `before` keeps the occurrences before `at` (null if
+// there are none), `after` is the same rule for `at` onwards (anchored there by
+// the caller). A count is shared out; an end date stays with `after`.
+export function splitRule(rule: Rule, anchorLocal: string, tz: string, at: Date): { before: Rule | null; after: Rule } {
+  let n = 0;
+  let last: Date | null = null;
+  for (const o of occurrences(rule, anchorLocal, tz)) {
+    if (o >= at) break;
+    n++;
+    last = o;
+  }
+  if (!last) return { before: null, after: rule };
+  const lastDay = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(last);
+  return {
+    before: { ...rule, end: rule.end.type === "count" ? { type: "count", count: n } : { type: "until", date: lastDay } },
+    after: rule.end.type === "count" ? { ...rule, end: { type: "count", count: rule.end.count - n } } : rule,
+  };
+}
+
 // --- Plain-language summary -----------------------------------------------------
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
