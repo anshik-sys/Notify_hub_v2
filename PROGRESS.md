@@ -2,6 +2,22 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — #11 spec drafted (photos, more notification preferences)
+
+- Sections 8 and 9 of `docs/expected-behaviour.md`, before any code (the
+  spec-first rule). Waiting for the user's review.
+- **Photos (A1–A14):** your own photo on Profile, stored like the logo, shown
+  wherever initials show now. Proposed: 1 MB, same-company only (not public
+  like the logo), admins may remove but not upload, export includes the
+  image.
+- **Preferences (N1–N12):** found while writing it that four events can be
+  muted, three are in-app only (approved, comment on my reminder, everyone
+  done), "failed" is in-app only, and the daily-limit email to admins
+  can't be turned off. Proposed: every one of them gets email and Slack
+  choices, but new ones start **off**, so nobody suddenly gets new mail.
+  That needs opt-in rows next to today's opt-out ones.
+- Five open questions listed at the end of the spec.
+
 ## 2026-10-20 — top-bar search only on the pages about reminders
 
 - "Search reminders…" was in the top bar of all 28 signed-in pages,

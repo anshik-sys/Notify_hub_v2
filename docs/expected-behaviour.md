@@ -1,4 +1,4 @@
-# Expected behaviour: v1 gap items #4, #5, #7, #8, #9
+# Expected behaviour: v1 gap items #4, #5, #7, #8, #9, #11
 
 What each feature should do, written from the PRD and the product owner's
 decisions, **not** from the code. Behaviour tests are written from this file,
@@ -198,6 +198,105 @@ How "emails on a day" is estimated:
 | V12 | Another company's volume | Never added to this company's count; each company alerted separately | Tenancy | PASS |
 | V13 | The email | Lists each busy day with its estimate and the top 3 reminders by volume that day (title, recipients), with a link to the platform console | Actionable alert **(proposed)** | PASS |
 | V14 | The past-24-hours alert | Still works as before | Keep both | PASS |
+
+---
+
+## 8. Profile photos (#11, PRD 3.3, 4)
+
+PRD 3.3: "Users can edit their … profile picture (image only,
+size-limited)". PRD 4: the directory shows an avatar. Today everyone gets
+initials.
+
+Rules marked **(proposed)** are mine; confirm or change them before building.
+
+| Function | What it does |
+|---|---|
+| `setPhoto(actor, companyId, file)` (new, `src/lib/account.ts`) | Saves or replaces the signed-in person's own photo after checking it. Returns an error or `null`. |
+| `removePhoto(actor, companyId, userId)` (new) | Removes a photo: your own, or someone else's if you manage people (see A8). |
+| `GET /api/avatar/<user id>` (new) | Serves the photo to signed-in members of the same company. |
+| `Avatar` (`src/components/avatar.tsx`) | Shows the photo when there is one, otherwise the initials as today. |
+
+Storage follows the logo: one row per person in a new table, bytes only
+through `src/lib/storage.ts`, checked with `checkFile`, audited without the
+bytes, tenant RLS.
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| A1 | Upload a PNG, JPEG, GIF or WebP up to 1 MB on Profile | Saved; shown on Profile, in the sidebar card and the top bar | PRD 3.3. **(proposed: 1 MB)** | |
+| A2 | A file over 1 MB; a PDF; an SVG; a text file renamed `.png` | Refused with a clear message; the old photo (or initials) stays | PRD 3.3 "image only, size-limited"; SVG can carry scripts | |
+| A3 | Upload a second photo | Replaces the first; one photo per person; the new one shows at once (no stale cache) | | |
+| A4 | Remove your photo | Initials again everywhere | | |
+| A5 | Where it shows | Everywhere initials show today: Team, a group's members, Discussion, the sidebar card, the top bar | PRD 4 | |
+| A6 | Someone from another company, or signed out, requests a photo URL | 404 / sign-in; never the image | Tenancy. **(proposed: not public, unlike the logo; emails don't show photos)** | |
+| A7 | A malformed or unknown user id in the URL | 404 | | |
+| A8 | Someone with `users.edit` removes a member's photo (e.g. an unsuitable picture) | Allowed; they can't upload one for them. Refused for someone above them | **(proposed)**, same "not above you" rule as rename | |
+| A9 | A plain member tries to remove someone else's photo | Refused | | |
+| A10 | Deactivated person | Photo still shows (in Team, old comments) | Like their name | |
+| A11 | Erased person | Photo deleted, back to "Deleted person" initials; nothing left in storage | PRD 11.5 | |
+| A12 | "Download my data" / admin export | Includes the photo (type, size, uploaded at, and the image as base64) | PRD 11.5. **(proposed: include the image itself)** | |
+| A13 | More than 30 uploads in an hour | Refused ("too many"), like other uploads | Rate limits (uploads) | |
+| A14 | Audit log | "Photo changed/removed" row for the person, with no image bytes in it | PRD 9.1, secrets/noise kept out | |
+
+## 9. More notification preferences (#11, PRD 7.5)
+
+PRD 7.5: "Per-user preferences: which channels to use for which events."
+Today only four events can be turned off (approvals, rejections,
+mentions, escalations). Some others only show in Notifications, and one
+sends email that can't be turned off.
+
+Decided earlier (2026-10-07), unchanged: reminders and tasks sent to you
+always arrive the way the sender chose, and in-app is always on.
+
+| Function | What it does |
+|---|---|
+| `MUTABLE` (`src/lib/notifications.ts`) | The list of events and channels the preferences page offers. |
+| `setMutes` / `getMutes` | Save and read a person's choices (no row = on). |
+| `mutedFor(tx, userIds, event)` | Checked before every email or Slack DM for a listed event. |
+
+Proposed list (**new** marks what changes):
+
+| Event | Who gets it | Email | Slack DM | Today |
+|---|---|---|---|---|
+| A reminder needs my approval | approvers | on | on | same |
+| My reminder was approved | creator | **new, off** | **new, off** | in-app only |
+| My reminder was rejected | creator | on | **new, on** | email only |
+| Someone mentioned me | mentioned person | on | on | same |
+| Someone commented on my reminder | creator | **new, off** | **new, off** | in-app only |
+| Everyone finished my task | creator | **new, off** | **new, off** | in-app only |
+| Some deliveries failed | creator, admins | **new, on** | **new, off** | in-app only |
+| Daily email limit reached | admins | on (**now mutable**) | — | email, can't be turned off |
+| Someone in my department is late on a task | managers | on | **new, on** | email only |
+
+"off" means a new message nobody gets until they tick it, so turning
+this on doesn't start emailing everyone. **(proposed defaults)** That needs
+opt-in rows as well as today's opt-out ones.
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| N1 | Preferences page | Lists every event above with its channels; ticks show the current choice, including the defaults | PRD 7.5 | |
+| N2 | A person who never opened Preferences | Gets exactly what the defaults column says (no new email or DM from an event marked off) | No surprise emails | |
+| N3 | Tick "Someone commented on my reminder" by email; someone else comments | The creator gets one email linking to the comment; no email for their own comments | PRD 7.5 | |
+| N4 | Same, Slack DM ticked, Slack connected | One DM; Slack not connected or no Slack account → no DM, nothing fails | | |
+| N5 | Untick "Some deliveries failed" by email | In-app only; the admins who left it on still get the email | PRD 7.5 | |
+| N6 | Untick "Daily email limit reached" | That admin gets no email; still sees it in Notifications | | |
+| N7 | Any event, any choice | Always written to Notifications (in-app can't be turned off) | Decision 2026-10-07 | |
+| N8 | Reminders and tasks sent to you, task follow-ups | Never on this page, never muted | Decision 2026-10-07 | |
+| N9 | Saving the page with a made-up `event:channel` value | Ignored; the rest saves | | |
+| N10 | One person's choices | Never change anyone else's (same company or another) | Tenancy | |
+| N11 | "Everyone finished my task" ticked; the last assignee marks done, then undoes and redoes | One email, not two (same once-per-occurrence rule as the in-app one) | | |
+| N12 | "My reminder was approved" ticked | The creator gets the email when it's approved, by an approver's button or by an approver's edit | | |
+
+## Open questions for #11
+
+1. **A1:** is 1 MB right for a photo? (The logo allows 256 KB.)
+2. **A6:** photos visible only to signed-in members of the same company,
+   or public like the logo?
+3. **A8:** may admins remove someone's photo?
+4. **A12:** should the data export include the image itself?
+5. **Section 9 defaults:** are the on/off choices in the table right? Too
+   many new channels? Is anything missing (e.g. "a reminder was shared
+   with me")?
+
 ## Open questions found while testing
 
 - ~~**T7a/T7c:** when the copy needs approval, the series still skips that date
