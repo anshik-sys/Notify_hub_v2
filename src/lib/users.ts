@@ -1,9 +1,12 @@
 import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { cache } from "react";
 import { withTenant } from "@/db";
-import { departmentMembers, departments, invitations, roles, session, user, userRoles } from "@/db/schema";
+import { departmentMembers, departments, invitations, roles, session, user, userPhotos, userRoles } from "@/db/schema";
 import { listMySessions, resetTwoFactor } from "./account";
 import { authDb } from "./auth";
+import { checkImage } from "./company";
 import { type Access, can, canGrant, COMPANY_ADMIN_ROLE_ID, MEMBER_ROLE_ID } from "./permissions";
+import { deletePhoto, getPhoto, putPhoto } from "./storage";
 import { PAGE_SIZE } from "./views";
 
 type Tx = Parameters<Parameters<typeof withTenant>[1]>[0];
@@ -269,3 +272,40 @@ export async function signOutPerson(actor: Actor, companyId: string, userId: str
   await authDb.delete(session).where(eq(session.userId, userId));
   return null;
 }
+
+// --- Profile photos (PRD 3.3) ---------------------------------------------------
+
+export const PHOTO_MAX_BYTES = 1024 * 1024;
+
+// Your own photo; replaces any earlier one.
+export async function setPhoto(actor: { id: string }, companyId: string, fileName: string, bytes: Uint8Array) {
+  const checked = checkImage(fileName, bytes, PHOTO_MAX_BYTES, "photo");
+  if ("error" in checked) return checked.error;
+  await withTenant(companyId, (tx) => putPhoto(tx, companyId, actor.id, checked.image.contentType, checked.image.data));
+  return null;
+}
+
+// Your own, or (users.edit, checked by the caller) someone you may manage:
+// e.g. an unsuitable picture. Nobody uploads one for someone else.
+export async function removePhoto(actor: Actor, companyId: string, userId: string) {
+  try {
+    await withTenant(companyId, async (tx) => {
+      if (userId !== actor.id) await assertCanManage(tx, actor, userId);
+      if (!(await deletePhoto(tx, userId)).length) throw new Refused("There's no photo to remove.");
+    });
+  } catch (e) {
+    if (e instanceof Refused) return e.message;
+    throw e;
+  }
+  return null;
+}
+
+// For /api/avatar/<user id>: same company only (RLS).
+export const photoFile = (companyId: string, userId: string) => withTenant(companyId, (tx) => getPhoto(tx, userId));
+
+// User id → photo URL for everyone in the company who has one; once per
+// request. The ?v= changes with the photo, so the long cache never goes stale.
+export const photoUrls = cache(async (companyId: string) => {
+  const rows = await withTenant(companyId, (tx) => tx.select({ userId: userPhotos.userId, at: userPhotos.updatedAt }).from(userPhotos));
+  return new Map(rows.map((r) => [r.userId, `/api/avatar/${encodeURIComponent(r.userId)}?v=${r.at.getTime()}`]));
+});

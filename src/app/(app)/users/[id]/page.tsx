@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Avatar } from "@/components/avatar";
 import { Button, Checkbox, CheckboxGroup, Field, firstParam, Form, Hint, Page, Section } from "@/components/form";
 import { Muted, Table } from "@/components/table";
 import { describeAgent } from "@/lib/account";
@@ -6,9 +7,9 @@ import { formatInZone } from "@/lib/time";
 import { List, ListRow } from "@/components/list";
 import { can, canGrant, MEMBER_ROLE_ID, visibleRoles } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
-import { getUser, personSessions } from "@/lib/users";
+import { getUser, personSessions, photoUrls } from "@/lib/users";
 import { isUserId } from "@/lib/validate";
-import { erasePersonAction, renamePersonAction, resetTwoFactorAction, saveUserRoles, signOutPersonAction, toggleActive } from "../actions";
+import { erasePersonAction, removePersonPhotoAction, renamePersonAction, resetTwoFactorAction, saveUserRoles, signOutPersonAction, toggleActive } from "../actions";
 
 export default async function UserDetail(props: PageProps<"/users/[id]">) {
   const { user: me, companyId, access, timeZone } = await requireMember();
@@ -19,6 +20,7 @@ export default async function UserDetail(props: PageProps<"/users/[id]">) {
   if (!person) notFound();
   const { error, notice } = await props.searchParams;
   const roles = can(access, "users.manage_roles") ? await visibleRoles(companyId) : [];
+  const photo = (await photoUrls(companyId)).get(person.id);
   // Edit rights over this person: users.edit and nobody above you.
   const sessions =
     can(access, "users.edit") && !person.erasedAt && person.id !== me.id ? await personSessions({ id: me.id, access }, companyId, person.id) : null;
@@ -26,7 +28,7 @@ export default async function UserDetail(props: PageProps<"/users/[id]">) {
   return (
     <Page title={person.name} back={{ href: "/users", label: "Team" }} error={firstParam(error)} notice={firstParam(notice)}>
       <Hint>
-        {person.email}
+        <Avatar name={person.name} photo={photo} size="large" /> {person.email}
         {person.deactivatedAt && " · Deactivated"}
         {` · Two-factor ${person.twoFactorEnabled ? "on" : "off"}`}
       </Hint>
@@ -37,6 +39,14 @@ export default async function UserDetail(props: PageProps<"/users/[id]">) {
           <Field label="Name" name="name" maxLength={100} required defaultValue={person.name} />
           <Hint>Only they can change their email: the new address has to be verified.</Hint>
           <Button>Save name</Button>
+        </Form>
+      )}
+
+      {sessions && photo && (
+        <Form action={removePersonPhotoAction}>
+          <input type="hidden" name="userId" value={person.id} />
+          <Hint>Only they can upload a photo. You can remove one that isn’t suitable.</Hint>
+          <Button variant="secondary">Remove their photo</Button>
         </Form>
       )}
 

@@ -4,6 +4,7 @@ import { reminderOccurrences, reminders, slackInstallations, taskAssignments, us
 import { authDb } from "./auth";
 import { decrypt } from "./crypto";
 import { respond, updateMessage, usersInfo, withStatus } from "./slack";
+import { sendTell } from "./notifications";
 import { notifyIfAllDone } from "./tasks";
 import { formatInZone, toLocalInput, zonedToUtc } from "./time";
 
@@ -55,17 +56,17 @@ export async function handleTaskAction(c: Click, f?: typeof fetch, now = new Dat
     if (c.actionId === "task_done") {
       if (!row.a.doneAt) {
         await tx.update(taskAssignments).set({ doneAt: now, snoozedUntil: null }).where(eq(taskAssignments.id, row.a.id));
-        await notifyIfAllDone(tx, inst.companyId, c.occurrenceId);
+        return { ...row, doneAt: now, until: null, tell: await notifyIfAllDone(tx, inst.companyId, c.occurrenceId) };
       }
-      return { ...row, doneAt: row.a.doneAt ?? now, until: null };
+      return { ...row, doneAt: row.a.doneAt, until: null, tell: null };
     }
-    if (row.a.doneAt) return { ...row, doneAt: row.a.doneAt, until: null };
+    if (row.a.doneAt) return { ...row, doneAt: row.a.doneAt, until: null, tell: null };
     const until =
       c.actionId === "snooze_1h"
         ? new Date(now.getTime() + 3_600_000)
         : zonedToUtc(`${nextLocalDate(now, row.timeZone)}T09:00`, row.timeZone)!;
     await tx.update(taskAssignments).set({ snoozedUntil: until }).where(eq(taskAssignments.id, row.a.id));
-    return { ...row, doneAt: null, until };
+    return { ...row, doneAt: null, until, tell: null };
   });
   if (!found) return refused("This task isn't assigned to you.");
 
@@ -76,8 +77,21 @@ export async function handleTaskAction(c: Click, f?: typeof fetch, now = new Dat
   const status = (text: string) => async () =>
     isDm ? void (await updateMessage(token, c.channelId, c.messageTs, found.title, withStatus(c.blocks, text, appUrl), f)) : ephemeral(text)();
 
-  if (c.actionId === "task_done" || found.doneAt)
-    return { outcome: "done", after: status(`✅ Done ${formatInZone(found.doneAt!, found.timeZone)}`) };
+  if (c.actionId === "task_done" || found.doneAt) {
+    // After the answer to Slack (3-second limit), with the message update.
+    const done = status(`✅ Done ${formatInZone(found.doneAt!, found.timeZone)}`);
+    const tell = found.tell;
+    return {
+      outcome: "done",
+      after: async () => {
+        try {
+          await done();
+        } finally {
+          if (tell) await sendTell(tell, undefined, f);
+        }
+      },
+    };
+  }
   return {
     outcome: "snoozed",
     after: status(`⏰ Snoozed until ${formatInZone(found.until!, found.timeZone)}. You'll get this again then.`),

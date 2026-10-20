@@ -233,6 +233,14 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   uploads are raster images checked by their bytes: **never allow SVG**
   (scripts) or skip `checkFile`. URLs carry `?v=<updated_at>` and the
   route caches for a year; build them with `brandFor`.
+- **Profile photos (`user_photos`, `/api/avatar/<user id>`):** unlike the logo,
+  **not public**: only signed-in members of the same company (RLS), since no
+  email shows them. Same rules as the logo otherwise: raster images checked by
+  their bytes (`checkImage` in `company.ts`), never SVG, 1 MB. Pages pass
+  `photo={photos.get(id)}` to `Avatar` from one `photoUrls(companyId)` per
+  request; URLs carry `?v=<updated_at>` and are cached privately for a year.
+  Changing your photo revalidates the layout, since the shell shows it.
+  `erase_person()` deletes it; the export includes it (base64).
 - **Theme comes from a cookie, read on the server** (`src/lib/theme.ts`). The
   root layout puts `data-theme` on `<html>`, so the first paint is right: no
   flash, no client JS. No attribute means following the device. This is why
@@ -367,10 +375,18 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   same transaction as the event where possible (the occurrence, the decision,
   the task update). A `dedupe_key` (`occ:`, `done:`, `failed:` + occurrence id)
   makes repeatable writers (worker retries, undo/redo) insert once.
-- **Preferences are opt-out rows** (`notification_mutes`; no row = on), and
-  they only cover NotifyHub's own messages: approvals, decisions, mentions.
-  Reminders and tasks always arrive the way the sender chose (decided with the
-  user). In-app is always on.
+- **Preferences store only what differs from the default**
+  (`notification_mutes`, `enabled`: false = turned off, true = turned on).
+  `MUTABLE` lists each event's channels and which start **off** (`off`), so
+  adding a channel never starts emailing everyone. They only cover NotifyHub's
+  own messages (approvals, decisions, mentions, comments on my reminder, all
+  done, failed deliveries, the daily-limit notice, escalations). Reminders and
+  tasks always arrive the way the sender chose (decided with the user). In-app
+  is always on.
+  - **Email and Slack for these events go through `planTell` / `sendTell`**
+    (`src/lib/notifications.ts`): decided inside the event's transaction
+    (active people of that company, by their choices), sent after it commits.
+    Don't call `sendMail` or a Slack DM for one of these events directly.
 - **Opening a notification goes through `GET /notifications/[id]`**, which
   marks it read and redirects. The sidebar count is rendered by the layout,
   which runs alongside the page, so marking read inside the reminder page

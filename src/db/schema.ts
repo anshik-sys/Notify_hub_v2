@@ -556,6 +556,24 @@ export const companyLogos = pgTable(
   () => [tenantPolicy("company_id")],
 ).enableRLS();
 
+// A person's profile photo (PRD 3.3), one per person; bytes only through
+// src/lib/storage.ts.
+export const userPhotos = pgTable(
+  "user_photos",
+  {
+    userId: text()
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    contentType: text().notNull(),
+    data: bytea().notNull(),
+    updatedAt: ts().notNull().defaultNow(),
+  },
+  () => [tenantPolicy("company_id")],
+).enableRLS();
+
 export const attachmentBlobs = pgTable(
   "attachment_blobs",
   {
@@ -658,6 +676,8 @@ export const notificationMutes = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     event: text().notNull(),
     channel: text().notNull(),
+    // false: turned off (a default-on channel); true: turned on (a default-off one).
+    enabled: boolean().notNull().default(false),
   },
   (t) => [primaryKey({ columns: [t.userId, t.event, t.channel] }), tenantPolicy("company_id")],
 ).enableRLS();

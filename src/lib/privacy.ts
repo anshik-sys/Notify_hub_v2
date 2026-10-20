@@ -48,6 +48,14 @@ export async function exportPerson(companyId: string, userId: string) {
       tx,
       sql`select at, action, object_type, object_label from audit_log where actor_id = ${userId} order by at`,
     ),
+    // The image itself too: it's theirs (PRD 11.5).
+    photo:
+      (
+        await q(
+          tx,
+          sql`select content_type, length(data) as size, updated_at, replace(encode(data, 'base64'), E'\n', '') as base64 from user_photos where user_id = ${userId}`,
+        )
+      )[0] ?? null,
   }));
   const sessions = await authDb
     .select({ createdAt: session.createdAt, lastActive: session.updatedAt, ipAddress: session.ipAddress, userAgent: session.userAgent })

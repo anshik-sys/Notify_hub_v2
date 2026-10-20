@@ -9,7 +9,7 @@ import { lookupByEmail, openDm, postMessage, reminderMessage, SlackError, upload
 import { between, nextAfter } from "@/lib/recurrence";
 import { formatInZone } from "@/lib/time";
 import { sendMail } from "@/lib/mail";
-import { addNotifications } from "@/lib/notifications";
+import { addNotifications, planTell, sendTell } from "@/lib/notifications";
 import { resolveRecipients } from "@/lib/recipients";
 import { unsubscribeUrls } from "@/lib/unsubscribe";
 import { ownerDb } from "./db";
@@ -393,13 +393,12 @@ async function noticeHeld(companyId: string, reminderId: string, cap: number) {
     .values(admins.map((a) => ({ companyId, userId: a.id, kind: "failed", reminderId, text, dedupeKey: `held:${day}` })))
     .onConflictDoNothing()
     .returning({ userId: notifications.userId });
-  for (const a of admins.filter((x) => fresh.some((f) => f.userId === x.id)))
-    await sendMail({
-      to: a.email,
-      subject: "Your company reached its daily email limit",
-      text: `${text}. Nothing is lost: each held email is sent automatically once the last 24 hours drop below ${cap}. To raise the limit, contact the NotifyHub team.`,
-      links: [{ label: "Open the reminder", url: `${process.env.BETTER_AUTH_URL}/reminders/${reminderId}` }],
-    }).catch((e) => console.error("held notice email failed", e));
+  const tell = await planTell(ownerDb, companyId, fresh.map((f) => f.userId), "held", {
+    subject: "Your company reached its daily email limit",
+    text: `${text}. Nothing is lost: each held email is sent automatically once the last 24 hours drop below ${cap}. To raise the limit, contact the NotifyHub team.`,
+    link: { label: "Open the reminder", url: `${process.env.BETTER_AUTH_URL}/reminders/${reminderId}` },
+  });
+  await sendTell(tell);
 }
 
 export async function deliverOne(deliveryId: string, send: typeof sendMail = sendMail, slackFetch?: typeof fetch) {
@@ -460,21 +459,28 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
 
 // Tells the creator and the Company Admins, once per occurrence however many
 // deliveries failed.
+// Once per occurrence (the dedupe key): in the app, plus email (on by
+// default) or Slack (off) as each person chose.
 async function notifyFailed(d: { companyId: string; reminderId: string; occurrenceId: string }) {
-  const [r] = await ownerDb.select({ createdBy: reminders.createdBy }).from(reminders).where(eq(reminders.id, d.reminderId));
+  const [r] = await ownerDb.select({ createdBy: reminders.createdBy, title: reminders.title }).from(reminders).where(eq(reminders.id, d.reminderId));
   if (!r) return;
   const people = new Set([r.createdBy, ...(await companyAdmins(d.companyId)).map((a) => a.id)]);
-  await addNotifications(
-    ownerDb,
-    [...people].map((userId) => ({
-      companyId: d.companyId,
-      userId,
-      kind: "failed" as const,
-      reminderId: d.reminderId,
-      text: "Some deliveries failed",
-      dedupeKey: `failed:${d.occurrenceId}`,
-    })),
-  ).catch((e) => console.error("failed-delivery notification", e));
+  const text = "Some deliveries failed";
+  try {
+    const fresh = await ownerDb
+      .insert(notifications)
+      .values([...people].map((userId) => ({ companyId: d.companyId, userId, kind: "failed" as const, reminderId: d.reminderId, text, dedupeKey: `failed:${d.occurrenceId}` })))
+      .onConflictDoNothing()
+      .returning({ userId: notifications.userId });
+    const tell = await planTell(ownerDb, d.companyId, fresh.map((f) => f.userId), "failed", {
+      subject: `Delivery failed: ${r.title}`,
+      text: `${text} for "${r.title}". The reminder's page shows who didn't get it and why.`,
+      link: { label: "Open the reminder", url: `${process.env.BETTER_AUTH_URL}/reminders/${d.reminderId}` },
+    });
+    await sendTell(tell);
+  } catch (e) {
+    console.error("failed-delivery notification", e);
+  }
 }
 
 // Each tick: fail rows stuck in `sending`, and return queued rows that lost

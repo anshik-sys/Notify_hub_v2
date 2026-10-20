@@ -4,7 +4,7 @@ import { withTenant } from "@/db";
 import { attachments, companies, companyApprovers, deliveries, departmentMembers, emailSuppressions, departments, groupMembers, groups, notifications, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, taskAssignments, user, userRoles, type ReminderStatus } from "@/db/schema";
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
-import { addNotifications, mutedFor } from "./notifications";
+import { addNotifications, mutedFor, planTell, sendTell } from "./notifications";
 import { dmLink } from "./slack-installations";
 import { getBlob, putBlob } from "./storage";
 import { resolveRecipients, type Target, type Tx } from "./recipients";
@@ -524,6 +524,9 @@ export async function updateReminder(
       // A paused series stays paused through an edit (unless it now needs approval).
       const status: ReminderStatus =
         out.length && !(approved && narrowed) ? "pending_approval" : current.status === "paused" ? "paused" : "scheduled";
+      // An approver editing a waiting reminder into shape approves it (PRD 5.9).
+      const approvesIt =
+        current.status === "pending_approval" && status === "scheduled" && actor.id !== creator.id && can(actor.access, "reminders.approve");
 
       // The edit form pre-fills the start with the *next* occurrence. If it came
       // back unchanged, keep the original anchor: re-anchoring "monthly on the
@@ -540,6 +543,7 @@ export async function updateReminder(
           status,
           rejectionReason: null,
           ...(status === "pending_approval" ? { decidedBy: null, decidedAt: null } : {}),
+          ...(approvesIt ? { decidedBy: actor.id, decidedAt: new Date() } : {}),
         })
         .where(eq(reminders.id, id));
       await tx.delete(reminderTargets).where(eq(reminderTargets.reminderId, id));
@@ -547,11 +551,15 @@ export async function updateReminder(
       await saveShares(tx, companyId, id, actor.id, shares);
       await saveAttachments(tx, companyId, id, actor.id, files, removeAttachmentIds);
       await notifyIfDue(tx, status, input.sendAt);
-      return { approvers: status === "pending_approval" ? await approversToTell(tx, companyId, id) : [] };
+      return {
+        approvers: status === "pending_approval" ? await approversToTell(tx, companyId, id) : [],
+        tell: approvesIt ? await tellDecision(tx, companyId, actor.id, { id, title: input.title, createdBy: creator.id }, true) : null,
+      };
     }),
   );
   if ("error" in result) return result.error;
   await notifyApprovers(companyId, result.approvers, input.title, id);
+  if (result.tell) await sendTell(result.tell);
   return null;
 }
 
@@ -747,30 +755,41 @@ export async function decideReminder(actor: Actor, companyId: string, id: string
         })
         .where(eq(reminders.id, id));
       if (approve) await notifyIfDue(tx, "scheduled", current.sendAt);
-      const [creator] = await tx.select({ email: user.email }).from(user).where(eq(user.id, current.createdBy));
-      await addNotifications(tx, [
-        {
-          companyId,
-          userId: current.createdBy,
-          kind: "decided",
-          reminderId: id,
-          actorId: actor.id,
-          text: approve ? "Approved" : `Rejected: ${reason}`,
-        },
-      ]);
-      const muted = await mutedFor(tx, [current.createdBy], "decided");
-      return { title: current.title, creatorEmail: muted.size ? undefined : creator?.email };
+      return { tell: await tellDecision(tx, companyId, actor.id, current, approve, reason) };
     }),
   );
   if ("error" in result) return result.error;
-  if (!approve && result.creatorEmail)
-    await sendMail({
-      to: result.creatorEmail,
-      subject: `Not approved: ${result.title}`,
-      text: `Your reminder "${result.title}" wasn't approved.\n\nReason: ${reason}\n\nYou can edit it and submit it again.`,
-      links: [{ label: "Open the reminder", url: `${process.env.BETTER_AUTH_URL}/reminders/${id}` }],
-    }).catch((e) => console.error("rejection email failed", e));
+  await sendTell(result.tell);
   return null;
+}
+
+// The creator hears that their reminder was approved or rejected: in the app
+// always; by email or Slack as they chose (PRD 7.5). Inside the transaction.
+async function tellDecision(
+  tx: Tx,
+  companyId: string,
+  actorId: string,
+  r: { id: string; title: string; createdBy: string },
+  approve: boolean,
+  reason = "",
+) {
+  await addNotifications(tx, [
+    { companyId, userId: r.createdBy, kind: "decided", reminderId: r.id, actorId, text: approve ? "Approved" : `Rejected: ${reason}` },
+  ]);
+  const link = { label: "Open the reminder", url: `${process.env.BETTER_AUTH_URL}/reminders/${r.id}` };
+  return planTell(
+    tx,
+    companyId,
+    [r.createdBy],
+    approve ? "approved" : "decided",
+    approve
+      ? { subject: `Approved: ${r.title}`, text: `Your reminder "${r.title}" was approved and is scheduled.`, link }
+      : {
+          subject: `Not approved: ${r.title}`,
+          text: `Your reminder "${r.title}" wasn't approved.\n\nReason: ${reason}\n\nYou can edit it and submit it again.`,
+          link,
+        },
+  );
 }
 
 // --- Reading -----------------------------------------------------------------

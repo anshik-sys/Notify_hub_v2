@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { commentMentions, comments, reminders, user } from "@/db/schema";
 import { sendMail } from "./mail";
-import { addNotifications, mutedFor } from "./notifications";
+import { addNotifications, mutedFor, planTell, sendTell } from "./notifications";
 import { type Access, can, loadAccess } from "./permissions";
 import { reminderAccess } from "./reminders";
 import { dmLink } from "./slack-installations";
@@ -140,22 +140,23 @@ export async function addComment(
       return row.id;
     });
     const { skipped, told } = await notify(companyId, actor, reminder, id, body, people, deps);
-    // The creator hears about every new comment by someone else (in-app only),
-    // unless this one already mentioned them.
-    if (reminder.createdBy !== actor.id && !told.includes(reminder.createdBy))
-      await withTenant(companyId, (tx) =>
-        addNotifications(tx, [
-          {
-            companyId,
-            userId: reminder.createdBy,
-            kind: "comment",
-            reminderId,
-            commentId: id,
-            actorId: actor.id,
-            text: `${actor.name} commented: ${short(body)}`,
-          },
-        ]),
-      );
+    // The creator hears about every new comment by someone else, unless this
+    // one already mentioned them: in the app, and by email or Slack if they
+    // turned that on (off by default).
+    if (reminder.createdBy !== actor.id && !told.includes(reminder.createdBy)) {
+      const text = `${actor.name} commented: ${short(body)}`;
+      const tell = await withTenant(companyId, async (tx) => {
+        await addNotifications(tx, [
+          { companyId, userId: reminder.createdBy, kind: "comment", reminderId, commentId: id, actorId: actor.id, text },
+        ]);
+        return planTell(tx, companyId, [reminder.createdBy], "comment", {
+          subject: `New comment on ${reminder.title}`,
+          text,
+          link: { label: "Open the discussion", url: `${process.env.BETTER_AUTH_URL}/reminders/${reminderId}#comment-${id}` },
+        });
+      });
+      await sendTell(tell, deps.send, deps.slackFetch);
+    }
     return { id, skipped };
   });
   return result;

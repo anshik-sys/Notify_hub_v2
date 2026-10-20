@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import { db } from "@/db";
 import { authDb } from "./auth";
 import { type Access, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "./permissions";
 import { seeder } from "./test-helpers";
-import { adminResetTwoFactor, listUsers, personSessions, renamePerson, setActive, setUserRoles, signOutPerson } from "./users";
+import { adminResetTwoFactor, listUsers, personSessions, photoFile, photoUrls, removePhoto, renamePerson, setActive, setPhoto, setUserRoles, signOutPerson } from "./users";
 import { PAGE_SIZE } from "./views";
 
 const s = seeder();
@@ -138,4 +139,34 @@ test("admin renames someone and signs them out; never someone above them", async
   assert.match((await signOutPerson(editorActor, s.companyId, boss))!, /can't manage/);
   assert.equal((await q("select id from session where user_id = $1", [boss])).length, 1);
   assert.match((await signOutPerson(bossActor, s.companyId, boss))!, /yourself/);
+});
+
+const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4d20000000049454e44ae426082", "hex");
+
+test("photos: images only, 1 MB; replace keeps one; remove by self or a manager of people", async () => {
+  const pat = await s.user({ roles: [MEMBER_ROLE_ID] });
+  const me = { id: pat };
+  assert.match((await setPhoto(me, s.companyId, "big.png", new Uint8Array(1024 * 1024 + 1)))!, /1 MB/);
+  assert.match((await setPhoto(me, s.companyId, "x.svg", new TextEncoder().encode("<svg/>")))!, /./);
+  assert.match((await setPhoto(me, s.companyId, "fake.png", new TextEncoder().encode("not an image")))!, /./);
+  assert.match((await setPhoto(me, s.companyId, "doc.pdf", new TextEncoder().encode("%PDF-1.4 x")))!, /PNG, JPEG, GIF or WebP/);
+  assert.equal(await setPhoto(me, s.companyId, "me.png", PNG), null);
+  const first = (await photoUrls(s.companyId)).get(pat);
+  assert.match(first!, new RegExp(`^/api/avatar/${pat}\\?v=\\d+$`));
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(await setPhoto(me, s.companyId, "me2.png", PNG), null);
+  const rows = await s.owner.query("select updated_at from user_photos where user_id = $1", [pat]);
+  assert.equal(rows.rowCount, 1);
+  assert.equal((await photoFile(s.companyId, pat))?.contentType, "image/png");
+  assert.equal(await photoFile(randomUUID(), pat), null); // another company sees nothing
+
+  const other = await s.user({ roles: [MEMBER_ROLE_ID] });
+  const memberActor = { id: other, access: await loadAccess(s.companyId, other) };
+  // A member can't touch an admin's photo; the admin can remove anyone's.
+  await setPhoto(admin, s.companyId, "a.png", PNG);
+  assert.match((await removePhoto(memberActor, s.companyId, admin.id))!, /can't manage/);
+  assert.equal(await removePhoto(admin, s.companyId, pat), null);
+  assert.equal(await photoFile(s.companyId, pat), null);
+  assert.match((await removePhoto(admin, s.companyId, pat))!, /no photo/);
+  assert.equal(await removePhoto(admin, s.companyId, admin.id), null);
 });

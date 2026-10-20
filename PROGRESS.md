@@ -2,6 +2,62 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — #11 built: profile photos and more notification preferences
+
+- Spec sections 8 and 9 approved as proposed ("spec is fine").
+- **Photos:** Profile → Photo (PNG/JPEG/GIF/WebP, 1 MB, checked by bytes via
+  a new shared `checkImage`, which the logo uses too). One `user_photos` row
+  per person (migration 0040: tenant RLS, audited without the bytes,
+  `erase_person()` replaced to delete it). `/api/avatar/<id>` needs a
+  signed-in member of the same company. Someone who may manage the person
+  can remove (not upload) it on their page. The export includes it as
+  base64.
+  - **How pages get photos:** one `photoUrls(companyId)` per request (React
+    `cache`), passed as `photo=` to `Avatar`. Rejected: a lookup inside each
+    `Avatar` (it would need `requireMember()`, which redirects on the
+    security page) and a version column in five list queries.
+  - `Avatar` puts an `<img alt="">` over the initials; if it can't load
+    (e.g. someone forced to set up 2FA), nothing shows and the initials do.
+  - **Bug found in Chrome:** the first upload didn't show in the sidebar or
+    top bar until a reload (layouts aren't re-rendered on a navigation
+    within them). The photo action now revalidates the layout.
+- **Preferences:** 9 events instead of 4: approved, comments on my
+  reminder, everyone done, failed deliveries, the daily-limit email (was
+  unmutable), plus Slack for rejections and escalations. New channels start
+  **off**, stored as `notification_mutes.enabled = true` when someone opts
+  in; old rows still mean "off", so nothing migrates.
+  - **One sender:** `planTell` (in the event's transaction: active people of
+    this company, by their choices) and `sendTell` (after commit). The four
+    hand-written email/Slack paths (rejection, escalation, failed, held) now
+    use it too. `linkDm` in `slack.ts` is the shared DM, so the worker can
+    send without the web DB client.
+  - **Once only:** "everyone done" and "failed" email only when their in-app
+    row is new (insert … returning), so an undo and redo, or a retry, sends
+    nothing more.
+  - **Approval by an approver's edit** used to schedule the reminder silently
+    with no `decided_by`. It now records the approver and tells the creator,
+    like the button. The Slack Mark done click sends its email after
+    answering Slack (3-second limit).
+- **Verified:** 286 tests pass, 8 skipped, 0 fail. That includes my own
+  (photo rules, remove permissions, defaults, opt-in rows, `planTell`
+  filtering) and **independent spec tests** written from the spec without
+  reading the code (`spec-photos.test.ts`, `spec-preferences.test.ts`): 20
+  PASS, 6 SKIP (browser or server-action only), 0 FAIL. Two tester findings
+  fixed: the export's base64 was wrapped onto 76-character lines, and
+  `mutedFor` threw for an event not in `MUTABLE`. **In Chrome** (throwaway session for Maya):
+  upload → shell and Team show it; the route returns 200 signed in and
+  redirects signed out; remove → gone; the preferences page shows exactly
+  the spec's defaults; the audit log has the create/delete rows as Maya.
+  Typecheck, lint.
+- **Not verified:** Discussion and group pages with a photo, "Remove their
+  photo" on a person's page, the upload rate limit, real Slack DMs for the
+  new events, emails as seen in Mailpit (tests capture them).
+- **Known, left as is:** the audit entry's label is the image type
+  ("image/png"), not the person (the trigger labels from a column of that
+  table). The file check reads the leading bytes, so a corrupt image of a
+  real type is accepted (same as attachments and the logo). A mention still
+  needs the `@Name` in the text (by design, README).
+
 ## 2026-10-20 — #11 spec drafted (photos, more notification preferences)
 
 - Sections 8 and 9 of `docs/expected-behaviour.md`, before any code (the

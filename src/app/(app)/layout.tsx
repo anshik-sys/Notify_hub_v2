@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/theme-switcher";
 import { unreadCount } from "@/lib/notifications";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
+import { photoUrls } from "@/lib/users";
 import { signOutAction } from "./settings/account-actions";
 import styles from "./layout.module.css";
 import { ClosePopoverOnNavigate, HideOn, NavLink, ShowOn, SidebarToggle } from "./nav-link";
@@ -23,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // every page enforces the require-2FA gate with its own requireMember().
   const { user, companyId, company, access } = await requireMember(true);
   // Fresh on every navigation; no polling (add it if people ask).
-  const unread = await unreadCount(companyId, user.id);
+  const [unread, photos] = await Promise.all([unreadCount(companyId, user.id), photoUrls(companyId)]);
   // Set by SidebarToggle (nav-link.tsx); read here so the first paint is right.
   const collapsed = (await cookies()).get("sidebar")?.value === "collapsed";
   const seesReminders = can(access, "reminders.create") || can(access, "reminders.view_all");
@@ -83,7 +84,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               )}
             </Link>
             <button popoverTarget="account-menu" className={styles.me} aria-label="Account menu" title={user.name}>
-              <Avatar name={user.name} size="large" />
+              <Avatar name={user.name} photo={photos.get(user.id)} size="large" />
             </button>
             {can(access, "reminders.create") && (
               // Reminders has its own "New reminder" page action; the form needs no link to itself.
@@ -146,7 +147,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </nav>
 
           <button popoverTarget="account-menu" className={styles.user} data-label={user.name}>
-            <Avatar name={user.name} size="large" />
+            <Avatar name={user.name} photo={photos.get(user.id)} size="large" />
             <span className={styles.userText}>
               <span className={styles.userName}>{user.name}</span>
               <span className={styles.userEmail}>{user.email}</span>

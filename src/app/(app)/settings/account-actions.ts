@@ -1,6 +1,7 @@
 "use server";
 
 import { APIError } from "better-auth";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { errorUrl } from "@/components/form";
@@ -8,6 +9,7 @@ import { hasPassword, revokeMySession, setTimeZone } from "@/lib/account";
 import { limits } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 import { requireMember, requireSignedIn } from "@/lib/session";
+import { removePhoto, setPhoto } from "@/lib/users";
 
 // The signed-in person's own account: no permission beyond being signed in.
 // Security actions only need a session (requireSignedIn): someone the company
@@ -47,6 +49,28 @@ export async function saveProfileAction(fd: FormData) {
   if (error) redirect(errorUrl("/settings/profile", error));
   if (name !== user.name) await call("/settings/profile", async () => auth.api.updateUser({ body: { name }, headers: await headers() }));
   notice("/settings/profile", "Saved.");
+}
+
+// PRD 3.3: your profile photo. Uploads share the per-person upload limit.
+export async function savePhotoAction(fd: FormData) {
+  const P = "/settings/profile";
+  const { user, companyId, access } = await requireMember();
+  // The shell (sidebar card, top bar) shows it too, and layouts aren't
+  // re-rendered on a navigation within them.
+  if (fd.get("remove") === "on") {
+    const error = await removePhoto({ id: user.id, access }, companyId, user.id);
+    if (error) redirect(errorUrl(P, error));
+    revalidatePath("/", "layout");
+    notice(P, "Photo removed.");
+  }
+  const file = fd.get("photo");
+  if (!(file instanceof File) || file.size === 0) redirect(errorUrl(P, "Choose an image to upload."));
+  const limited = await limits([[`upload:user:${user.id}`, 30, 3600]]);
+  if (limited) redirect(errorUrl(P, limited));
+  const error = await setPhoto(user, companyId, file.name, new Uint8Array(await file.arrayBuffer()));
+  if (error) redirect(errorUrl(P, error));
+  revalidatePath("/", "layout");
+  notice(P, "Photo saved.");
 }
 
 // PRD 3.3: a link to the new address; the email changes when it's clicked.

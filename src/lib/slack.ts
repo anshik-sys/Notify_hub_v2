@@ -240,3 +240,15 @@ export function digestMessage(d: { date: string; overdue: DigestLine[]; upcoming
   const text = `Daily digest: ${d.overdue.length} overdue, ${d.upcoming.length} in the next 24 hours`;
   return { text, blocks };
 }
+
+// A DM to the person with this email, with one link button. Nothing when they
+// have no Slack account. Slack errors throw, so callers catch.
+export async function linkDm(token: string, email: string, text: string, link: { label: string; url: string }, f?: Fetch) {
+  const slackUser = await lookupByEmail(token, email, f);
+  if (!slackUser) return;
+  const channel = await openDm(token, slackUser, f);
+  await postMessage(token, channel, text, [
+    { type: "section", text: { type: "plain_text", text: text.slice(0, 2900) } },
+    { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: link.label }, url: link.url, action_id: "open" }] },
+  ], f);
+}

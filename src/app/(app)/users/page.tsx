@@ -6,7 +6,7 @@ import { Badge, Muted, Table } from "@/components/table";
 import { Tabs } from "@/components/tabs";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
-import { listUsers } from "@/lib/users";
+import { listUsers, photoUrls } from "@/lib/users";
 import { PAGE_SIZE } from "@/lib/views";
 import { revokeInvite } from "./actions";
 import styles from "./page.module.css";
@@ -18,7 +18,7 @@ export default async function Users(props: PageProps<"/users">) {
   const q = firstParam(sp.q)?.slice(0, 100) ?? "";
   const n = Number(firstParam(sp.page));
   const page = Number.isInteger(n) && n > 0 && n < 10_000 ? n : 1;
-  const { users, pending, total } = await listUsers(companyId, q, page);
+  const [{ users, pending, total }, photos] = await Promise.all([listUsers(companyId, q, page), photoUrls(companyId)]);
   const canInvite = can(access, "users.create");
   const hasInvites = canInvite && pending.length > 0;
   // ?show=invites with none left (the last one revoked) falls back to members.
@@ -87,7 +87,7 @@ export default async function Users(props: PageProps<"/users">) {
               href: `/users/${u.id}`,
               cells: [
                 <span key="n" className={styles.person}>
-                  <Avatar name={u.name} />
+                  <Avatar name={u.name} photo={photos.get(u.id)} />
                   {u.name}
                 </span>,
                 u.email,

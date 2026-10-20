@@ -1,7 +1,6 @@
-import { inArray, sql } from "drizzle-orm";
-import { user } from "@/db/schema";
+import { sql } from "drizzle-orm";
 import { sendMail } from "@/lib/mail";
-import { addNotifications, mutedFor } from "@/lib/notifications";
+import { addNotifications, planTell, sendTell, type Tell } from "@/lib/notifications";
 import { formatInZone } from "@/lib/time";
 import { ownerDb } from "./db";
 
@@ -12,8 +11,8 @@ import { ownerDb } from "./db";
 // (reminderAccess / canViewWhere). Only thresholds crossed in the last 7 days
 // count, so turning the setting on doesn't flood managers with old tasks.
 // now and onlyCompany are for tests.
-export async function escalateOverdue(now = new Date(), onlyCompany?: string, send: typeof sendMail = sendMail) {
-  const mails = await ownerDb.transaction(async (tx) => {
+export async function escalateOverdue(now = new Date(), onlyCompany?: string, send: typeof sendMail = sendMail, slackFetch?: typeof fetch) {
+  const tells = await ownerDb.transaction(async (tx) => {
     const { rows } = await tx.execute<{
       id: string;
       company_id: string;
@@ -37,7 +36,7 @@ export async function escalateOverdue(now = new Date(), onlyCompany?: string, se
          and o.due_at + make_interval(days => c.escalate_after_days) > ${now}::timestamptz - interval '7 days'
       returning a.id, a.company_id, a.reminder_id, a.user_id, u.name as person, r.title, r.created_by, o.due_at,
         c.escalate_after_days as days, c.time_zone`);
-    const out: Parameters<typeof sendMail>[0][] = [];
+    const out: Tell[] = [];
     for (const a of rows) {
       // The worker bypasses RLS: department_members is filtered by company.
       const { rows: managers } = await tx.execute<{ id: string }>(sql`
@@ -52,19 +51,17 @@ export async function escalateOverdue(now = new Date(), onlyCompany?: string, se
         tx,
         tell.map((userId) => ({ companyId: a.company_id, userId, kind: "escalated" as const, reminderId: a.reminder_id, text, dedupeKey: `esc:${a.id}` })),
       );
-      const muted = await mutedFor(tx, tell, "escalated");
-      const to = await tx.select({ id: user.id, email: user.email }).from(user).where(inArray(user.id, tell));
-      for (const p of to.filter((p) => !muted.has(`${p.id}:email`)))
-        out.push({
-          to: p.email,
+      out.push(
+        await planTell(tx, a.company_id, tell, "escalated", {
           subject: `Overdue: ${a.person} on “${a.title}”`,
           text: `${text}. It was due ${formatInZone(new Date(a.due_at), a.time_zone)} (${a.time_zone}).`,
-          links: [{ label: "Open the task", url: `${process.env.BETTER_AUTH_URL}/reminders/${a.reminder_id}` }],
-        });
+          link: { label: "Open the task", url: `${process.env.BETTER_AUTH_URL}/reminders/${a.reminder_id}` },
+        }),
+      );
     }
     return out;
   });
-  // After commit; a failed email is logged, not retried (the in-app one stays).
-  for (const m of mails) await send(m).catch((e) => console.error("escalation email failed", e));
-  return mails.length;
+  // After commit; a failed send is logged, not retried (the in-app one stays).
+  for (const t of tells) await sendTell(t, send, slackFetch);
+  return tells.reduce((n, t) => n + t.emails.length, 0);
 }

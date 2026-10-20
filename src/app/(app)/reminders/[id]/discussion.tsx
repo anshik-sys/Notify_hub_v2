@@ -12,6 +12,7 @@ type Props = {
   timeZone: string;
   thread: (ThreadComment & { replies: ThreadComment[] })[];
   people: Person[];
+  photos: Map<string, string>;
   viewerId: string;
   canModerate: boolean;
 };
@@ -41,7 +42,7 @@ function Comment({ c, threadId, p }: { c: ThreadComment; threadId: string; p: Pr
   const mine = c.authorId === p.viewerId;
   return (
     <article id={`comment-${c.id}`} className={styles.comment}>
-      {c.deleted ? <span className={styles.avatarGap} /> : <Avatar name={c.authorName} />}
+      {c.deleted ? <span className={styles.avatarGap} /> : <Avatar name={c.authorName} photo={c.authorId ? p.photos.get(c.authorId) : undefined} />}
       <div className={styles.main}>
         <header className={styles.meta}>
           {!c.deleted && <strong>{c.authorName}</strong>}

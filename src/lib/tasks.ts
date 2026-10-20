@@ -1,7 +1,7 @@
 import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { reminderOccurrences, reminders, taskAssignments, user } from "@/db/schema";
-import { addNotifications } from "./notifications";
+import { notifications, reminderOccurrences, reminders, taskAssignments, user } from "@/db/schema";
+import { planTell, sendTell, type Tell } from "./notifications";
 
 type Tx = Parameters<Parameters<typeof withTenant>[1]>[0];
 
@@ -17,38 +17,43 @@ export async function setDone(viewerId: string, companyId: string, assignmentId:
       .set({ doneAt: done ? new Date() : null })
       .where(and(eq(taskAssignments.id, assignmentId), eq(taskAssignments.userId, viewerId)))
       .returning({ occurrenceId: taskAssignments.occurrenceId });
-    if (rows.length && done) await notifyIfAllDone(tx, companyId, rows[0].occurrenceId);
-    return rows;
+    const tell = rows.length && done ? await notifyIfAllDone(tx, companyId, rows[0].occurrenceId) : null;
+    return { rows, tell };
   });
-  return updated.length ? null : "That task isn't yours to mark.";
+  if (updated.tell) await sendTell(updated.tell);
+  return updated.rows.length ? null : "That task isn't yours to mark.";
 }
 
 // The creator hears once per occurrence, when the last assignee is done
 // (not per person: a 100-person task would bury everything else). Locking the
 // occurrence keeps two "last" clicks from both seeing the other still open.
-export async function notifyIfAllDone(tx: Tx, companyId: string, occurrenceId: string) {
+// Returns the email/Slack to send after commit, only the first time (the
+// dedupe key makes an undo and redo a no-op).
+export async function notifyIfAllDone(tx: Tx, companyId: string, occurrenceId: string): Promise<Tell | null> {
   const [occ] = await tx
-    .select({ reminderId: reminderOccurrences.reminderId, createdBy: reminders.createdBy })
+    .select({ reminderId: reminderOccurrences.reminderId, createdBy: reminders.createdBy, title: reminders.title })
     .from(reminderOccurrences)
     .innerJoin(reminders, eq(reminders.id, reminderOccurrences.reminderId))
     .where(eq(reminderOccurrences.id, occurrenceId))
     .for("update", { of: reminderOccurrences });
-  if (!occ) return;
+  if (!occ) return null;
   const [{ open }] = await tx
     .select({ open: sql<number>`count(*) filter (where ${taskAssignments.doneAt} is null)::int` })
     .from(taskAssignments)
     .where(eq(taskAssignments.occurrenceId, occurrenceId));
-  if (open > 0) return;
-  await addNotifications(tx, [
-    {
-      companyId,
-      userId: occ.createdBy,
-      kind: "tasks_done",
-      reminderId: occ.reminderId,
-      text: "Everyone has marked it done",
-      dedupeKey: `done:${occurrenceId}`,
-    },
-  ]);
+  if (open > 0) return null;
+  const text = "Everyone has marked it done";
+  const fresh = await tx
+    .insert(notifications)
+    .values({ companyId, userId: occ.createdBy, kind: "tasks_done", reminderId: occ.reminderId, text, dedupeKey: `done:${occurrenceId}` })
+    .onConflictDoNothing()
+    .returning({ id: notifications.id });
+  if (!fresh.length) return null;
+  return planTell(tx, companyId, [occ.createdBy], "tasks_done", {
+    subject: `Done: ${occ.title}`,
+    text: `${text}: "${occ.title}".`,
+    link: { label: "Open the task", url: `${process.env.BETTER_AUTH_URL}/reminders/${occ.reminderId}` },
+  });
 }
 
 // Per-person status for one occurrence (owners' view).

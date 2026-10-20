@@ -16,7 +16,7 @@ import { cancelReminderAction, decideReminderAction, deleteReminderAction, markO
 import { Discussion } from "./discussion";
 import styles from "./page.module.css";
 import { listComments } from "@/lib/comments";
-import { listUsers } from "@/lib/users";
+import { listUsers, photoUrls } from "@/lib/users";
 
 const DELIVERY_LABELS = { queued: "Queued", sending: "Sending", sent: "Sent", failed: "Failed" } as const;
 // Server-rendered per request, so "now" is the request time.
@@ -37,13 +37,14 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   // Owners see everyone's progress on the latest occurrence; anyone assigned sees their own.
   const progress = r.isTask && log?.latest ? await taskProgress(companyId, log.latest.id) : null;
   const mine = r.isTask ? await myTaskStatus(companyId, user.id, r.id) : null;
-  const [files, thread, people] = await Promise.all([
+  const [files, thread, people, photos] = await Promise.all([
     listAttachments(companyId, r.id),
     listComments(companyId, r.id),
     // The mention list is the directory: only for those allowed to see it.
     can(access, "users.view")
       ? listUsers(companyId).then((x) => x.users.filter((u) => !u.deactivatedAt).map(({ id, name, email }) => ({ id, name, email })))
       : [],
+    photoUrls(companyId),
   ]);
   const { error: errorParam, notice: noticeParam } = await props.searchParams;
   const [error, notice] = [firstParam(errorParam), firstParam(noticeParam)];
@@ -235,6 +236,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
               timeZone={tz}
               thread={thread}
               people={people}
+              photos={photos}
               viewerId={user.id}
               canModerate={can(access, "comments.delete_any")}
             />

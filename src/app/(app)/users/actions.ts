@@ -5,7 +5,7 @@ import { createInvitation, revokeInvitation } from "@/lib/invitations";
 import { can, type Permission } from "@/lib/permissions";
 import { limits } from "@/lib/rate-limit";
 import { requireMember } from "@/lib/session";
-import { adminResetTwoFactor, erasePerson, renamePerson, setActive, setUserRoles, signOutPerson } from "@/lib/users";
+import { adminResetTwoFactor, erasePerson, removePhoto, renamePerson, setActive, setUserRoles, signOutPerson } from "@/lib/users";
 import { isUserId, isUuid } from "@/lib/validate";
 import { errorUrl } from "@/components/form";
 
@@ -77,6 +77,15 @@ export async function renamePersonAction(formData: FormData) {
   if (!isUserId(userId)) notFound();
   const error = await renamePerson({ id: user.id, access }, companyId, userId, String(formData.get("name") ?? ""));
   redirect(error ? errorUrl(`/users/${userId}`, error) : `/users/${userId}?notice=Name%20saved.`);
+}
+
+// PRD 3.3: someone who may manage this person can take an unsuitable photo down.
+export async function removePersonPhotoAction(formData: FormData) {
+  const { user, companyId, access } = await requirePermission("users.edit");
+  const userId = String(formData.get("userId"));
+  if (!isUserId(userId)) notFound();
+  const error = await removePhoto({ id: user.id, access }, companyId, userId);
+  redirect(error ? errorUrl(`/users/${userId}`, error) : `/users/${userId}?notice=Photo%20removed.`);
 }
 
 export async function signOutPersonAction(formData: FormData) {

@@ -38,14 +38,21 @@ export async function setProfile(companyId: string, name: string, timeZone: stri
 // PRD 4 branding. Raster images only (no SVG: it can carry scripts), checked
 // by their bytes, small enough for an email header.
 export const LOGO_MAX_BYTES = 256 * 1024;
-const LOGO_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+// A raster image checked by its bytes (logo, profile photo), or an error.
+export function checkImage(fileName: string, bytes: Uint8Array, maxBytes: number, what: string) {
+  if (bytes.length > maxBytes) return { error: `The ${what} must be ${maxBytes / 1024 >= 1024 ? `${maxBytes / 1024 / 1024} MB` : `${maxBytes / 1024} KB`} or smaller.` };
+  const checked = checkFile(fileName, bytes);
+  if ("error" in checked) return checked;
+  if (!IMAGE_TYPES.includes(checked.file.contentType)) return { error: "Use a PNG, JPEG, GIF or WebP image." };
+  return { image: checked.file };
+}
 
 export async function setLogo(companyId: string, fileName: string, bytes: Uint8Array) {
-  if (bytes.length > LOGO_MAX_BYTES) return "The logo must be 256 KB or smaller.";
-  const checked = checkFile(fileName, bytes);
+  const checked = checkImage(fileName, bytes, LOGO_MAX_BYTES, "logo");
   if ("error" in checked) return checked.error;
-  if (!LOGO_TYPES.includes(checked.file.contentType)) return "Use a PNG, JPEG, GIF or WebP image.";
-  await withTenant(companyId, (tx) => putLogo(tx, companyId, checked.file.contentType, checked.file.data));
+  await withTenant(companyId, (tx) => putLogo(tx, companyId, checked.image.contentType, checked.image.data));
   return null;
 }
 

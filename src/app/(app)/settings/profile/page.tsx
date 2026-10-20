@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Button, Field, firstParam, Form, Hint, Page, Section, SelectField } from "@/components/form";
+import { Avatar } from "@/components/avatar";
+import { Button, Checkbox, Field, FileField, firstParam, Form, Hint, Page, Section, SelectField } from "@/components/form";
 import { List, ListRow } from "@/components/list";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { TIME_ZONES } from "@/lib/time";
@@ -7,20 +8,22 @@ import { managersOfMyDepartments } from "@/lib/departments";
 import { groupsOf } from "@/lib/groups";
 import { visibleRoles } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
-import { getUser } from "@/lib/users";
+import { getUser, photoUrls } from "@/lib/users";
 import { hasPassword } from "@/lib/account";
-import { changeEmailAction, saveProfileAction, signOutAction } from "../account-actions";
+import { changeEmailAction, savePhotoAction, saveProfileAction, signOutAction } from "../account-actions";
 
 // PRD 3.3: your name and time zone; what you belong to (read-only).
 export default async function Profile(props: PageProps<"/settings/profile">) {
   const { user, companyId, company } = await requireMember();
-  const [me, roles, groups, managers, withPassword] = await Promise.all([
+  const [me, roles, groups, managers, withPassword, photos] = await Promise.all([
     getUser(companyId, user.id),
     visibleRoles(companyId),
     groupsOf(companyId, user.id),
     managersOfMyDepartments(companyId, user.id),
     hasPassword(user.id),
+    photoUrls(companyId),
   ]);
+  const photo = photos.get(user.id);
   const sp = await props.searchParams;
 
   return (
@@ -36,6 +39,16 @@ export default async function Profile(props: PageProps<"/settings/profile">) {
         <Hint>Changes how times are shown to you. Reminders still send at the time they were set for.</Hint>
         <Button>Save</Button>
       </Form>
+
+      <Section title="Photo">
+        <Form action={savePhotoAction}>
+          <Avatar name={user.name} photo={photo} size="large" />
+          <FileField label={photo ? "Replace your photo" : "Upload a photo"} name="photo" accept="image/png,image/jpeg,image/gif,image/webp" />
+          <Hint>PNG, JPEG, GIF or WebP, up to 1 MB. People in your company see it next to your name.</Hint>
+          {photo && <Checkbox label="Remove my photo" name="remove" />}
+          <Button>Save photo</Button>
+        </Form>
+      </Section>
 
       <Section title="Email">
         <Form action={changeEmailAction}>

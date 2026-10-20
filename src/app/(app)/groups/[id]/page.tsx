@@ -5,6 +5,7 @@ import { Badge, Muted, Table } from "@/components/table";
 import { getGroup, mayEditGroup } from "@/lib/groups";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
+import { photoUrls } from "@/lib/users";
 import { isUuid } from "@/lib/validate";
 import { PeoplePicker } from "../../reminders/people-picker";
 import { addGroupMembersAction, deleteGroupAction, removeGroupMemberAction, renameGroupAction } from "../actions";
@@ -15,7 +16,7 @@ export default async function GroupDetail(props: PageProps<"/groups/[id]">) {
   if (!isUuid(id)) notFound();
   const { user, companyId, access } = await requireMember();
   if (!can(access, "users.view")) notFound();
-  const g = await getGroup(companyId, id); // RLS: only this company's
+  const [g, photos] = await Promise.all([getGroup(companyId, id), photoUrls(companyId)]); // RLS: only this company's
   if (!g) notFound();
   const sp = await props.searchParams;
   const edit = mayEditGroup({ id: user.id, access }, g);
@@ -35,7 +36,7 @@ export default async function GroupDetail(props: PageProps<"/groups/[id]">) {
             key: m.id,
             cells: [
               <span key="n" className={styles.person}>
-                <Avatar name={m.name} />
+                <Avatar name={m.name} photo={photos.get(m.id)} />
                 {m.name}
                 {m.deactivatedAt && <Badge tone="danger">Deactivated</Badge>}
               </span>,

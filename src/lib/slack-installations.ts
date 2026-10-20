@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { slackInstallations, user } from "@/db/schema";
 import { decrypt, encrypt } from "./crypto";
-import { listChannels, lookupByEmail, openDm, postMessage, revoke } from "./slack";
+import { linkDm, listChannels, revoke } from "./slack";
 
 // "Add to Slack" CSRF state cookie (set by /api/slack/install, checked by /api/slack/oauth).
 export const STATE_COOKIE = "slack_oauth_state";
@@ -35,14 +35,7 @@ export async function getInstallation(companyId: string) {
 export async function dmLink(companyId: string, email: string, text: string, link: { label: string; url: string }, f?: typeof fetch) {
   const inst = await getInstallation(companyId);
   if (!inst) return;
-  const token = inst.token();
-  const slackUser = await lookupByEmail(token, email, f);
-  if (!slackUser) return;
-  const channel = await openDm(token, slackUser, f);
-  await postMessage(token, channel, text, [
-    { type: "section", text: { type: "plain_text", text: text.slice(0, 2900) } },
-    { type: "actions", elements: [{ type: "button", text: { type: "plain_text", text: link.label }, url: link.url, action_id: "open" }] },
-  ], f);
+  await linkDm(inst.token(), email, text, link, f);
 }
 
 export async function saveInstallation(

@@ -10,6 +10,7 @@ import {
   markReadForReminder,
   mutedFor,
   openNotification,
+  planTell,
   setMutes,
   unreadCount,
 } from "./notifications";
@@ -80,4 +81,33 @@ test("mutes: unticked channels, unknown keys ignored", async () => {
   assert.deepEqual([...muted], [`${alice}:email`]);
   await setMutes(s.companyId, alice, []);
   assert.equal((await getMutes(s.companyId, alice)).size, 0);
+});
+
+test("defaults: new events start off, existing ones on; opting in stores a row", async () => {
+  const carol = await s.user();
+  const off = await getMutes(s.companyId, carol);
+  assert.deepEqual([...off].sort(), ["approved:email", "approved:slack", "comment:email", "comment:slack", "failed:slack", "tasks_done:email", "tasks_done:slack"]);
+  const muted = (event: Parameters<typeof mutedFor>[2]) => withTenant(s.companyId, (tx) => mutedFor(tx, [carol], event));
+  assert.deepEqual([...(await muted("comment"))].sort(), [`${carol}:email`, `${carol}:slack`]);
+  assert.equal((await muted("mention")).size, 0);
+  // Tick "comment by email": everything else as it was.
+  await setMutes(s.companyId, carol, [...off].filter((k) => k !== "comment:email"));
+  assert.deepEqual([...(await muted("comment"))], [`${carol}:slack`]);
+  assert.deepEqual(await q("select event, channel, enabled from notification_mutes where user_id = $1", [carol]), [
+    { event: "comment", channel: "email", enabled: true },
+  ]);
+});
+
+test("planTell: only active people of this company, by their choices; no Slack without a connection", async () => {
+  const [dan, gone] = [await s.user(), await s.user()];
+  await q(`update "user" set deactivated_at = now() where id = $1`, [gone]);
+  const outsider = await other.user();
+  const t = await withTenant(s.companyId, (tx) =>
+    planTell(tx, s.companyId, [dan, gone, outsider, dan], "mention", { subject: "S", text: "T", link: { label: "L", url: "u" } }),
+  );
+  const [{ email }] = await q(`select email from "user" where id = $1`, [dan]);
+  assert.deepEqual(t.emails, [email]);
+  assert.equal(t.slack, null);
+  const quiet = await withTenant(s.companyId, (tx) => planTell(tx, s.companyId, [dan], "comment", { subject: "S", text: "T", link: { label: "L", url: "u" } }));
+  assert.deepEqual(quiet.emails, []); // comment emails start off
 });

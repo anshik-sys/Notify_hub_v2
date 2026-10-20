@@ -38,6 +38,14 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0040: `user_photos` (profile photos, one per person, tenant RLS,
+audited without the bytes), `notification_mutes.enabled`, and a new
+`erase_person()` that also deletes the photo. Existing mute rows are "turned
+off" choices and keep working. New notification channels (approved, comments
+on my reminder, all done, failed by Slack) start off for everyone, so nobody
+gets new mail from this deploy. `/api/avatar/*` is private: if a CDN sits in
+front, don't cache it publicly.
+
 Migration 0034: `company_logos` (logo bytes, one per company, audited without
 the bytes). `/api/logo/<id>` is public and cacheable: if a CDN sits in front,
 let it cache `/api/logo/*`.
@@ -262,7 +270,8 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] New reminder form: the Preview updates as you type (email and, with Slack ticked, the Slack message). On a saved reminder, "Send me a test" → one "[Test] …" email (and a Slack DM) to you only, and no change to its sent count.
 - [ ] Send now on a daily reminder: recipients get it within seconds and "Next" doesn't move; on a one-time reminder for next week, it's sent now and shows Sent.
 - [ ] Send a reminder to a colleague: their sidebar shows "Notifications 1"; clicking it in Notifications opens the reminder and the count goes away. "Mark all read" clears the rest.
-- [ ] Notifications → Preferences: untick approval emails; a new out-of-scope reminder shows up in Notifications but sends no approval email.
+- [ ] Notifications → Preferences: untick approval emails; a new out-of-scope reminder shows up in Notifications but sends no approval email. "Someone commented on my reminder" starts unticked; tick its email, and a colleague's comment emails you once.
+- [ ] Profile → Photo: upload a PNG → it shows in the sidebar, top bar, Team and Discussion; an SVG or a 2 MB file is refused; signed out, `/api/avatar/<id>` goes to sign-in.
 - [ ] Home: each stat card's number matches the list it opens. Reminders: search by a recipient's name finds it; filters and page 2 survive a reload and the back button.
 - [ ] Tags: add "Finance, Q3" to a reminder → shown as chips; clicking one lists reminders with that tag.
 - [ ] My tasks: Mark done moves it to Done and stays on the page; Calendar shows a daily reminder on each remaining day, not on a skipped one.
