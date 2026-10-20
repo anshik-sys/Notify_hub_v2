@@ -241,13 +241,14 @@ export type CalendarEntry = {
   // Created by or sent to the colleague being overlaid (C10).
   theirs: boolean;
   // For the peek card (K1–K3):
-  color: CalendarColor; // chosen, or the type's default
+  color: CalendarColor; // the viewer's own choice, or the type's default
+  myColor: boolean; // the viewer picked it (vs the default)
   repeat: string | null; // "Every weekday", for an upcoming series
   recipients: string | null; // labels, only for those with full access (PRD 5.4)
   canChange: boolean; // mayChange's twin: edit, delete, colour
   assignment: { id: string; done: boolean } | null; // the viewer's, on a sent task
 };
-// PRD 14.2 defaults when a reminder has no colour of its own.
+// PRD 14.2 defaults when the viewer hasn't picked a colour (colours are personal).
 export const DEFAULT_COLOR = { reminder: "lavender", task: "sage" } as const;
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 export const CALENDAR_LIMIT = 500;
@@ -304,7 +305,7 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
       left join "user" u on t.kind = 'user' and u.id = t.ref
       where t.reminder_id = "reminders"."id")`, // qualified: d, g and u have an id too
     createdBy: reminders.createdBy,
-    color: reminders.color,
+    color: sql<CalendarColor | null>`(select rc.color from reminder_colors rc where rc.reminder_id = "reminders"."id" and rc.user_id = ${viewer.id})`,
   };
   const { rows, recorded, sent } = await withTenant(companyId, async (tx) => {
     const rows = await tx
@@ -387,6 +388,7 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
       layers: layers.length ? layers : (["other"] as Layer[]),
       theirs: r.theirs,
       color: r.color ?? DEFAULT_COLOR[r.isTask ? "task" : "reminder"],
+      myColor: r.color !== null,
       recipients: r.full ? r.recipients : null,
       canChange: r.createdBy === viewer.id || (r.full && mayEdit),
       repeat: null,

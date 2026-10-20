@@ -316,8 +316,6 @@ export const reminders = pgTable(
     dueAfterMinutes: integer(),
     // Free-form labels for filtering (PRD 5.1): lowercase, validated in validateInput.
     tags: text().array().notNull().default(sql`'{}'`),
-    // Null: the default for its type (reminder or task).
-    color: text().$type<CalendarColor>(),
     status: text().$type<ReminderStatus>().notNull(),
     decidedBy: text().references(() => user.id),
     decidedAt: ts(),
@@ -341,7 +339,6 @@ export const reminders = pgTable(
     index("reminders_tags_idx").using("gin", t.tags),
     check("reminders_task_due", sql`not ${t.isTask} or ${t.dueAfterMinutes} > 0`),
     check("reminders_channels_valid", sql`cardinality(${t.channels}) > 0 and ${t.channels} <@ array['email','slack']`),
-    check("reminders_color_valid", sql`${t.color} is null or ${t.color} in ('tomato','flamingo','tangerine','banana','sage','basil','peacock','blueberry','lavender','grape','graphite')`),
     check("reminders_status_valid", sql`${t.status} in ('pending_approval','rejected','scheduled','paused','sending','sent','cancelled')`),
     tenantPolicy("company_id"),
   ],
@@ -560,6 +557,29 @@ export const companyLogos = pgTable(
     updatedAt: ts().notNull().defaultNow(),
   },
   () => [tenantPolicy("company_id")],
+).enableRLS();
+
+// PRD 14.2 colours are personal, like Google Calendar's: each person's own
+// colour for a reminder on their calendar. No row = the type's default.
+export const reminderColors = pgTable(
+  "reminder_colors",
+  {
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    reminderId: uuid()
+      .notNull()
+      .references(() => reminders.id, { onDelete: "cascade" }),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id, { onDelete: "cascade" }),
+    color: text().$type<CalendarColor>().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.reminderId] }),
+    check("reminder_colors_valid", sql`${t.color} in ('tomato','flamingo','tangerine','banana','sage','basil','peacock','blueberry','lavender','grape','graphite')`),
+    tenantPolicy("company_id"),
+  ],
 ).enableRLS();
 
 // A person's profile photo (PRD 3.3), one per person; bytes only through

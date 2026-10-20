@@ -2,6 +2,35 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — calendar colours are personal, like Google Calendar's
+
+- The user, signed in as Alice (a member), saw no colour dots. That was by
+  design: slice 2's colour was shared, so only whoever could change the
+  reminder could set it, and Alice owns two reminders. Asked, the user chose
+  **personal** colours: everyone colours what they see, for themselves only.
+- **How:** `reminder_colors` (user, reminder, colour; migration 0042, tenant
+  RLS, cascades with the reminder and the person). `setMyColor` checks that
+  the viewer can open the reminder (`reminderAccess`, with their real email);
+  "" deletes the row (back to the default). `calendarRange` reads the
+  viewer's own row. Every card has the 11 dots, "Only you see this colour"
+  and, once picked, "Reset".
+- **Removed:** `reminders.color` and the form's colour field. The migration
+  copies the two colours already set to their creators, so nothing set was
+  lost. Duplicate no longer copies a colour.
+- **Personal data:** in `erase_person()` (replaced in 0042) and
+  `exportPerson`. No audit trigger: it's a viewer preference, like
+  notification mutes.
+- **Verified:** 293 tests pass, 8 skipped.
+  - Rewritten test: two people's colours for one reminder are independent,
+    someone who can't open it is refused, and Reset removes the row.
+  - The calendar shows each viewer their own colour.
+  - RLS case for the new table.
+  - Typecheck, lint.
+
+  **In Chrome:** Alice's card on Maya's standup has 11 dots; grape turns it
+  grape for her; Maya still sees her own colour; Alice's Reset brings back
+  lavender and her row is gone.
+
 ## 2026-10-20 — calendar slice 2: peek card, colours, duplicate
 
 - Spec K1–K4, L1–L5, U1–U4. Clicking an entry no longer leaves the calendar.

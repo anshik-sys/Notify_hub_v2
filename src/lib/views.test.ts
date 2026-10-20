@@ -205,6 +205,15 @@ test("calendarRange: waiting and sent entries, layers, a colleague's overlay", a
   assert.equal(by("Paused one"), undefined);
   assert.equal(by("Went out"), undefined); // shown as it was sent, once
 
+  // Colours are personal: the default by type, then the viewer's own choice; others keep theirs.
+  assert.deepEqual([by("Task for ops")?.color, by("Task for ops")?.myColor], ["sage", false]);
+  assert.equal(by("All hands")?.color, "lavender");
+  await q("insert into reminder_colors (user_id, reminder_id, company_id, color) values ($1, $2, $3, 'tomato')", [alice, task, s.companyId]);
+  const mine = [...(await calendarRange(s.companyId, await viewer(alice), "UTC", range))!.days.values()].flat().find((e) => e.title === "Task for ops");
+  assert.deepEqual([mine?.color, mine?.myColor], ["tomato", true]);
+  const admins = [...(await calendarRange(s.companyId, await viewer(admin), "UTC", range))!.days.values()].flat().find((e) => e.title === "Task for ops");
+  assert.deepEqual([admins?.color, admins?.myColor], ["sage", false]);
+
   // Layers: hidden only when all of an entry's layers are off.
   assert.equal(shownOn(by("Task for ops")!, new Set(["departments"])), true);
   assert.equal(shownOn(by("Task for ops")!, new Set(["company", "other"])), false);
@@ -228,7 +237,7 @@ test("search finds a reminder by its creator's name", async () => {
 test("layoutDay: minutes from midnight; overlapping blocks share the width", () => {
   const e = (hhmm: string, title = hhmm): CalendarEntry => ({
     reminderId: title, title, at: new Date(`2031-05-06T${hhmm}:00Z`), isTask: false, state: "scheduled", layers: ["mine"], theirs: false,
-    color: "lavender", repeat: null, recipients: null, canChange: true, assignment: null,
+    color: "lavender", myColor: false, repeat: null, recipients: null, canChange: true, assignment: null,
   });
   const lay = (...es: CalendarEntry[]) => layoutDay(es, "UTC").map((p) => [p.entry.title, p.minute, p.lane, p.lanes]);
   assert.deepEqual(lay(e("09:00"), e("11:00")), [["09:00", 540, 0, 1], ["11:00", 660, 0, 1]]); // apart: full width

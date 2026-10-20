@@ -14,7 +14,7 @@ const day = (d: Date, tz: string) => d.toLocaleDateString("en-GB", { weekday: "s
 // opening a native popover (Esc and clicking outside close it; focus goes back
 // to the entry), placed beside it with CSS anchor positioning. The card shows
 // only what the server says this viewer may do; every action is a server
-// action that checks again.
+// action that checks again. The colour is the viewer's own.
 export function Entry({
   e,
   n,
@@ -90,10 +90,11 @@ export function Entry({
           )}
         </div>
 
-        {e.canChange && (
-          <form action={setColorAction} className={styles.swatches} aria-label="Colour">
-            <input type="hidden" name="id" value={e.reminderId} />
-            <input type="hidden" name="next" value={next} />
+        {/* Personal, like Google Calendar's: anyone who sees it picks their own colour. */}
+        <form action={setColorAction} className={styles.colours}>
+          <input type="hidden" name="id" value={e.reminderId} />
+          <input type="hidden" name="next" value={next} />
+          <div className={styles.swatches} role="group" aria-label="My colour for this reminder">
             {CALENDAR_COLORS.map((c) => (
               <button
                 key={c}
@@ -107,8 +108,16 @@ export function Entry({
                 {c === e.color && <Icon name="check" size={14} />}
               </button>
             ))}
-          </form>
-        )}
+          </div>
+          <p className={styles.colourHint}>
+            Only you see this colour.
+            {e.myColor && (
+              <button name="color" value="" className={styles.reset}>
+                Reset
+              </button>
+            )}
+          </p>
+        </form>
 
         {canCreate && (
           <details className={styles.fold}>

@@ -382,7 +382,7 @@ deleted = hidden everywhere.
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| U1 | Duplicate an entry to a date and time | A new one-time reminder: same title, description, links, tags, recipients, channels, files, sharing, colour, task settings | PRD 14.2. **(proposed: always one-time; repeat can be set in the full form)** | |
+| U1 | Duplicate an entry to a date and time | A new one-time reminder: same title, description, links, tags, recipients, channels, files, sharing, task settings (not anyone's colour: colours are personal) | PRD 14.2. **(proposed: always one-time; repeat can be set in the full form)** | |
 | U2 | Who it belongs to | The person who duplicated it; approval is checked as them, so copying an admin's company-wide reminder as a member needs approval | Scope rules (PRD 5.2) | |
 | U3 | Comments, delivery history, task completion | Not copied | | |
 | U4 | Duplicate something you can only view | Allowed if you can create reminders (you saw its content anyway) | **(proposed)** | |
@@ -392,9 +392,9 @@ deleted = hidden everywhere.
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
 | L1 | The palette | 11 named colours, each readable in light and dark themes (text ≥ 4.5:1 on its fill, checked) | PRD 14.2 | |
-| L2 | Pick a colour on the form or the peek card | Saved on the reminder; every occurrence shows it | PRD 14.2 | |
+| L2 | Pick a colour on the peek card | Saved **for me only** (like Google Calendar); every occurrence shows it on my calendar; nobody else's view changes; "Reset" goes back to the default | PRD 14.2; user's decision 2026-10-20 (personal colours) | |
 | L3 | No colour picked | Reminders and tasks each have a default colour | PRD 14.2 | |
-| L4 | Who may pick it | Whoever may change the reminder | Existing | |
+| L4 | Who may pick it | Anyone who can open the reminder, for themselves; someone who can't open it is refused | User's decision 2026-10-20 | |
 | L5 | Other screens | Only calendar entries are coloured; day cells, lists and emails stay as they are | PRD 14.2 | |
 
 ### Not in this step

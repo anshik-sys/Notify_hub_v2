@@ -433,10 +433,13 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     plus `reminders.edit`), and recipients show only with full access. Every
     action is a server action that checks again. Delete on the card is
     one-time only; repeating ones get "this / following / all" in slice 4.
-  - **Colours:** `reminders.color` (one of `CALENDAR_COLORS`, or null for the
-    type's default, `DEFAULT_COLOR`), tokens `--cal-<name>-bg/fg` in all
-    three theme blocks (text on fill ≥ 6:1). Only calendar entries are
-    coloured.
+  - **Colours are personal**, like Google Calendar's (decided 2026-10-20):
+    `reminder_colors` (user, reminder, colour; no row = `DEFAULT_COLOR` by
+    type), set by `setMyColor` for anyone who can open the reminder. There's
+    no shared colour on the reminder itself, and no audit trigger (a viewer
+    preference, like `notification_mutes`). It's in `erase_person()` (0042)
+    and `exportPerson`. Tokens `--cal-<name>-bg/fg` are in all three theme
+    blocks (text on fill ≥ 6:1). Only calendar entries are coloured.
   - **Duplicate (`duplicateReminder`):** a one-time copy owned by whoever
     copies it, approval checked as them, files copied, comments and history
     not. Rate-limited (it copies files).

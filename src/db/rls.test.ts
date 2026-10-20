@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import { db, withTenant } from "./index";
-import { attachmentBlobs, attachments, auditLog, departments, emailSuppressions, groupMembers, groups, notificationMutes, reminderShares, userPhotos, notifications, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
+import { attachmentBlobs, attachments, auditLog, departments, emailSuppressions, groupMembers, groups, notificationMutes, reminderColors, reminderShares, userPhotos, notifications, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
 import { ALL_PERMISSIONS, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "@/lib/permissions";
 
 // Seeds as the owner (bypasses RLS), then reads through the app role.
@@ -87,6 +87,15 @@ test("slack installations and task assignments are tenant-isolated", async () =>
   await owner.query("insert into user_photos (user_id, company_id, content_type, data) values ($1, $2, 'image/png', '\\x89')", [`u-${b}`, b]);
   assert.equal((await withTenant(a, (tx) => tx.select().from(userPhotos))).length, 0);
   assert.equal((await withTenant(b, (tx) => tx.select().from(userPhotos))).length, 1);
+  const [{ id: colored }] = (
+    await owner.query(
+      `insert into reminders (company_id, short_id, created_by, title, sender_name, send_at, status, time_zone, anchor_local) values ($1, 'R-RLSCOLOR1', $2, 'B', 'S', now() + interval '1 year', 'cancelled', 'UTC', '2030-01-01T00:00') returning id`,
+      [b, `u-${b}`],
+    )
+  ).rows;
+  await owner.query("insert into reminder_colors (user_id, reminder_id, company_id, color) values ($1, $2, $3, 'sage')", [`u-${b}`, colored, b]);
+  assert.equal((await withTenant(a, (tx) => tx.select().from(reminderColors))).length, 0);
+  assert.equal((await withTenant(b, (tx) => tx.select().from(reminderColors))).length, 1);
   const [{ id: gb }] = (await owner.query("insert into groups (company_id, name) values ($1, 'B group') returning id", [b])).rows;
   await owner.query("insert into group_members values ($1, $2, $3)", [gb, b, `u-${b}`]);
   assert.equal((await withTenant(a, (tx) => tx.select().from(groups))).length, 0);

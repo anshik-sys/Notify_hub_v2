@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { aliasedTable, and, desc, eq, gte, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { attachments, companies, companyApprovers, deliveries, departmentMembers, emailSuppressions, departments, groupMembers, groups, notifications, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, taskAssignments, user, userRoles, CALENDAR_COLORS, type CalendarColor, type ReminderStatus } from "@/db/schema";
+import { attachments, companies, companyApprovers, deliveries, departmentMembers, emailSuppressions, departments, groupMembers, groups, notifications, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, reminderColors, taskAssignments, user, userRoles, CALENDAR_COLORS, type CalendarColor, type ReminderStatus } from "@/db/schema";
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
 import { addNotifications, mutedFor, planTell, sendTell } from "./notifications";
@@ -30,8 +30,6 @@ export type ReminderInput = {
   targets: Target[];
   // PRD 5.4: who else may see it. "mine" = the creator's departments, expanded at save.
   shares: Share[];
-  // PRD 14.2: the calendar colour; null = the type's default. Left out = unchanged.
-  color?: CalendarColor | null;
 };
 export type Share = { kind: "mine" | "department" | "group" | "company"; ref: string | null };
 type Actor = { id: string; access: Access };
@@ -65,7 +63,6 @@ export type RawReminder = {
   shareDepartmentIds: string[];
   shareGroupIds: string[];
   shareCompany: boolean;
-  color?: string; // missing = the type's default
 };
 
 // The New/Edit form's post (reminder-form.tsx) -> RawReminder. The field names
@@ -94,7 +91,6 @@ export function formToRaw(fd: FormData): RawReminder {
     shareDepartmentIds: all("shareDepartments"),
     shareGroupIds: all("shareGroups"),
     shareCompany: fd.get("shareCompany") === "on",
-    color: str("color"),
     isTask: fd.get("isTask") === "on",
     dueLocal: str("due"),
     repeat: {
@@ -204,8 +200,6 @@ export function validateInput(
   }
   const tags = parseTags(raw.tags);
   if ("error" in tags) return tags;
-  const color = colorFrom(raw.color ?? "");
-  if (color === undefined) return { error: "Pick a colour from the list." };
   // The whole company covers every narrower share.
   const shares: Share[] = raw.shareCompany
     ? [{ kind: "company", ref: null }]
@@ -230,7 +224,6 @@ export function validateInput(
       dueAfterMinutes,
       channels,
       targets,
-      color,
     } satisfies ReminderInput,
   };
 }
@@ -651,23 +644,29 @@ export async function detachOccurrence(
   return { id: result.id };
 }
 
-// PRD 14.2: the calendar colour, set from the peek card. "" = the default.
-export async function setReminderColor(actor: Actor, companyId: string, id: string, raw: string) {
+// PRD 14.2, personal like Google Calendar's: the viewer's own colour for a
+// reminder on their calendar; nobody else's view changes. Anyone who can open
+// the reminder may pick one. "" = back to the type's default.
+export async function setMyColor(viewer: Actor & { email: string }, companyId: string, id: string, raw: string) {
   const color = colorFrom(raw);
   if (color === undefined) return "Pick a colour from the list.";
-  const result = await refusals(() =>
-    withTenant(companyId, async (tx) => {
-      const [r] = await tx.select({ createdBy: reminders.createdBy }).from(reminders).where(and(eq(reminders.id, id), isNull(reminders.deletedAt)));
-      if (!r || !(await mayChange(companyId, actor, r.createdBy))) throw new Refused("Reminder not found.");
-      await tx.update(reminders).set({ color }).where(eq(reminders.id, id));
-      return null;
-    }),
+  const [r] = await withTenant(companyId, (tx) =>
+    tx.select({ id: reminders.id, createdBy: reminders.createdBy }).from(reminders).where(and(eq(reminders.id, id), isNull(reminders.deletedAt))),
   );
-  return result && "error" in result ? result.error : null;
+  if (!r || !(await reminderAccess(companyId, viewer, r))) return "Reminder not found.";
+  await withTenant(companyId, (tx) =>
+    color
+      ? tx
+          .insert(reminderColors)
+          .values({ userId: viewer.id, reminderId: id, companyId, color })
+          .onConflictDoUpdate({ target: [reminderColors.userId, reminderColors.reminderId], set: { color } })
+      : tx.delete(reminderColors).where(and(eq(reminderColors.userId, viewer.id), eq(reminderColors.reminderId, id))),
+  );
+  return null;
 }
 
 // PRD 14.2 duplicate: a one-time copy at `at` with the same content,
-// recipients, channels, task settings, files, sharing and colour. It belongs
+// recipients, channels, task settings, files and sharing. It belongs
 // to whoever duplicates it, so approval is checked as them (PRD 5.2): copying
 // an admin's company-wide reminder as a member needs approval. Comments,
 // history and completion aren't copied. Anyone who can create reminders may
@@ -698,7 +697,6 @@ export async function duplicateReminder(actor: Actor & { email: string }, compan
         tags: orig.tags,
         targets,
         shares,
-        color: orig.color,
       };
       const out = await checked(tx, companyId, actor, input);
       const status: ReminderStatus = out.length ? "pending_approval" : "scheduled";

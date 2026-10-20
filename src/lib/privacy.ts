@@ -47,6 +47,8 @@ export async function exportPerson(companyId: string, userId: string) {
       tx,
       sql`select at, action, object_type, object_label from audit_log where actor_id = ${userId} order by at`,
     ),
+    // Their own calendar colours (PRD 14.2).
+    reminderColors: await q(tx, sql`select r.title as reminder, c.color from reminder_colors c join reminders r on r.id = c.reminder_id where c.user_id = ${userId}`),
     // The image itself too: it's theirs (PRD 11.5).
     photo:
       (

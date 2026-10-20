@@ -15,7 +15,7 @@ import {
   setOccurrenceDone,
   pauseReminder,
   resumeReminder,
-  setReminderColor,
+  setMyColor,
   skipNextOccurrence,
   updateReminder,
   validateInput,
@@ -183,13 +183,13 @@ export async function sendTestAction(fd: FormData) {
 
 const withNotice = (path: string, notice: string) => `${path}${path.includes("?") ? "&" : "?"}notice=${encodeURIComponent(notice)}`;
 
-// PRD 14.2: the colour, from the calendar's peek card (or anywhere with `next`).
+// PRD 14.2: my own colour for a reminder, from the calendar's peek card.
 export async function setColorAction(fd: FormData) {
   const { user, companyId, access } = await requireMember();
   const id = str(fd, "id");
   if (!isUuid(id)) notFound();
   const back = fd.get("next") ? safeNext(fd.get("next")) : `/reminders/${id}`;
-  const error = await setReminderColor({ id: user.id, access }, companyId, id, str(fd, "color"));
+  const error = await setMyColor({ id: user.id, access, email: user.email }, companyId, id, str(fd, "color"));
   redirect(error ? errorUrl(back, error) : back);
 }
 
