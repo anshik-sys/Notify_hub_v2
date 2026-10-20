@@ -1,4 +1,4 @@
-# Expected behaviour: v1 gap items #4, #5, #7, #8, #9, #11
+# Expected behaviour: v1 gap items #4, #5, #7, #8, #9, #11; v2 calendar
 
 What each feature should do, written from the PRD and the product owner's
 decisions, **not** from the code. Behaviour tests are written from this file,
@@ -298,6 +298,122 @@ and the defaults in the section 9 table. N12's "approver's edit" means an
 edit that makes the reminder sendable without approval; an approver editing
 it while it still needs approval changes nothing (tester's reading, matches
 the code).
+
+## 10. Calendar: views and working on entries (v2 step 1, PRD 14.1, 14.2)
+
+Today: a month grid of **scheduled** sends in the viewer's time zone, series
+expanded from their rule, only what the viewer can open (`canViewWhere`), up
+to 500 reminders, read-only (an entry links to the reminder). Events (14.3),
+and with them all-day and multi-day entries, come in step 2.
+
+Rules marked **(proposed)** are mine; confirm or change them before building.
+Everything works the same way it already does elsewhere unless a case says
+otherwise: who may change a reminder (`mayChange`), approval (PRD 5.9),
+deleted = hidden everywhere.
+
+| Function | What it does |
+|---|---|
+| `calendarRange(companyId, viewer, timeZone, { from, to, layers, person? })` (replaces `calendarMonth`) | Entries between two local dates: each with reminder id, occurrence time, title, kind (reminder / task), state (scheduled / needs approval / sent), colour, and whether the viewer may change it. |
+| `quickCreate(actor, companyId, { title, at, kind })` | A reminder or task to yourself at that time, by email. |
+| `moveEntry(actor, companyId, reminderId, occursAt, newAt, scope)` | Drag to reschedule. `scope`: `one` / `following` / `all` (series only). |
+| `deleteEntry(actor, companyId, reminderId, occursAt, scope)` | Delete from the calendar, with the same scopes. |
+| `editOccurrence(…)` (generalises `detachOccurrence`) | "This one" for **any** future occurrence, not only the next. |
+| `duplicateReminder(actor, companyId, reminderId, at)` | A copy at a new date and time. |
+| `colour` (new reminder field) | One of the palette names, or none (the type's default). |
+
+### Views and navigation (14.1)
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| C1 | Open Calendar | Month view of the current month, as today. The view and date are in the URL (`?view=week&date=2026-10-20`), so reload, back and deep links work | PRD 14.1, 8 | |
+| C2 | Week, Day and "4 days" views | Columns per day with hourly rows, entries placed at their time; a line marks now on today. Weeks start on Monday | PRD 14.1. **(proposed: custom = 2–7 days, chosen from a list)** | |
+| C3 | Previous / Next / Today | Move by one unit of the current view (month, week, day, N days); Today goes to the current one | PRD 14.1 | |
+| C4 | Click a week's row in Month; click a day number | Opens that week in Week view; that day in Day view | PRD 14.1 drill down | |
+| C5 | Mini month in a side panel | Clicking a date opens it in the current view; arrows change the mini month without moving the main view | PRD 14.1 | |
+| C6 | What shows | Scheduled sends (series expanded, skipped ones left out), **sent** ones in the past (from what was actually sent, faded), and reminders **waiting for approval** (marked "Needs approval"). Not paused, cancelled, rejected or deleted ones | **(proposed: past sends and waiting ones are new)** | |
+| C7 | Times and days | In the viewer's time zone, as today; a reminder in another zone shows at the viewer's local time | Existing rule | |
+| C8 | Layers on/off: Created by me · Tasks assigned to me · My departments · Company-wide | Each hides or shows its entries; an entry in two layers shows once and hides only when all its layers are off. All on by default; the choice is in the URL | PRD 14.1. **(proposed: "Events I'm invited to" arrives in step 2)** | |
+| C9 | Search by title, tag or a person's name (creator or recipient) | Lists matching entries the viewer can see, next first; picking one opens its date in the current view | PRD 14.1 | |
+| C10 | A colleague's calendar: pick a person | Their entries (created by them or sent to them) are added, outlined, but **only those the viewer could already open**; a colleague's private reminder never shows | PRD 14.1, 5.4 | |
+| C11 | More than fit in a day cell (Month) | "+N more" opens the rest in place, as today | Existing | |
+| C12 | A company with more than 500 scheduled reminders | The first 500 are shown with the existing note | Existing limit | |
+| C13 | A member without `reminders.create` or `view_all` | 404, as today | Existing | |
+
+### Quick create (14.2)
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| Q1 | Click an empty time slot (Week/Day) or a day (Month) | A small box: title, date and time (prefilled from the slot; Month uses 09:00), type Reminder / Task | PRD 14.2. **(proposed: 09:00 for a day click)** | |
+| Q2 | Save | A one-time reminder to **yourself**, by email, scheduled (no approval: you're always in your own scope); it appears at once | PRD 14.2 | |
+| Q3 | Type Task | Also a task assigned to you, due **1 hour after** it's sent | **(proposed: 1 hour)** | |
+| Q4 | Empty title; a time in the past; title over the usual limit | Refused with the form's usual messages; nothing created | Existing rules | |
+| Q5 | "More options" | Opens the full New reminder form with title, time and type filled in | PRD 14.2 | |
+| Q6 | Esc or clicking outside | Closes the box; nothing created | | |
+
+### Peek card (14.2)
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| K1 | Click an entry | A card with title, time, repeat summary, recipients (as the reminder page shows them to this viewer: a viewer without full access sees no recipient list), and Open | PRD 14.2, 5.4 | |
+| K2 | Buttons on the card | Only what the viewer may do: Edit, Delete, Duplicate, Move to… (who may change it); Mark done / Undo (an assignee of a sent task occurrence) | Existing permissions | |
+| K3 | A sent (past) entry | Open, Duplicate, Mark done if it's yours; no Edit, Move or Delete of that occurrence | It already went out | |
+| K4 | Keyboard | Entries are focusable; Enter opens the card; Esc closes it and focus returns to the entry | PRD 11.4 | |
+
+### Move, edit and delete, including repeating entries (14.2)
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| M1 | Drag a one-time scheduled reminder to another slot | It sends at the new time; recipients and approval unchanged | PRD 14.2 | |
+| M2 | Drop on a past time | Refused, nothing changes | | |
+| M3 | Someone who may not change it drags it | Can't be dragged; a direct call is refused ("not found") | Existing `mayChange` | |
+| M4 | "Move to…" on the card (no mouse) | Same as dragging: pick date and time | PRD 11.4 | |
+| M5 | Drag one occurrence of a series | Asks **This one / This and following / All**; Esc cancels and nothing moves | PRD 14.2 | |
+| M6 | This one | That occurrence becomes its own one-time reminder at the new time (as "only the next one" works today, T1–T14 rules included); the series skips that date | PRD 14.2, existing #7 | |
+| M7 | This and following | The series ends before that occurrence; a new series starts from it at the new time with the same rule, content, recipients, files, sharing and colour. Its approval carries over (same recipients) | PRD 14.2 | |
+| M8 | All | The whole series shifts by the same amount (e.g. every Monday 09:00 → every Tuesday 10:00); occurrences already sent stay as they were | PRD 14.2. **(proposed: weekday and day-of-month rules shift with it)** | |
+| M9 | This one / following / all on an occurrence that isn't the next one | Works for any future occurrence (today only the next) | PRD 14.2 | |
+| M10 | Waiting for approval | Can be moved (one-time) or moved as All (series); still waiting. "This one" and "following" aren't offered until it's approved | Nothing to split yet (as T5) | |
+| M11 | Edit from the card on a series | Same three choices; This one / following open the full form for that part | PRD 14.2 | |
+| M12 | Delete from the card on a series | This one = skip that date; This and following = the series ends before it; All = delete the reminder (hidden everywhere, as #5) | PRD 14.2, 5.6 | |
+| M13 | Moving or editing so that recipients widen | Not possible from a drag (recipients don't change); from the form, the usual approval rule | PRD 5.9 | |
+| M14 | Audit log | Each move, split or delete is logged as the person who did it | PRD 9.1 | |
+
+### Duplicate (14.2)
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| U1 | Duplicate an entry to a date and time | A new one-time reminder: same title, description, links, tags, recipients, channels, files, sharing, colour, task settings | PRD 14.2. **(proposed: always one-time; repeat can be set in the full form)** | |
+| U2 | Who it belongs to | The person who duplicated it; approval is checked as them, so copying an admin's company-wide reminder as a member needs approval | Scope rules (PRD 5.2) | |
+| U3 | Comments, delivery history, task completion | Not copied | | |
+| U4 | Duplicate something you can only view | Allowed if you can create reminders (you saw its content anyway) | **(proposed)** | |
+
+### Colours (14.2)
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| L1 | The palette | 11 named colours, each readable in light and dark themes (text ≥ 4.5:1 on its fill, checked) | PRD 14.2 | |
+| L2 | Pick a colour on the form or the peek card | Saved on the reminder; every occurrence shows it | PRD 14.2 | |
+| L3 | No colour picked | Reminders and tasks each have a default colour | PRD 14.2 | |
+| L4 | Who may pick it | Whoever may change the reminder | Existing | |
+| L5 | Other screens | Only calendar entries are coloured; day cells, lists and emails stay as they are | PRD 14.2 | |
+
+### Not in this step
+
+Events, RSVP and the all-day strip (step 2), the calendar feed (14.4),
+remind-before and sub-tasks (step 3). Drag and the popovers need client
+JavaScript, a first for a whole page here; every action also works without
+a mouse (K4, M4).
+
+### Open questions for the calendar
+
+1. **C6:** show past sends and reminders waiting for approval, or only
+   what's scheduled (as today)?
+2. **Q3:** a quick task is due 1 hour after it's sent?
+3. **M8:** dragging a series as "All" to another day shifts its weekdays
+   (every Monday → every Tuesday)? Or allow "All" to change only the time?
+4. **U1/U4:** duplicates are one-time, and anyone who can create reminders
+   may duplicate what they can see?
+5. **C2:** custom range of 2–7 days enough?
 
 ## Open questions found while testing
 

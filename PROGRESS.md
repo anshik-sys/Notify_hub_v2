@@ -2,6 +2,28 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — v2 calendar spec drafted (PRD 14.1, 14.2)
+
+- The user deferred the deploy ("we arent deploying now") and moved on to
+  v2. Step 1 of PRD 14.9 is the calendar UI. It changes behaviour (dragging
+  moves send times; repeating entries get "this / following / all"), so it
+  starts as section 10 of `docs/expected-behaviour.md`: 46 cases in six
+  groups (views C1–C13, quick create Q1–Q6, peek card K1–K4, move/edit/delete
+  M1–M14, duplicate U1–U4, colours L1–L5), waiting for the user's review.
+- **Built on what exists:** "This one" reuses "only the next one" (#7), made
+  to work for any future occurrence; deleting "This one" is the existing
+  skip; deleted means hidden everywhere (#5).
+- **New ideas, marked proposed:**
+  - past sends and waiting reminders on the calendar;
+  - a quick task is due 1 hour after it's sent;
+  - "All" shifts weekday rules with the drag;
+  - duplicates are one-time and owned by whoever duplicates them;
+  - the custom range is 2–7 days.
+- **Not asked yet:** PRD 14.9 says to ask HR what else they need before v2.
+  Raised with the user; not answered.
+- Drag and the popovers are the first page-wide client JavaScript. Every
+  action keeps a keyboard path (K4, M4).
+
 ## 2026-10-20 — clean-ups from the ponytail audit
 
 - **Dead code removed** (each had no caller): `anchorWeekdayLabel`
