@@ -23,6 +23,7 @@ import {
   weekStart,
 } from "@/lib/views";
 import { AutoSubmit } from "./auto-submit";
+import { Entry } from "./entry";
 import { ScrollTo } from "./scroll-to";
 import { ViewMenu } from "./view-menu";
 import styles from "./page.module.css";
@@ -98,12 +99,17 @@ export default async function Calendar(props: PageProps<"/calendar">) {
 
   const dayEntries = (day: string) => (cal.days.get(day) ?? []).filter((e) => shownOn(e, layers));
   const stateClass = (e: CalendarEntry) => [styles[e.state], e.theirs ? styles.theirs : ""].join(" ");
-  const label = (e: CalendarEntry) => [e.title, STATE_LABEL[e.state], e.theirs && person ? `${person.name}’s` : ""].filter(Boolean).join(" · ");
   const key = (e: CalendarEntry) => `${e.reminderId}-${e.at.getTime()}-${e.state}`;
+  // Each entry opens its own peek card; n keeps their ids unique on the page.
+  let n = 0;
+  const here = href();
+  const canCreate = can(access, "reminders.create");
 
   return (
     <Page
       title={v.title}
+      error={firstParam(sp.error)}
+      notice={firstParam(sp.notice)}
       actions={
         <div className={styles.toolbar}>
           <LinkButton href={href({ date: today, mini: null })} variant="secondary">
@@ -212,10 +218,10 @@ export default async function Calendar(props: PageProps<"/calendar">) {
               href={href}
               dayEntries={dayEntries}
               entry={(e) => (
-                <Link key={key(e)} href={`/reminders/${e.reminderId}`} className={`${styles.entry} ${stateClass(e)}`} title={label(e)}>
+                <Entry key={key(e)} e={e} n={n++} tz={tz} now={now} next={here} canCreate={canCreate} className={`${styles.entry} ${stateClass(e)}`}>
                   <span className={styles.time}>{time12(e.at, tz)}</span> {e.title}
                   {e.state !== "scheduled" && <span className={styles.hidden}> ({STATE_LABEL[e.state]})</span>}
-                </Link>
+                </Entry>
               )}
             />
           ) : (
@@ -229,11 +235,15 @@ export default async function Calendar(props: PageProps<"/calendar">) {
               href={href}
               dayEntries={dayEntries}
               block={(p) => (
-                <Link
+                <Entry
                   key={key(p.entry)}
-                  href={`/reminders/${p.entry.reminderId}`}
+                  e={p.entry}
+                  n={n++}
+                  tz={tz}
+                  now={now}
+                  next={here}
+                  canCreate={canCreate}
                   className={`${styles.block} ${stateClass(p.entry)}`}
-                  title={label(p.entry)}
                   style={{
                     top: `${(p.minute / 1440) * 100}%`,
                     left: `${(p.lane / p.lanes) * 100}%`,
@@ -245,7 +255,7 @@ export default async function Calendar(props: PageProps<"/calendar">) {
                   </span>
                   <span className={styles.time}>{time12(p.entry.at, tz)}</span>
                   {p.entry.state !== "scheduled" && <span className={styles.hidden}> ({STATE_LABEL[p.entry.state]})</span>}
-                </Link>
+                </Entry>
               )}
             />
           )}

@@ -1,0 +1,260 @@
+/* The 11 calendar colours (PRD 14.2; tokens in globals.css). --c is the colour's
+   ink, for marks such as a sent entry's stripe. */
+.tomato {
+  --c: var(--cal-tomato-fg);
+  background: var(--cal-tomato-bg);
+  color: var(--cal-tomato-fg);
+}
+
+.flamingo {
+  --c: var(--cal-flamingo-fg);
+  background: var(--cal-flamingo-bg);
+  color: var(--cal-flamingo-fg);
+}
+
+.tangerine {
+  --c: var(--cal-tangerine-fg);
+  background: var(--cal-tangerine-bg);
+  color: var(--cal-tangerine-fg);
+}
+
+.banana {
+  --c: var(--cal-banana-fg);
+  background: var(--cal-banana-bg);
+  color: var(--cal-banana-fg);
+}
+
+.sage {
+  --c: var(--cal-sage-fg);
+  background: var(--cal-sage-bg);
+  color: var(--cal-sage-fg);
+}
+
+.basil {
+  --c: var(--cal-basil-fg);
+  background: var(--cal-basil-bg);
+  color: var(--cal-basil-fg);
+}
+
+.peacock {
+  --c: var(--cal-peacock-fg);
+  background: var(--cal-peacock-bg);
+  color: var(--cal-peacock-fg);
+}
+
+.blueberry {
+  --c: var(--cal-blueberry-fg);
+  background: var(--cal-blueberry-bg);
+  color: var(--cal-blueberry-fg);
+}
+
+.lavender {
+  --c: var(--cal-lavender-fg);
+  background: var(--cal-lavender-bg);
+  color: var(--cal-lavender-fg);
+}
+
+.grape {
+  --c: var(--cal-grape-fg);
+  background: var(--cal-grape-bg);
+  color: var(--cal-grape-fg);
+}
+
+.graphite {
+  --c: var(--cal-graphite-fg);
+  background: var(--cal-graphite-bg);
+  color: var(--cal-graphite-fg);
+}
+
+/* --- The peek card --- */
+
+.card {
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: var(--shadow-pop);
+  color: var(--fg);
+  font-size: 0.9375rem;
+  text-align: left;
+}
+
+/* Beside the entry where anchor positioning works (flipping when there's no
+   room); elsewhere the browser's default, centred placement. */
+@supports (position-try-fallbacks: flip-inline) {
+  .card {
+    inset: auto;
+    top: anchor(top);
+    left: anchor(right);
+    margin-left: 8px;
+    position-try-fallbacks: flip-inline, flip-block, flip-inline flip-block;
+  }
+}
+
+@supports not (position-try-fallbacks: flip-inline) {
+  .card {
+    margin: auto;
+  }
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.dot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 5px;
+  border-radius: 4px;
+  background: var(--c);
+}
+
+.title {
+  flex: 1;
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.close {
+  width: 28px;
+  height: 28px;
+  margin: -4px -6px 0 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--surface);
+  color: var(--fg);
+}
+
+.meta {
+  margin: 6px 0 0 24px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.badge {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--warning-fg);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 0 24px;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--input-border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--surface);
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(11, 1fr);
+  gap: 4px;
+  margin: 14px 0 0 24px;
+}
+
+/* The colour's ink, not its pale fill: easier to tell apart, and ≥3:1 on the card. */
+.swatch {
+  background: var(--c);
+  color: var(--bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--c);
+}
+
+.fold {
+  margin: 12px 0 0 24px;
+}
+
+.fold summary {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.foldForm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.input {
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 400;
+}
+
+.close:focus-visible,
+.action:focus-visible,
+.swatch:focus-visible,
+.fold summary:focus-visible,
+.input:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}

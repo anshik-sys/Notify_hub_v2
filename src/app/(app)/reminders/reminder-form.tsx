@@ -7,6 +7,7 @@ import type { RepeatFields } from "@/lib/recurrence";
 import { saveReminder } from "./actions";
 import type { DepartmentChoice, Person } from "./form-data";
 import { PeoplePicker } from "./people-picker";
+import { CALENDAR_COLORS } from "@/db/schema";
 import { ReminderPreview } from "./preview";
 import styles from "./reminder-form.module.css";
 
@@ -33,6 +34,7 @@ export type ReminderDefaults = {
   shareDepartmentIds: string[];
   shareGroupIds: string[];
   shareCompany: boolean;
+  color?: string; // "" or missing = the type's default
 };
 
 // The pages put a second submit button top right (form="…"), outside the form.
@@ -179,7 +181,8 @@ export function ReminderForm({
       defaults.shareDepartmentIds.length ||
       defaults.shareGroupIds.length ||
       defaults.shareCompany ||
-      defaults.senderName,
+      defaults.senderName ||
+      defaults.color,
   );
 
   return (
@@ -383,7 +386,7 @@ export function ReminderForm({
         <summary className={styles.optionsSummary}>
           <span className={styles.optionsText}>
             More options
-            <span className={styles.optionsHint}>Tags, links, attachments, sharing, sender name</span>
+            <span className={styles.optionsHint}>Tags, links, attachments, sharing, sender name, colour</span>
           </span>
           <span className={styles.optionsChevron}>
             <Icon name="chevron" size={18} />
@@ -442,6 +445,13 @@ export function ReminderForm({
           </div>
 
           <Field label="Sender name" name="senderName" maxLength={100} placeholder={defaultSender} defaultValue={defaults.senderName} />
+
+          <SelectField
+            label="Colour on the calendar"
+            name="color"
+            defaultValue={defaults.color ?? ""}
+            options={[{ value: "", label: "Default (by type)" }, ...CALENDAR_COLORS.map((c) => ({ value: c, label: c[0].toUpperCase() + c.slice(1) }))]}
+          />
         </div>
       </details>
 

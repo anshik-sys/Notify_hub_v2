@@ -1,8 +1,8 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { REMINDER_STATUSES, reminderOccurrences, reminderShares, reminders, user, type ReminderStatus } from "@/db/schema";
+import { type CalendarColor, REMINDER_STATUSES, reminderOccurrences, reminderShares, reminders, taskAssignments, user, type ReminderStatus } from "@/db/schema";
 import { type Access, can } from "./permissions";
-import { between, type Rule } from "./recurrence";
+import { between, describe, type Rule } from "./recurrence";
 import { sharedWithSql } from "./reminders";
 import { toLocalInput, zonedToUtc } from "./time";
 
@@ -240,7 +240,15 @@ export type CalendarEntry = {
   layers: Layer[];
   // Created by or sent to the colleague being overlaid (C10).
   theirs: boolean;
+  // For the peek card (K1–K3):
+  color: CalendarColor; // chosen, or the type's default
+  repeat: string | null; // "Every weekday", for an upcoming series
+  recipients: string | null; // labels, only for those with full access (PRD 5.4)
+  canChange: boolean; // mayChange's twin: edit, delete, colour
+  assignment: { id: string; done: boolean } | null; // the viewer's, on a sent task
 };
+// PRD 14.2 defaults when a reminder has no colour of its own.
+export const DEFAULT_COLOR = { reminder: "lavender", task: "sage" } as const;
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 export const CALENDAR_LIMIT = 500;
 
@@ -281,6 +289,22 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
     company: sql<boolean>`exists (select 1 from reminder_targets t where t.reminder_id = ${reminders.id} and t.kind = 'company')
       or exists (select 1 from reminder_shares sh where sh.reminder_id = ${reminders.id} and sh.kind = 'company')`,
     theirs: range.person ? sql<boolean>`${reminders.createdBy} = ${range.person} or ${addressedTo(range.person)}` : sql<boolean>`false`,
+    // overseeWhere's twin as a column: full access (sees recipients, may change with reminders.edit).
+    full: seesAll(viewer) ? sql<boolean>`true` : sql<boolean>`${mineOrManaged(viewer)}`,
+    recipients: sql<string | null>`(select string_agg(case t.kind
+        when 'company' then 'Everyone in the company'
+        when 'department' then coalesce(d.name, 'Deleted department') || ' (department)'
+        when 'group' then coalesce(g.name, 'Deleted') || ' (group)'
+        when 'user' then coalesce(u.name, 'Removed person')
+        when 'slack_channel' then '#' || coalesce(t.label, t.ref) || ' (Slack)'
+        else t.ref end, ', ' order by t.kind, t.ref)
+      from reminder_targets t
+      left join departments d on t.kind = 'department' and d.id::text = t.ref
+      left join groups g on t.kind = 'group' and g.id::text = t.ref
+      left join "user" u on t.kind = 'user' and u.id = t.ref
+      where t.reminder_id = "reminders"."id")`, // qualified: d, g and u have an id too
+    createdBy: reminders.createdBy,
+    color: reminders.color,
   };
   const { rows, recorded, sent } = await withTenant(companyId, async (tx) => {
     const rows = await tx
@@ -320,10 +344,13 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
         title: sql<string>`coalesce(${reminderOccurrences.snapshot}->>'title', ${reminders.title})`,
         at: reminderOccurrences.occursAt,
         isTask: reminders.isTask,
+        assignmentId: taskAssignments.id,
+        doneAt: taskAssignments.doneAt,
         ...flags,
       })
       .from(reminderOccurrences)
       .innerJoin(reminders, eq(reminders.id, reminderOccurrences.reminderId))
+      .leftJoin(taskAssignments, and(eq(taskAssignments.occurrenceId, reminderOccurrences.id), eq(taskAssignments.userId, viewer.id)))
       .where(
         and(
           inArray(reminderOccurrences.status, ["sent", "sending"]),
@@ -336,10 +363,35 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
       .limit(CALENDAR_LIMIT);
     return { rows, recorded, sent };
   });
-  type Flagged = { id: string; title: string; isTask: boolean; mine: boolean; assigned: boolean; departments: boolean; company: boolean; theirs: boolean };
+  type Flagged = {
+    id: string;
+    title: string;
+    isTask: boolean;
+    mine: boolean;
+    assigned: boolean;
+    departments: boolean;
+    company: boolean;
+    theirs: boolean;
+    full: boolean;
+    recipients: string | null;
+    createdBy: string;
+    color: CalendarColor | null;
+  };
+  const mayEdit = can(viewer.access, "reminders.edit");
   const base = (r: Flagged) => {
     const layers = (["mine", "assigned", "departments", "company"] as const).filter((l) => r[l]);
-    return { reminderId: r.id, title: r.title, isTask: r.isTask, layers: layers.length ? layers : (["other"] as Layer[]), theirs: r.theirs };
+    return {
+      reminderId: r.id,
+      title: r.title,
+      isTask: r.isTask,
+      layers: layers.length ? layers : (["other"] as Layer[]),
+      theirs: r.theirs,
+      color: r.color ?? DEFAULT_COLOR[r.isTask ? "task" : "reminder"],
+      recipients: r.full ? r.recipients : null,
+      canChange: r.createdBy === viewer.id || (r.full && mayEdit),
+      repeat: null,
+      assignment: null,
+    };
   };
   const done = new Set(recorded.map((o) => `${o.reminderId}:${o.at.getTime()}`));
   const days = new Map<string, CalendarEntry[]>();
@@ -347,9 +399,14 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
     const key = toLocalInput(e.at, timeZone).slice(0, 10);
     days.set(key, [...(days.get(key) ?? []), e]);
   };
-  for (const r of sent) add({ ...base(r), at: r.at, state: "sent" });
+  for (const r of sent)
+    add({ ...base(r), at: r.at, state: "sent", assignment: r.assignmentId ? { id: r.assignmentId, done: Boolean(r.doneAt) } : null });
   for (const r of rows.slice(0, CALENDAR_LIMIT)) {
-    const entry = { ...base(r), state: r.status === "pending_approval" ? ("pending" as const) : ("scheduled" as const) };
+    const entry = {
+      ...base(r),
+      state: r.status === "pending_approval" ? ("pending" as const) : ("scheduled" as const),
+      repeat: r.recurrence ? describe(r.recurrence as Rule, r.anchorLocal) : null,
+    };
     if (!r.recurrence) {
       add({ ...entry, at: r.sendAt });
       continue;

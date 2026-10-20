@@ -427,6 +427,19 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   turns the app sidebar into the icon rail through CSS `:has()`
   (`layout.module.css`), with no flash and no cookie change. In Week and Day
   view, entries are 30-minute blocks placed by `layoutDay`.
+  - **Peek card (`calendar/entry.tsx`):** each entry is a button opening its own
+    native popover, placed with CSS anchor positioning. Its buttons come from
+    `calendarRange`: `canChange` is `mayChange`'s twin (creator, or full access
+    plus `reminders.edit`), and recipients show only with full access. Every
+    action is a server action that checks again. Delete on the card is
+    one-time only; repeating ones get "this / following / all" in slice 4.
+  - **Colours:** `reminders.color` (one of `CALENDAR_COLORS`, or null for the
+    type's default, `DEFAULT_COLOR`), tokens `--cal-<name>-bg/fg` in all
+    three theme blocks (text on fill ≥ 6:1). Only calendar entries are
+    coloured.
+  - **Duplicate (`duplicateReminder`):** a one-time copy owned by whoever
+    copies it, approval checked as them, files copied, comments and history
+    not. Rate-limited (it copies files).
 - **Groups (PRD 4)** resolve to their active members at send time, like
   departments. Anyone with `groups.create` (given to the Member role by
   migration 0021) makes one; the creator or `groups.manage` edits it.

@@ -10,10 +10,12 @@ import {
   decideReminder,
   deleteReminder,
   detachOccurrence,
+  duplicateReminder,
   formToRaw,
   setOccurrenceDone,
   pauseReminder,
   resumeReminder,
+  setReminderColor,
   skipNextOccurrence,
   updateReminder,
   validateInput,
@@ -25,6 +27,7 @@ import { channelChoices } from "@/lib/slack-installations";
 import { sendNow, sendTest } from "@/lib/send-now";
 import { setDone } from "@/lib/tasks";
 import { unsubscribedAmong } from "@/lib/unsubscribe";
+import { zonedToUtc } from "@/lib/time";
 import { isUuid, str } from "@/lib/validate";
 
 const all = (fd: FormData, name: string) => fd.getAll(name).map(String);
@@ -103,7 +106,10 @@ export async function deleteReminderAction(fd: FormData) {
   const id = str(fd, "id");
   if (!isUuid(id)) notFound();
   const error = await deleteReminder({ id: user.id, access }, companyId, id);
-  if (error) redirect(errorUrl(`/reminders/${id}`, error));
+  // From the calendar's peek card, back there.
+  const next = fd.get("next") ? safeNext(fd.get("next")) : null;
+  if (error) redirect(errorUrl(next ?? `/reminders/${id}`, error));
+  if (next) redirect(withNotice(next, "Reminder deleted."));
   // Someone without the list (an editor who can't create) goes home.
   redirect(can(access, "reminders.create") || can(access, "reminders.view_all") ? `/reminders?notice=${encodeURIComponent("Reminder deleted.")}` : "/");
 }
@@ -173,4 +179,34 @@ export async function sendTestAction(fd: FormData) {
   const via = (r.sent ?? []).map((c) => (c === "email" ? "email" : "Slack")).join(" and ");
   if ("error" in r && r.error) redirect(errorUrl(`/reminders/${id}`, via ? `Test sent by ${via}. ${r.error}` : r.error));
   redirect(`/reminders/${id}?notice=${encodeURIComponent(`Test sent to you by ${via}.`)}`);
+}
+
+const withNotice = (path: string, notice: string) => `${path}${path.includes("?") ? "&" : "?"}notice=${encodeURIComponent(notice)}`;
+
+// PRD 14.2: the colour, from the calendar's peek card (or anywhere with `next`).
+export async function setColorAction(fd: FormData) {
+  const { user, companyId, access } = await requireMember();
+  const id = str(fd, "id");
+  if (!isUuid(id)) notFound();
+  const back = fd.get("next") ? safeNext(fd.get("next")) : `/reminders/${id}`;
+  const error = await setReminderColor({ id: user.id, access }, companyId, id, str(fd, "color"));
+  redirect(error ? errorUrl(back, error) : back);
+}
+
+// PRD 14.2: a one-time copy at the picked time (the viewer's time zone), from
+// the calendar's peek card. Lands on the copy so it can be checked or edited.
+export async function duplicateAction(fd: FormData) {
+  const { user, companyId, access, timeZone } = await requireMember();
+  if (!can(access, "reminders.create")) notFound();
+  const id = str(fd, "id");
+  if (!isUuid(id)) notFound();
+  const back = fd.get("next") ? safeNext(fd.get("next")) : `/reminders/${id}`;
+  const at = zonedToUtc(str(fd, "at"), timeZone);
+  if (!at) redirect(errorUrl(back, "Pick a date and time."));
+  // It copies the files too: limited like uploads.
+  const limited = await limits([[`duplicate:user:${user.id}`, 30, 3600]]);
+  if (limited) redirect(errorUrl(back, limited));
+  const r = await duplicateReminder({ id: user.id, access, email: user.email }, companyId, id, at);
+  if ("error" in r) redirect(errorUrl(back, r.error));
+  redirect(withNotice(`/reminders/${r.id}`, "Duplicated."));
 }

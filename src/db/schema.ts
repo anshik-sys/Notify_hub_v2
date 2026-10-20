@@ -279,6 +279,9 @@ export const invitations = pgTable(
 
 export const REMINDER_STATUSES = ["pending_approval", "rejected", "scheduled", "paused", "sending", "sent", "cancelled"] as const;
 export type ReminderStatus = (typeof REMINDER_STATUSES)[number];
+// PRD 14.2: calendar entry colours (tokens --cal-<name>-bg/fg in globals.css).
+export const CALENDAR_COLORS = ["tomato", "flamingo", "tangerine", "banana", "sage", "basil", "peacock", "blueberry", "lavender", "grape", "graphite"] as const;
+export type CalendarColor = (typeof CALENDAR_COLORS)[number];
 
 export const reminders = pgTable(
   "reminders",
@@ -313,6 +316,8 @@ export const reminders = pgTable(
     dueAfterMinutes: integer(),
     // Free-form labels for filtering (PRD 5.1): lowercase, validated in validateInput.
     tags: text().array().notNull().default(sql`'{}'`),
+    // Null: the default for its type (reminder or task).
+    color: text().$type<CalendarColor>(),
     status: text().$type<ReminderStatus>().notNull(),
     decidedBy: text().references(() => user.id),
     decidedAt: ts(),
@@ -336,6 +341,7 @@ export const reminders = pgTable(
     index("reminders_tags_idx").using("gin", t.tags),
     check("reminders_task_due", sql`not ${t.isTask} or ${t.dueAfterMinutes} > 0`),
     check("reminders_channels_valid", sql`cardinality(${t.channels}) > 0 and ${t.channels} <@ array['email','slack']`),
+    check("reminders_color_valid", sql`${t.color} is null or ${t.color} in ('tomato','flamingo','tangerine','banana','sage','basil','peacock','blueberry','lavender','grape','graphite')`),
     check("reminders_status_valid", sql`${t.status} in ('pending_approval','rejected','scheduled','paused','sending','sent','cancelled')`),
     tenantPolicy("company_id"),
   ],

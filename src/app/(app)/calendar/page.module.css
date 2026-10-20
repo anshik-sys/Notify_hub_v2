@@ -316,24 +316,28 @@ a.date:hover {
 
 /* --- Entries --- */
 
-/* 24px tall: the minimum click target (WCAG 2.5.8). */
+/* 24px tall: the minimum click target (WCAG 2.5.8). A button that opens the
+   peek card; its colour comes from entry.module.css. */
 .entry {
-  transition: background-color var(--duration) var(--ease-out);
+  transition: filter var(--duration) var(--ease-out);
   display: block;
   overflow: hidden;
+  width: 100%;
   min-height: 24px;
   padding: 3px 4px;
   border: 1px solid transparent;
   border-radius: 4px;
-  color: var(--fg);
+  font: inherit;
   font-size: 0.8125rem;
-  text-decoration: none;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
 }
 
-.entry:hover {
-  background: var(--surface);
+.entry:hover,
+.block:hover {
+  filter: brightness(0.96);
 }
 
 .entry:focus-visible {
@@ -341,25 +345,27 @@ a.date:hover {
   outline-offset: 1px;
 }
 
-.scheduled {
-  background: var(--accent-bg);
-}
-
-.sent {
+/* States over the colour: sent ones are plain with a stripe of their colour,
+   waiting ones dashed, a colleague's outlined. Two classes, so they win over
+   the colour's one. */
+.entry.sent,
+.block.sent {
+  border-left: 3px solid var(--c);
+  background: var(--surface);
   color: var(--muted);
 }
 
-.pending {
-  border-style: dashed;
-  border-color: var(--input-border);
+.entry.pending,
+.block.pending {
+  border: 1px dashed var(--c);
 }
 
-.theirs {
-  border-color: var(--brand);
+.entry.theirs,
+.block.theirs {
+  border: 1px solid var(--brand);
 }
 
 .time {
-  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -482,10 +488,11 @@ a.date:hover {
   padding: 2px 6px;
   border: 1px solid var(--bg);
   border-radius: 6px;
-  color: var(--fg);
+  font: inherit;
   font-size: 0.75rem;
   line-height: 1.15;
-  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
   transition: box-shadow var(--duration) var(--ease-out);
 }
 
@@ -515,19 +522,17 @@ a.date:hover {
   font-size: 0.6875rem;
 }
 
-/* The states again for blocks (their border rule above would win otherwise):
-   sent ones sit back, waiting ones are dashed, a colleague's are outlined. */
-.block.sent {
-  background: var(--surface);
+/* Side by side (several at one time), a block is narrow: the title wins. */
+.block {
+  container-type: inline-size;
 }
 
-.block.pending {
-  border: 1px dashed var(--input-border);
+@container (max-width: 110px) {
+  .block .time {
+    display: none;
+  }
 }
 
-.block.theirs {
-  border-color: var(--brand);
-}
 
 .now {
   position: absolute;

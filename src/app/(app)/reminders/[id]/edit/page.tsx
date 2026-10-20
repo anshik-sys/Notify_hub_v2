@@ -46,6 +46,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           title: r.title,
           description: r.description,
           senderName: r.senderName,
+          color: r.color ?? "",
           links: r.links,
           company: r.targets.some((t) => t.kind === "company"),
           departmentIds: refs("department"),

@@ -2,6 +2,73 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — calendar slice 2: peek card, colours, duplicate
+
+- Spec K1–K4, L1–L5, U1–U4. Clicking an entry no longer leaves the calendar.
+- **Peek card (`calendar/entry.tsx`):** every entry is a `<button>` opening
+  its own native popover, placed beside it with CSS anchor positioning
+  (`position-try-fallbacks` flips it at the edges; centred where unsupported).
+  - **Content:** title, date and time, task, "Needs approval" / "Sent", repeat
+    summary, "To: …".
+  - **Buttons, from `calendarRange`:** Open; Edit and colour if you may change
+    it; Mark done / Undo on a sent task assigned to you; Duplicate if you can
+    create; Delete (with a confirm tick) for one-time ones.
+  - **`canChange`** is `mayChange`'s twin (creator, or full access plus
+    `reminders.edit`). Recipients show only with full access. Every action
+    re-checks on the server.
+  - **Rejected:** fetching card details on click (an API route plus client
+    state). Rendering the card on the server is simpler, and is bounded by
+    the 500-entry limit.
+- **Deleting a repeating reminder** isn't on the card yet. "This one /
+  following / all" comes with drag in slice 4, so the card doesn't offer an
+  all-or-nothing delete that slice 4 would change.
+- **Colours:** `reminders.color` (migration 0041, checked) with 11 palette
+  names and defaults by type (reminder: lavender, task: sage).
+  - Tokens `--cal-<name>-bg/fg` in all three theme blocks; contrast checked
+    with a script, worst 6.06:1. The dark blocks are still identical.
+  - Picked on the form (More options) or the card's swatches, by whoever may
+    change it.
+  - Sent entries show their colour as a left stripe.
+- **Duplicate (`duplicateReminder`):** a one-time copy at the picked time, with
+  the same content, recipients, channels, task settings, files, sharing and
+  colour.
+  - It's owned by whoever copies it, and approval is checked as them: a
+    member copying the admin's company-wide reminder gets "Needs approval".
+  - Comments and history aren't copied. You need `reminders.create` and must
+    be able to open the original (by your real email too, for typed-address
+    recipients).
+  - Rate-limited, 30 an hour, since it copies files. It lands on the copy
+    with "Duplicated.".
+- **Caught while building:**
+  - an ambiguous `"id"` in the recipients subquery (drizzle leaves the outer
+    column unqualified);
+  - `Date.now()` in render (lint);
+  - the opacity I'd put on times would have dropped below 4.5:1.
+
+  **Caught in Chrome:**
+  - two entries at one minute showed only "4:30 AM"; a container query now
+    drops the time in narrow blocks;
+  - the pale swatches were hard to tell apart; they now use each colour's
+    ink.
+- **Verified:** 293 tests pass, 8 skipped. New tests cover colour
+  validation and who may set it; duplicate's owner, scope, files, no comments
+  and refusals; and the form contract with the new field. Typecheck, lint.
+
+  **In Chrome as Maya**, on throwaway reminders deleted afterwards with their
+  audit rows:
+  - the card opens beside the entry with the right buttons;
+  - Esc closes it and focus returns; Enter opens it;
+  - tomato recolours the entry;
+  - Duplicate lands on the copy;
+  - Delete returns to the same week with the notice;
+  - no console errors.
+- **Not verified:**
+  - a viewer without full access (no recipients, no Edit) in the browser
+    (the logic is the tested `canChange`);
+  - Mark done from the card;
+  - Firefox and Safari placement;
+  - dark mode of the card.
+
 ## 2026-10-20 — calendar: picking today marks it too; a stronger mark
 
 - The user reported that a date clicked in the mini month wasn't marked in

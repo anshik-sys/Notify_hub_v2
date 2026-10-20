@@ -25,6 +25,8 @@ import {
   type Share,
   mayDecide,
   mayChange,
+  duplicateReminder,
+  setReminderColor,
 } from "./reminders";
 import { sendNow } from "./send-now";
 import { checkFile } from "./attachments";
@@ -689,4 +691,70 @@ test("shared done: for an occurrence nobody in the company is assigned to; not f
   assert.match((await setOccurrenceDone(await actor(alice), s.companyId, occ.id, true))!, /themselves/);
   const [later2] = await q("insert into reminder_occurrences (company_id, reminder_id, occurs_at, status) values ($1, $2, now() + interval '1 day', 'skipped') returning id", [s.companyId, r.id]);
   assert.match((await setOccurrenceDone(await actor(alice), s.companyId, later2.id, true))!, /hasn't been sent/);
+});
+
+test("colour: validated on the form; set by whoever may change it", async () => {
+  const pick = (color?: string) => validateInput(raw({ userIds: ["u"], color }), "UTC", "A");
+  assert.equal((pick("grape") as { input: { color: unknown } }).input.color, "grape");
+  assert.equal((pick("") as { input: { color: unknown } }).input.color, null);
+  assert.equal((pick() as { input: { color: unknown } }).input.color, null); // missing = default
+  assert.match((pick("red") as { error: string }).error, /colour/);
+
+  const r = await createReminder(await actor(alice), s.companyId, { ...oneTime, title: "Colourful", description: "", links: [], senderName: "S", sendAt: later(), targets: [{ kind: "user", ref: bob }], color: "banana" });
+  const id = (r as { id: string }).id;
+  const color = async () => (await s.owner.query("select color from reminders where id = $1", [id])).rows[0].color;
+  assert.equal(await color(), "banana");
+  assert.equal(await setReminderColor(await actor(alice), s.companyId, id, "peacock"), null);
+  assert.equal(await color(), "peacock");
+  assert.match((await setReminderColor(await actor(alice), s.companyId, id, "neon"))!, /colour/);
+  assert.match((await setReminderColor(await actor(carol), s.companyId, id, "tomato"))!, /not found/); // can't change it
+  assert.equal(await setReminderColor(await actor(admin), s.companyId, id, ""), null); // back to the default
+  assert.equal(await color(), null);
+  await cancelReminder(await actor(alice), s.companyId, id);
+});
+
+test("duplicate: a one-time copy owned by whoever duplicates it, approval checked as them, files copied", async () => {
+  const series = await createReminder(
+    await actor(admin),
+    s.companyId,
+    {
+      ...oneTime,
+      recurrence: { freq: "daily", interval: 1, end: { type: "never" } },
+      title: "Company news",
+      description: "Read it",
+      links: [{ label: "x", url: "https://x.test" }],
+      senderName: "HR",
+      sendAt: later(),
+      tags: ["news"],
+      targets: [{ kind: "company", ref: null }],
+      color: "grape",
+    },
+    [(checkFile("note.txt", new TextEncoder().encode("hello")) as { file: never }).file],
+  );
+  const orig = (series as { id: string }).id;
+  // A copy as the admin: scheduled, one-time, same content, files and colour; no comments.
+  await s.owner.query("insert into comments (company_id, reminder_id, author_id, body) values ($1, $2, $3, 'hi')", [s.companyId, orig, admin]);
+  const at = new Date(Date.now() + 2 * 86_400_000);
+  const copy = (await duplicateReminder({ ...(await actor(admin)), email: "a@x.test" }, s.companyId, orig, at)) as { id: string };
+  const [row] = (await s.owner.query("select created_by, status, recurrence, title, description, tags, color, send_at, sender_name from reminders where id = $1", [copy.id])).rows;
+  assert.deepEqual(
+    { ...row, send_at: row.send_at.getTime() },
+    { created_by: admin, status: "scheduled", recurrence: null, title: "Company news", description: "Read it", tags: ["news"], color: "grape", send_at: at.getTime(), sender_name: "HR" },
+  );
+  assert.deepEqual((await listAttachments(s.companyId, copy.id)).map((f) => f.fileName), ["note.txt"]);
+  assert.equal((await s.owner.query("select 1 from comments where reminder_id = $1", [copy.id])).rowCount, 0);
+
+  // Alice's own reminder, for the refusals below.
+  const mine = (await createReminder(await actor(alice), s.companyId, { ...oneTime, title: "Mine", description: "", links: [], senderName: "S", sendAt: later(), targets: [{ kind: "user", ref: bob }] })) as { id: string };
+  // Once the admin's company-wide reminder is shared with the company, alice can open it, so she can copy it.
+  await s.owner.query("insert into reminder_shares (reminder_id, company_id, kind, ref) values ($1, $2, 'company', null)", [orig, s.companyId]);
+  const asAlice = (await duplicateReminder({ ...(await actor(alice)), email: "al@x.test" }, s.companyId, orig, at)) as { id: string };
+  const [aliceCopy] = (await s.owner.query("select created_by, status from reminders where id = $1", [asAlice.id])).rows;
+  assert.deepEqual(aliceCopy, { created_by: alice, status: "pending_approval" }); // the whole company is out of her scope
+
+  // Refused: in the past; someone who can't open it; someone who can't create.
+  assert.match(((await duplicateReminder({ ...(await actor(alice)), email: "" }, s.companyId, mine.id, new Date(Date.now() - 1000))) as { error: string }).error, /future/);
+  assert.match(((await duplicateReminder({ ...(await actor(carol)), email: "" }, s.companyId, mine.id, at)) as { error: string }).error, /not found|can't create/);
+  assert.match(((await duplicateReminder({ ...(await actor(bob)), email: "" }, s.companyId, mine.id, at)) as { error: string }).error, /can't create/); // bob has no role
+  for (const id of [orig, copy.id, mine.id, asAlice.id]) await s.owner.query("update reminders set status = 'cancelled' where id = $1", [id]);
 });

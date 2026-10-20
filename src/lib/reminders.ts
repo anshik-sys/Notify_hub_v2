@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { aliasedTable, and, desc, eq, gte, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { attachments, companies, companyApprovers, deliveries, departmentMembers, emailSuppressions, departments, groupMembers, groups, notifications, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, taskAssignments, user, userRoles, type ReminderStatus } from "@/db/schema";
+import { attachments, companies, companyApprovers, deliveries, departmentMembers, emailSuppressions, departments, groupMembers, groups, notifications, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, taskAssignments, user, userRoles, CALENDAR_COLORS, type CalendarColor, type ReminderStatus } from "@/db/schema";
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
 import { addNotifications, mutedFor, planTell, sendTell } from "./notifications";
@@ -30,6 +30,8 @@ export type ReminderInput = {
   targets: Target[];
   // PRD 5.4: who else may see it. "mine" = the creator's departments, expanded at save.
   shares: Share[];
+  // PRD 14.2: the calendar colour; null = the type's default. Left out = unchanged.
+  color?: CalendarColor | null;
 };
 export type Share = { kind: "mine" | "department" | "group" | "company"; ref: string | null };
 type Actor = { id: string; access: Access };
@@ -63,6 +65,7 @@ export type RawReminder = {
   shareDepartmentIds: string[];
   shareGroupIds: string[];
   shareCompany: boolean;
+  color?: string; // missing = the type's default
 };
 
 // The New/Edit form's post (reminder-form.tsx) -> RawReminder. The field names
@@ -91,6 +94,7 @@ export function formToRaw(fd: FormData): RawReminder {
     shareDepartmentIds: all("shareDepartments"),
     shareGroupIds: all("shareGroups"),
     shareCompany: fd.get("shareCompany") === "on",
+    color: str("color"),
     isTask: fd.get("isTask") === "on",
     dueLocal: str("due"),
     repeat: {
@@ -200,6 +204,8 @@ export function validateInput(
   }
   const tags = parseTags(raw.tags);
   if ("error" in tags) return tags;
+  const color = colorFrom(raw.color ?? "");
+  if (color === undefined) return { error: "Pick a colour from the list." };
   // The whole company covers every narrower share.
   const shares: Share[] = raw.shareCompany
     ? [{ kind: "company", ref: null }]
@@ -224,9 +230,14 @@ export function validateInput(
       dueAfterMinutes,
       channels,
       targets,
+      color,
     } satisfies ReminderInput,
   };
 }
+
+// "" = the type's default (null); a palette name; anything else = undefined (refused).
+const colorFrom = (raw: string): CalendarColor | null | undefined =>
+  raw === "" ? null : CALENDAR_COLORS.includes(raw as CalendarColor) ? (raw as CalendarColor) : undefined;
 
 const TAG = /^[a-z0-9][a-z0-9 _-]{0,29}$/;
 
@@ -637,6 +648,69 @@ export async function detachOccurrence(
   );
   if ("error" in result) return result;
   await notifyApprovers(companyId, result.approvers, input.title, result.id);
+  return { id: result.id };
+}
+
+// PRD 14.2: the calendar colour, set from the peek card. "" = the default.
+export async function setReminderColor(actor: Actor, companyId: string, id: string, raw: string) {
+  const color = colorFrom(raw);
+  if (color === undefined) return "Pick a colour from the list.";
+  const result = await refusals(() =>
+    withTenant(companyId, async (tx) => {
+      const [r] = await tx.select({ createdBy: reminders.createdBy }).from(reminders).where(and(eq(reminders.id, id), isNull(reminders.deletedAt)));
+      if (!r || !(await mayChange(companyId, actor, r.createdBy))) throw new Refused("Reminder not found.");
+      await tx.update(reminders).set({ color }).where(eq(reminders.id, id));
+      return null;
+    }),
+  );
+  return result && "error" in result ? result.error : null;
+}
+
+// PRD 14.2 duplicate: a one-time copy at `at` with the same content,
+// recipients, channels, task settings, files, sharing and colour. It belongs
+// to whoever duplicates it, so approval is checked as them (PRD 5.2): copying
+// an admin's company-wide reminder as a member needs approval. Comments,
+// history and completion aren't copied. Anyone who can create reminders may
+// duplicate one they can open (they've seen its content anyway).
+export async function duplicateReminder(actor: Actor & { email: string }, companyId: string, id: string, at: Date, now = new Date()) {
+  if (!can(actor.access, "reminders.create")) return { error: "You can't create reminders." };
+  if (at.getTime() <= now.getTime()) return { error: "Pick a time in the future." };
+  const [orig] = await withTenant(companyId, (tx) =>
+    tx.select().from(reminders).where(and(eq(reminders.id, id), isNull(reminders.deletedAt))),
+  );
+  if (!orig || !(await reminderAccess(companyId, actor, orig))) return { error: "Reminder not found." };
+  const result = await refusals(() =>
+    withTenant(companyId, async (tx) => {
+      const targets = (await tx.select().from(reminderTargets).where(eq(reminderTargets.reminderId, id))).map(({ kind, ref, label }) => ({ kind, ref, label }));
+      const shares = await tx.select({ kind: reminderShares.kind, ref: reminderShares.ref }).from(reminderShares).where(eq(reminderShares.reminderId, id));
+      const input: ReminderInput = {
+        title: orig.title,
+        description: orig.description,
+        links: orig.links,
+        senderName: orig.senderName,
+        sendAt: at,
+        recurrence: null,
+        anchorLocal: toLocalInput(at, orig.timeZone),
+        timeZone: orig.timeZone,
+        isTask: orig.isTask,
+        dueAfterMinutes: orig.dueAfterMinutes,
+        channels: orig.channels,
+        tags: orig.tags,
+        targets,
+        shares,
+        color: orig.color,
+      };
+      const out = await checked(tx, companyId, actor, input);
+      const status: ReminderStatus = out.length ? "pending_approval" : "scheduled";
+      const files: CheckedFile[] = [];
+      for (const a of await tx.select().from(attachments).where(eq(attachments.reminderId, id)).orderBy(attachments.createdAt))
+        files.push({ fileName: a.fileName, contentType: a.contentType, size: a.size, sha256: a.sha256, data: (await getBlob(tx, a.id))! });
+      const newId = await insertReminder(tx, companyId, actor.id, { ...input, createdBy: actor.id, status }, files);
+      return { id: newId, approvers: status === "pending_approval" ? await approversToTell(tx, companyId, newId) : [] };
+    }),
+  );
+  if ("error" in result) return result;
+  await notifyApprovers(companyId, result.approvers, orig.title, result.id);
   return { id: result.id };
 }
 

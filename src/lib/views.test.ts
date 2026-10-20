@@ -228,6 +228,7 @@ test("search finds a reminder by its creator's name", async () => {
 test("layoutDay: minutes from midnight; overlapping blocks share the width", () => {
   const e = (hhmm: string, title = hhmm): CalendarEntry => ({
     reminderId: title, title, at: new Date(`2031-05-06T${hhmm}:00Z`), isTask: false, state: "scheduled", layers: ["mine"], theirs: false,
+    color: "lavender", repeat: null, recipients: null, canChange: true, assignment: null,
   });
   const lay = (...es: CalendarEntry[]) => layoutDay(es, "UTC").map((p) => [p.entry.title, p.minute, p.lane, p.lanes]);
   assert.deepEqual(lay(e("09:00"), e("11:00")), [["09:00", 540, 0, 1], ["11:00", 660, 0, 1]]); // apart: full width

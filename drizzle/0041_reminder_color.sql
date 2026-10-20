@@ -1,0 +1,2 @@
+ALTER TABLE "reminders" ADD COLUMN "color" text;--> statement-breakpoint
+ALTER TABLE "reminders" ADD CONSTRAINT "reminders_color_valid" CHECK ("reminders"."color" is null or "reminders"."color" in ('tomato','flamingo','tangerine','banana','sage','basil','peacock','blueberry','lavender','grape','graphite'));

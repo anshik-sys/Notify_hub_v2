@@ -41,6 +41,29 @@
   --shadow-hover: 0 12px 28px -18px rgb(60 30 20 / 0.35);
   --shadow-card: 0 1px 2px rgb(60 30 20 / 0.04), 0 8px 24px -16px rgb(60 30 20 / 0.14);
   --shadow-pop: 0 8px 24px rgb(60 30 20 / 0.14); /* dropdowns */
+  /* Calendar entry colours (PRD 14.2): text on fill ≥ 6:1 in both themes. */
+  --cal-tomato-bg: #fde2df;
+  --cal-tomato-fg: #9b1c12;
+  --cal-flamingo-bg: #fde4ea;
+  --cal-flamingo-fg: #9c2148;
+  --cal-tangerine-bg: #fde7d6;
+  --cal-tangerine-fg: #8f3b05;
+  --cal-banana-bg: #fdf3c4;
+  --cal-banana-fg: #6b5200;
+  --cal-sage-bg: #dff1e6;
+  --cal-sage-fg: #1d6440;
+  --cal-basil-bg: #d6eedd;
+  --cal-basil-fg: #145a32;
+  --cal-peacock-bg: #d7f0f5;
+  --cal-peacock-fg: #0b5d6e;
+  --cal-blueberry-bg: #dde6fb;
+  --cal-blueberry-fg: #1f3f9a;
+  --cal-lavender-bg: #e7e5fb;
+  --cal-lavender-fg: #4a46a8;
+  --cal-grape-bg: #efe0f6;
+  --cal-grape-fg: #6e2a8c;
+  --cal-graphite-bg: #e9e7e6;
+  --cal-graphite-fg: #45403d;
   /* Motion: short and ease-out, so a hover or press answers at once. */
   --duration: 160ms;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -80,6 +103,29 @@
     --shadow-hover: 0 12px 28px -18px rgb(0 0 0 / 0.8);
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.6);
     --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.5);
+    /* Calendar entry colours (PRD 14.2): text on fill ≥ 6:1 in both themes. */
+    --cal-tomato-bg: #4a1d19;
+    --cal-tomato-fg: #ffc2bb;
+    --cal-flamingo-bg: #4a1a2a;
+    --cal-flamingo-fg: #ffbfd2;
+    --cal-tangerine-bg: #47270f;
+    --cal-tangerine-fg: #ffcfa6;
+    --cal-banana-bg: #3f3510;
+    --cal-banana-fg: #f7e08a;
+    --cal-sage-bg: #1c3a2a;
+    --cal-sage-fg: #b7e6c8;
+    --cal-basil-bg: #133523;
+    --cal-basil-fg: #a6dfb9;
+    --cal-peacock-bg: #10363e;
+    --cal-peacock-fg: #a8e4ef;
+    --cal-blueberry-bg: #1b2950;
+    --cal-blueberry-fg: #bfd0ff;
+    --cal-lavender-bg: #2a2852;
+    --cal-lavender-fg: #cfccff;
+    --cal-grape-bg: #382044;
+    --cal-grape-fg: #e6c5f5;
+    --cal-graphite-bg: #33302e;
+    --cal-graphite-fg: #e2dedb;
   }
 }
 
@@ -116,6 +162,29 @@
   --shadow-hover: 0 12px 28px -18px rgb(0 0 0 / 0.8);
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.6);
   --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.5);
+  /* Calendar entry colours (PRD 14.2): text on fill ≥ 6:1 in both themes. */
+  --cal-tomato-bg: #4a1d19;
+  --cal-tomato-fg: #ffc2bb;
+  --cal-flamingo-bg: #4a1a2a;
+  --cal-flamingo-fg: #ffbfd2;
+  --cal-tangerine-bg: #47270f;
+  --cal-tangerine-fg: #ffcfa6;
+  --cal-banana-bg: #3f3510;
+  --cal-banana-fg: #f7e08a;
+  --cal-sage-bg: #1c3a2a;
+  --cal-sage-fg: #b7e6c8;
+  --cal-basil-bg: #133523;
+  --cal-basil-fg: #a6dfb9;
+  --cal-peacock-bg: #10363e;
+  --cal-peacock-fg: #a8e4ef;
+  --cal-blueberry-bg: #1b2950;
+  --cal-blueberry-fg: #bfd0ff;
+  --cal-lavender-bg: #2a2852;
+  --cal-lavender-fg: #cfccff;
+  --cal-grape-bg: #382044;
+  --cal-grape-fg: #e6c5f5;
+  --cal-graphite-bg: #33302e;
+  --cal-graphite-fg: #e2dedb;
 }
 
 *,

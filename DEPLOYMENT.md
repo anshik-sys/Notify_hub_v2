@@ -38,6 +38,9 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0041: `reminders.color` (nullable, checked against the 11 calendar
+colours). Existing reminders get none, so they show their type's default.
+
 Migration 0040: `user_photos` (profile photos, one per person, tenant RLS,
 audited without the bytes), `notification_mutes.enabled`, and a new
 `erase_person()` that also deletes the photo. Existing mute rows are "turned
