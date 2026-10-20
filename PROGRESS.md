@@ -2,6 +2,28 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — calendar: pick a month from the title
+
+- The user asked what the mini month is for. In Month view it repeated the
+  grid. Their idea: open a month picker from the month name. Chose a
+  **single** click on the title over the double-click they first mentioned
+  (a double-click isn't discoverable and has no keyboard path).
+- Clicking the title (`MonthPicker`, a native popover placed under the title
+  with CSS anchor positioning, centred where that isn't supported) shows a
+  year and its 12 months. Picking one goes to that month in the current view.
+  The year arrows are the only client state; a link-per-year would reload the
+  page and close the panel. The mini month now shows only in Week, Day and N
+  days. `Page`'s `title` takes an element for this.
+- **Rejected:** `<input type="month">`; Safari on Mac shows it as a plain
+  text box.
+- **Bug found while checking:** a week spanning New Year read "29 Dec – 4 Jan
+  2026". Both years now show when they differ (test added).
+- **Verified in Chrome:** the panel opens just below the title; Esc closes
+  it; next year → Mar goes to March 2027 and closes; in Week view, Jan goes
+  to the week of 1 January. 9 views tests pass; typecheck, lint.
+- **Not verified:** Firefox and Safari (where anchor positioning may fall
+  back to the centred placement).
+
 ## 2026-10-20 — calendar slice 1: Month, Week, Day and N-day views
 
 - Spec section 10 approved ("spec is fine"); built one slice at a time at

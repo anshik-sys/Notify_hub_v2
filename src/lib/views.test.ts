@@ -166,6 +166,8 @@ test("calendarView: ranges, steps and fallbacks per view", () => {
   assert.equal(calendarView({ view: "year", date: "2026-02-30" }, t).view, "month");
   assert.equal(calendarView({ date: "2026-02-30" }, t).date, t); // not a real day
   assert.equal(calendarView({ view: "month", date: "2027-01-15" }, t).prev, "2026-12-01");
+  assert.equal(calendarView({ view: "week", date: "2026-01-01" }, t).title, "29 Dec 2025 – 4 Jan 2026"); // spans two years
+  assert.equal(calendarView({ view: "week", date: t }, t).title, "19 Oct – 25 Oct 2026");
 });
 
 test("calendarRange: waiting and sent entries, layers, a colleague's overlay", async () => {

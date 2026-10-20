@@ -21,6 +21,7 @@ import {
   VIEWS,
   weekStart,
 } from "@/lib/views";
+import { MonthPicker } from "./month-picker";
 import { ScrollTo } from "./scroll-to";
 import styles from "./page.module.css";
 
@@ -111,7 +112,7 @@ export default async function Calendar(props: PageProps<"/calendar">) {
 
   return (
     <Page
-      title={v.title}
+      title={<MonthPicker title={v.title} month={v.from.slice(0, 7)} today={today} href={href({ date: "__DATE__", mini: null })} />}
       actions={
         <>
           <LinkButton href={href({ date: v.prev })} variant="secondary">
@@ -128,7 +129,8 @@ export default async function Calendar(props: PageProps<"/calendar">) {
     >
       <div className={styles.layout}>
         <aside className={styles.side}>
-          <MiniMonth month={mini} today={today} selected={v.date} href={href} />
+          {/* In Month view the grid itself is the month; the title picks other months. */}
+          {v.view !== "month" && <MiniMonth month={mini} today={today} selected={v.date} href={href} />}
 
           <form action="/calendar" className={styles.panel}>
             {hidden(["q"])}

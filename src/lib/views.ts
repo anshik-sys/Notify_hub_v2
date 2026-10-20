@@ -395,7 +395,7 @@ export function calendarView(p: { view?: string; date?: string; n?: string }, to
       ? fmt(from, { month: "long", year: "numeric" })
       : view === "day"
         ? fmt(from, { weekday: "long", day: "numeric", month: "long", year: "numeric" })
-        : `${fmt(from, { day: "numeric", month: "short" })} – ${fmt(last, { day: "numeric", month: "short", year: "numeric" })}`;
+        : `${fmt(from, { day: "numeric", month: "short", ...(from.slice(0, 4) !== last.slice(0, 4) && { year: "numeric" }) })} – ${fmt(last, { day: "numeric", month: "short", year: "numeric" })}`;
   return { view, date, n, from, to, prev: step(-1), next: step(1), title };
 }
 
