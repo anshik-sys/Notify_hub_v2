@@ -1,7 +1,7 @@
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { companies, companyApprovers, companyLogos, roles, user, userRoles } from "@/db/schema";
-import { checkFile } from "./attachments";
+import { type CheckedFile, checkFile } from "./attachments";
 import { COMPANY_ADMIN_ROLE_ID } from "./permissions";
 import { deleteLogo, getLogo, putLogo } from "./storage";
 import { isTimeZone } from "./time";
@@ -41,7 +41,7 @@ export const LOGO_MAX_BYTES = 256 * 1024;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 // A raster image checked by its bytes (logo, profile photo), or an error.
-export function checkImage(fileName: string, bytes: Uint8Array, maxBytes: number, what: string) {
+export function checkImage(fileName: string, bytes: Uint8Array, maxBytes: number, what: string): { image: CheckedFile } | { error: string } {
   if (bytes.length > maxBytes) return { error: `The ${what} must be ${maxBytes / 1024 >= 1024 ? `${maxBytes / 1024 / 1024} MB` : `${maxBytes / 1024} KB`} or smaller.` };
   const checked = checkFile(fileName, bytes);
   if ("error" in checked) return checked;

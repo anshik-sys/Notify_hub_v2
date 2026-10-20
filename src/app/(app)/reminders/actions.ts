@@ -25,10 +25,9 @@ import { channelChoices } from "@/lib/slack-installations";
 import { sendNow, sendTest } from "@/lib/send-now";
 import { setDone } from "@/lib/tasks";
 import { unsubscribedAmong } from "@/lib/unsubscribe";
-import { isUuid } from "@/lib/validate";
+import { isUuid, str } from "@/lib/validate";
 
 const all = (fd: FormData, name: string) => fd.getAll(name).map(String);
-const str = (fd: FormData, name: string) => String(fd.get(name) ?? "");
 
 // Creates when the form has no id, updates otherwise.
 export async function saveReminder(fd: FormData) {

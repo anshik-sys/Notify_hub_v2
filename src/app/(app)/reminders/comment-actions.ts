@@ -6,9 +6,8 @@ import { errorUrl } from "@/components/form";
 import { addComment, deleteComment, editComment } from "@/lib/comments";
 import { limits } from "@/lib/rate-limit";
 import { requireMember } from "@/lib/session";
-import { isUuid } from "@/lib/validate";
+import { isUuid, str } from "@/lib/validate";
 
-const str = (fd: FormData, k: string) => String(fd.get(k) ?? "");
 const mentionIds = (fd: FormData) => fd.getAll("mentions").map(String);
 
 async function me() {

@@ -89,7 +89,6 @@ function platformTx<T>(fn: (tx: Parameters<Parameters<typeof db.transaction>[0]>
   });
 }
 
-type Rows<T> = { rows: T[] };
 export type CompanyRow = {
   id: string;
   name: string;
@@ -111,7 +110,7 @@ export type CompanyRow = {
 const date = (v: unknown) => (v === null || v === undefined ? null : new Date(v as string));
 export const platformCompanies = () =>
   platformTx(async (tx) =>
-    ((await tx.execute(sql`select * from platform_companies()`)) as unknown as Rows<CompanyRow>).rows.map((r) => ({
+    (await tx.execute<CompanyRow>(sql`select * from platform_companies()`)).rows.map((r) => ({
       ...r,
       created_at: date(r.created_at)!,
       suspended_at: date(r.suspended_at),
@@ -123,14 +122,14 @@ export const platformQueue = () =>
   platformTx(
     async (tx) =>
       (
-        (await tx.execute(sql`select * from platform_queue()`)) as unknown as Rows<{
+        await tx.execute<{
           queued: number;
           sending: number;
           failed_24h: number;
           oldest_queued_seconds: number | null;
           overdue_reminders: number;
           worker_seconds: number | null;
-        }>
+        }>(sql`select * from platform_queue()`)
       ).rows[0],
   );
 
@@ -215,7 +214,7 @@ export async function deleteEmptyCompany(companyId: string) {
 export async function platformSettingsRow() {
   const [row] = await db.select().from(platformSettings).where(sql`${platformSettings.id} = 1`);
   const member = await platformTx(async (tx) => {
-    const r = (await tx.execute(sql`select permissions from roles where id = '00000000-0000-4000-8000-000000000002'`)) as unknown as Rows<{ permissions: string[] }>;
+    const r = await tx.execute<{ permissions: string[] }>(sql`select permissions from roles where id = '00000000-0000-4000-8000-000000000002'`);
     return r.rows[0]?.permissions ?? [];
   });
   return { dailyVolumeAlert: row?.dailyVolumeAlert ?? null, memberPermissions: member };

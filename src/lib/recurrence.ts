@@ -201,13 +201,6 @@ export function ruleFromForm(f: RepeatFields, anchorLocal: string): { rule: Rule
   return { rule };
 }
 
-// For the custom form's monthly option label: "3rd Tuesday" / "last Friday".
-export function anchorWeekdayLabel(anchorLocal: string) {
-  const { day } = parseAnchor(anchorLocal);
-  const nth = Math.ceil(day.d / 7);
-  return `${ORDINAL[nth >= 5 ? -1 : nth]} ${LONG_DAY[weekdayOf(day)]}`;
-}
-
 // The reverse of ruleFromForm, for the edit page: presets come back as presets.
 export function fieldsFromRule(rule: Rule | null, anchorLocal: string): RepeatFields {
   const base: RepeatFields = { repeat: "none", every: "1", unit: "day", weekdays: [], monthlyBy: "day", ends: "never", until: "", count: "" };

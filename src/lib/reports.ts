@@ -47,14 +47,12 @@ const range = (f: ReportFilters, tz: string) => ({
   end: zonedToUtc(`${addDays(f.to, 1)}T00:00`, tz)!,
 });
 
-type Rows<T> = { rows: T[] };
-
 export async function deliveryVolume(companyId: string, tz: string, f: ReportFilters) {
   const { start, end } = range(f, tz);
   const label = { hour: "YYYY-MM-DD HH24:00", day: "YYYY-MM-DD", month: "YYYY-MM" }[f.bucket];
   const at = sql`coalesce(d.sent_at, d.updated_at)`;
-  const res = (await withTenant(companyId, (tx) =>
-    tx.execute(sql`
+  const res = await withTenant(companyId, (tx) =>
+    tx.execute<{ bucket: string; channel: "email" | "slack"; sent: number; failed: number; pending: number }>(sql`
       select to_char(date_trunc(${f.bucket}, ${at} at time zone ${tz}), ${label}) as bucket, d.channel,
         count(*) filter (where d.status = 'sent')::int as sent,
         count(*) filter (where d.status = 'failed')::int as failed,
@@ -62,7 +60,7 @@ export async function deliveryVolume(companyId: string, tz: string, f: ReportFil
       from deliveries d
       where ${at} >= ${start} and ${at} < ${end}
       group by 1, 2 order by 1, 2`),
-  )) as unknown as Rows<{ bucket: string; channel: "email" | "slack"; sent: number; failed: number; pending: number }>;
+  );
   const buckets = new Map<string, Record<"email" | "slack", { sent: number; failed: number; pending: number }>>();
   const totals = { email: { sent: 0, failed: 0, pending: 0 }, slack: { sent: 0, failed: 0, pending: 0 } };
   for (const r of res.rows) {
@@ -95,8 +93,8 @@ function groupBy(by: ReportFilters["by"]): { join: SQL; name: SQL } {
 export async function taskCompletion(companyId: string, tz: string, f: ReportFilters) {
   const { start, end } = range(f, tz);
   const g = groupBy(f.by);
-  const res = (await withTenant(companyId, (tx) =>
-    tx.execute(sql`
+  const res = await withTenant(companyId, (tx) =>
+    tx.execute<{ name: string; assigned: number; done: number; on_time: number; avg_minutes: number | null }>(sql`
       select ${g.name} as name, count(*)::int as assigned, count(ta.done_at)::int as done,
         count(*) filter (where ta.done_at <= o.due_at)::int as on_time,
         round(avg(extract(epoch from ta.done_at - o.occurs_at) / 60) filter (where ta.done_at is not null))::int as avg_minutes
@@ -106,7 +104,7 @@ export async function taskCompletion(companyId: string, tz: string, f: ReportFil
       ${g.join}
       where o.due_at >= ${start} and o.due_at < ${end} and r.status <> 'cancelled'
       group by 1 order by 1`),
-  )) as unknown as Rows<{ name: string; assigned: number; done: number; on_time: number; avg_minutes: number | null }>;
+  );
   return res.rows.map((r) => ({ ...r, rate: r.assigned ? r.done / r.assigned : 0 }));
 }
 
@@ -114,22 +112,22 @@ export async function overdueTasks(companyId: string, f: ReportFilters, now = ne
   const g = groupBy(f.by);
   const open = sql`ta.done_at is null and o.due_at < ${now} and r.status <> 'cancelled'`;
   const [summary, detail] = await withTenant(companyId, async (tx) => [
-    (await tx.execute(sql`
+    await tx.execute<{ name: string; overdue: number; oldest: Date }>(sql`
       select ${g.name} as name, count(*)::int as overdue, min(o.due_at) as oldest
       from task_assignments ta
       join reminder_occurrences o on o.id = ta.occurrence_id
       join reminders r on r.id = ta.reminder_id
       ${g.join}
       where ${open}
-      group by 1 order by 2 desc, 1`)) as unknown as Rows<{ name: string; overdue: number; oldest: Date }>,
-    (await tx.execute(sql`
+      group by 1 order by 2 desc, 1`),
+    await tx.execute<{ person: string; reminder_id: string; title: string; due_at: Date }>(sql`
       select u.name as person, r.id as reminder_id, r.title, o.due_at
       from task_assignments ta
       join reminder_occurrences o on o.id = ta.occurrence_id
       join reminders r on r.id = ta.reminder_id
       join "user" u on u.id = ta.user_id
       where ${open}
-      order by o.due_at limit 200`)) as unknown as Rows<{ person: string; reminder_id: string; title: string; due_at: Date }>,
+      order by o.due_at limit 200`),
   ]);
   const days = (d: Date) => Math.floor((now.getTime() - new Date(d).getTime()) / DAY);
   return {

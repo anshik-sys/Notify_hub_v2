@@ -8,11 +8,10 @@ import { authDb } from "./auth";
 // never tokens). Keep in step with erase_person (migration 0028): a new
 // table with personal data belongs in both.
 
-type Rows = { rows: Record<string, unknown>[] };
 
 export async function exportPerson(companyId: string, userId: string) {
   const q = (tx: Parameters<Parameters<typeof withTenant>[1]>[0], query: ReturnType<typeof sql>) =>
-    tx.execute(query).then((r) => (r as unknown as Rows).rows);
+    tx.execute(query).then((r) => r.rows);
   const data = await withTenant(companyId, async (tx) => ({
     profile: (
       await q(tx, sql`select id, name, email, time_zone, created_at, deactivated_at, two_factor_enabled from "user" where id = ${userId}`)

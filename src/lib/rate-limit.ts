@@ -50,5 +50,3 @@ export function clientIp(h: Headers) {
   return raw.split(",")[0].trim() || "unknown";
 }
 
-// The worker's tick clears windows nobody has touched for a day.
-export const purgeRateLimits = () => db.execute(sql`delete from rate_limits where window_start < now() - interval '1 day'`);

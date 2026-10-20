@@ -9,6 +9,7 @@ import { hasPassword, revokeMySession, setTimeZone } from "@/lib/account";
 import { limits } from "@/lib/rate-limit";
 import { auth } from "@/lib/auth";
 import { requireMember, requireSignedIn } from "@/lib/session";
+import { str } from "@/lib/validate";
 import { removePhoto, setPhoto } from "@/lib/users";
 
 // The signed-in person's own account: no permission beyond being signed in.
@@ -18,7 +19,6 @@ import { removePhoto, setPhoto } from "@/lib/users";
 // (Was: security actions pass true to requireMember, so someone the company forces
 // to set up 2FA can reach them.
 
-const str = (fd: FormData, k: string) => String(fd.get(k) ?? "");
 const notice = (path: string, m: string): never => redirect(`${path}?notice=${encodeURIComponent(m)}`);
 const SECURITY = "/settings/security";
 const PAGES = [SECURITY, "/platform/security"];

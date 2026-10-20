@@ -2,6 +2,31 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — clean-ups from the ponytail audit
+
+- **Dead code removed** (each had no caller): `anchorWeekdayLabel`
+  (`recurrence.ts`), `deleteBlob` (`storage.ts`: deleting the attachment row
+  cascades to its bytes), `purgeRateLimits` (`rate-limit.ts`: the worker
+  runs the same delete itself in `index.ts`, so README's "the worker clears
+  day-old windows" is still true).
+- **Raw queries:** eight `(await tx.execute(sql`…`)) as unknown as Rows<…>`
+  casts in `reports.ts`, `platform.ts` and `privacy.ts`, each file with its
+  own `Rows` type, are now `tx.execute<Row>(sql`…`)`. Drizzle's execute is
+  already generic (`escalation.ts` used it that way). Rejected: a shared
+  helper; the built-in does it.
+- **Form fields:** five identical `str(fd, k)` in server-action files are now
+  one in `src/lib/validate.ts` (a helper can't live in a `"use server"` file:
+  every export there is an endpoint). Two different ones stay:
+  `preview.tsx` (client, trims) and `formToRaw`'s closure in `reminders.ts`.
+- `checkImage` got an explicit return type. Without it, these edits made
+  TypeScript widen its error to `string | undefined`, which broke the logo
+  action's typecheck. The committed #11 code typechecks fine (checked on a
+  clean copy of HEAD).
+- **Verified:** 286 tests pass, 8 skipped. Typecheck, lint. Signed in on :3000:
+  the three Reports tabs, Profile, Groups, Reminders and the data export
+  (with its `photo` key) all load with no errors. The platform console's
+  queries are covered by `platform.test.ts`, not loaded in a browser.
+
 ## 2026-10-20 — #11 built: profile photos and more notification preferences
 
 - Spec sections 8 and 9 approved as proposed ("spec is fine").

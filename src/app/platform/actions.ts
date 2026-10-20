@@ -13,10 +13,9 @@ import {
   setVolumeAlert,
 } from "@/lib/platform";
 import { auth } from "@/lib/auth";
-import { isUuid } from "@/lib/validate";
+import { isUuid, str } from "@/lib/validate";
 
 // Every action re-checks the owner (email, 2FA, IP) and is rate limited.
-const str = (fd: FormData, k: string) => String(fd.get(k) ?? "");
 const go = (path: string, error: string | null, notice = "Saved."): never =>
   redirect(error ? errorUrl(path, error) : `${path}?notice=${encodeURIComponent(notice)}`);
 async function gate(path: string) {

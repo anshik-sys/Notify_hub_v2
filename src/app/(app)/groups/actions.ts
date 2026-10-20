@@ -4,11 +4,10 @@ import { notFound, redirect } from "next/navigation";
 import { errorUrl } from "@/components/form";
 import { addGroupMembers, createGroup, deleteGroup, removeGroupMember, renameGroup } from "@/lib/groups";
 import { requireMember } from "@/lib/session";
-import { isUuid } from "@/lib/validate";
+import { isUuid, str } from "@/lib/validate";
 
 // Edit rights (creator or groups.manage) are checked in src/lib/groups.ts.
 
-const str = (fd: FormData, k: string) => String(fd.get(k) ?? "");
 async function actor(fd: FormData) {
   const id = str(fd, "groupId");
   if (!isUuid(id)) notFound();
