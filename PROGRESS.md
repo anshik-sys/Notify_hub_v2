@@ -2,6 +2,28 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — events spec drafted (v2 step 2, PRD 14.3)
+
+- The user asked how an event differs from a reminder. A reminder tells
+  people something at a moment, a task asks them to do something, and an
+  event asks them to be somewhere for a length of time. Agreed: a **third
+  kind** on the reminders model, so recipients, approval, the calendar,
+  colours, drag, comments and files all carry over.
+- Section 11 of `docs/expected-behaviour.md`, 49 cases:
+  - the event itself (EV);
+  - invites with `.ics`, sent at once rather than at the start (IN);
+  - Yes / No / Maybe (RS);
+  - "starts soon" notices (SN);
+  - update and cancel notices (UP);
+  - calendar blocks, the all-day strip and the layer (CL);
+  - visibility (VS);
+  - carried-over rules (RC).
+- **Visibility changes:** guests must be able to open a scheduled event
+  before anything is sent (VS1, decided). Proposed: the same for upcoming
+  tasks and their assignees (VS2), which answers the open question from
+  calendar slice 1.
+- Six open questions at the end, waiting for the user's review. Nothing built.
+
 ## 2026-10-20 — calendar spec tests: 36 pass, 4 decided, 16 browser-only
 
 - An independent tester (a fresh agent, no implementation files) wrote

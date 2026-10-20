@@ -1,4 +1,4 @@
-# Expected behaviour: v1 gap items #4, #5, #7, #8, #9, #11; v2 calendar
+# Expected behaviour: v1 gap items #4, #5, #7, #8, #9, #11; v2 calendar and events
 
 What each feature should do, written from the PRD and the product owner's
 decisions, **not** from the code. Behaviour tests are written from this file,
@@ -437,6 +437,125 @@ a mouse (K4, M4).
 4. **U1/U4:** duplicates are one-time, and anyone who can create reminders
    may duplicate what they can see?
 5. **C2:** custom range of 2–7 days enough?
+
+## 11. Events: meetings with an end time and replies (v2 step 2, PRD 14.3)
+
+Decided 2026-10-20: an event is a **third kind** next to reminder and task,
+on the same reminders model (recipients, approval, calendar, colours, drag,
+comments, files, edit and delete all apply). What a reminder is for: telling
+people something at a moment. A task: asking them to do something. An
+**event: asking them to be somewhere** for a length of time.
+
+Rules marked **(proposed)** are mine; confirm or change them before building.
+Anything not mentioned works as it does for reminders.
+
+| Function | What it does |
+|---|---|
+| Reminder input, kind `event` | Adds start and end (or all-day / several days), location, meeting link, and "notify before" times. |
+| `respond(viewer, companyId, eventId, answer)` | A guest's Yes / No / Maybe; can be changed any time before the event ends. |
+| `eventResponses(companyId, eventId)` | Who said what, and who hasn't answered, for the organiser. |
+| Worker: invites, "starts soon", update and cancel notices | Sent through `deliveries` like reminder emails: exactly once, with retries. |
+| `.ics` for an event | A calendar file (method REQUEST, or CANCEL), attached to invites and updates. |
+
+### The event itself
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| EV1 | Create an event: title, start and end, guests | Saved; shows as "Event" | PRD 14.3 | |
+| EV2 | End before or at the start; start in the past | Refused | | |
+| EV3 | All-day, one day or several days (12–14 Nov) | Saved as dates, no times; shown for the whole day(s) | PRD 14.3 | |
+| EV4 | Location (free text) and a meeting link | The link must be http(s); any service (Meet, Zoom, Teams…); shown as "Join" | PRD 14.3: pasted, not generated | |
+| EV5 | Repeating event (every Monday 10:00–10:30) | Same repeat rules as reminders (5.5); each date keeps the same length | PRD 14.3 | |
+| EV6 | Guests | Picked like recipients: people, groups, departments, the whole company. **Members only**: no typed outside emails, no Slack channels as guests | PRD 14.3 "Company members only" | |
+| EV7 | Guests outside the organiser's scope | Needs approval first, as for reminders (5.9); nothing is sent until approved | PRD 14.3, 5.9 | |
+| EV8 | The organiser | The creator; counts as "Yes" and gets no invite | **(proposed)** | |
+| EV9 | An event can't also be a task | The form offers Reminder / Task / Event, one of them | **(proposed)** | |
+| EV10 | Files and description | As for reminders; files go with the invite | PRD 14.3 | |
+
+### Invites
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| IN1 | An event is scheduled (created in scope, or approved) | Each guest gets an invite **at once**, not at the start time: email with title, when, where, the Join link, Yes / No / Maybe links and an `.ics` file; and/or a Slack DM with Yes / No / Maybe buttons, following the event's channels | PRD 14.3 | |
+| IN2 | Each guest | One invite each, exactly once (even with retries), addressed only to them | PRD 6, 7.1 | |
+| IN3 | The `.ics` | Opens in Google Calendar, Outlook and Apple Calendar with the right time (UTC inside), title, place and link | PRD 14.3 | |
+| IN4 | A repeating event | One invite for the series (the `.ics` repeats), not one per date | **(proposed)** | |
+| IN5 | Waiting for approval, or rejected | No invites | PRD 5.9 | |
+| IN6 | Someone joins a guest department or group later | They get an invite when they join, if the event is still to come | PRD 5.2 (current membership). **(proposed)** | |
+
+### Replies (RSVP)
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| RS1 | A guest answers Yes / No / Maybe (email link, Slack button, the event's page or the calendar card) | Saved; they can change it until the event ends | PRD 14.3 | |
+| RS2 | The email links | Signed per guest and event (like unsubscribe links), so they work without signing in but can't be used for someone else; a click asks to confirm (mail scanners open links) | **(proposed)** | |
+| RS3 | Someone who isn't a guest tries to answer | Refused | | |
+| RS4 | The organiser opens the event | Counts and names: Yes, No, Maybe, no answer yet | PRD 14.3 | |
+| RS5 | A guest opens the event | Sees their own answer and the totals, not who said what | **(proposed)** | |
+| RS6 | Repeating event | One answer for the whole series | **(proposed: answering one date only comes later)** | |
+| RS7 | The organiser hears about answers | In the app, one notification per answer (mutable by email), not per date | PRD 7.5. **(proposed)** | |
+
+### "Starts soon" notices
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| SN1 | 10 minutes before the start, by default | Each guest who hasn't said No gets "Starts in 10 minutes" with the Join link, over the event's channels | PRD 14.3 | |
+| SN2 | The organiser changes it or adds more (e.g. 1 day and 10 minutes) | Each one sent once per date, in time order | PRD 14.3 | |
+| SN3 | "None" | No notices before | **(proposed)** | |
+| SN4 | Repeating event | Before every date | PRD 14.3 | |
+| SN5 | An all-day event | The notice goes at 09:00 company time that day, minus the chosen time **(proposed)** | | |
+| SN6 | The event was skipped, cancelled or deleted, or the guest said No | Nothing | | |
+
+### Changes and cancelling
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| UP1 | Time, place or link changes (form, drag or "Move to…") | Every guest gets "Updated" with what changed and a new `.ics` (same event, next version); answers stay | PRD 14.3 | |
+| UP2 | Only the description, files or colour change | No update notice | **(proposed)** | |
+| UP3 | A guest is added | They get the invite | | |
+| UP4 | A guest is removed | They get "You're no longer invited" with a cancelling `.ics` | **(proposed)** | |
+| UP5 | Cancelled or deleted | Every guest gets "Cancelled" with a cancelling `.ics`; it leaves calendars (ours and, via the `.ics`, theirs) | PRD 14.3 | |
+| UP6 | One date of a repeating event moved or deleted (this one / following / all) | Guests are told about that date (or the rest); the `.ics` update covers it | PRD 14.2, 14.3 | |
+| UP7 | A change that widens the guests beyond what was approved | Needs approval again; until then the old guests keep the old event | PRD 5.9 | |
+
+### Calendar and visibility
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| CL1 | Week / Day view | An event is a block from start to end (not 30 minutes); several at once sit side by side | PRD 14.1 | |
+| CL2 | All-day and several-day events | In a strip above the hours (Week / Day); across the days in Month view | PRD 14.1 | |
+| CL3 | Layer "Events I'm invited to" | Shows events where I'm a guest; the organiser's own are in "Created by me" | PRD 14.1 | |
+| CL4 | Peek card | Adds where, Join, my answer with Yes / No / Maybe buttons (guests), totals (organiser) | PRD 14.2 | |
+| CL5 | Quick create, type Event | One hour long by default, guest: just me (I can add people in More options) | **(proposed)** | |
+| CL6 | Drag an event | Moves it and keeps its length (no resizing by dragging) | **(proposed)** | |
+| VS1 | A guest can open the event | As soon as it's scheduled (not while waiting for approval), before anything is sent; also in search and their calendar | Decided 2026-10-20 (guests must see it to answer) | |
+| VS2 | Upcoming tasks for their assignees | The same rule: an assignee can open a scheduled task before it's sent, so "Tasks assigned to me" shows upcoming ones | Follows from VS1. **(proposed)** | |
+| VS3 | Someone who isn't a guest, creator, admin or manager of the organiser | Can't open it (unless shared, as today) | PRD 5.4 | |
+
+### Rules carried over
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| RC1 | Invites, updates and "starts soon" | Never mutable (like reminders); answers to the organiser are | Decided 2026-10-07 | |
+| RC2 | Daily email limit, suspended company | Invites and notices count and wait like reminder emails | PRD 7.1, 9.2 | |
+| RC3 | Erase / export a person | Their answers are in the export and removed on erase | PRD 11.5 | |
+| RC4 | Audit log | Creating, changing and answering are logged | PRD 9.1 | |
+
+### Not in this step
+
+The calendar feed (14.4), answering one date of a repeating event, resizing
+by dragging, rooms or resource booking, and outside (non-member) guests.
+
+### Open questions for events
+
+1. **EV8:** the organiser counts as "Yes" and gets no invite?
+2. **IN4 / RS6:** one invite and one answer for a whole repeating event?
+3. **RS2:** reply links in the email work without signing in (signed, with a
+   confirm click)?
+4. **UP2 / UP4:** no notice for description-only changes; removed guests get
+   a cancellation?
+5. **VS2:** upcoming tasks visible to their assignees too, by the same rule?
+6. **SN5:** "starts soon" for an all-day event counts back from 09:00?
 
 ## Open questions found while testing
 
