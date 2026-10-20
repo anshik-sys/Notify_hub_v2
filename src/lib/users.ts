@@ -1,20 +1,28 @@
-import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { departmentMembers, departments, invitations, roles, session, user, userRoles } from "@/db/schema";
 import { listMySessions, resetTwoFactor } from "./account";
 import { authDb } from "./auth";
 import { type Access, can, canGrant, COMPANY_ADMIN_ROLE_ID, MEMBER_ROLE_ID } from "./permissions";
+import { PAGE_SIZE } from "./views";
 
 type Tx = Parameters<Parameters<typeof withTenant>[1]>[0];
 type Actor = { id: string; access: Access };
 class Refused extends Error {}
 
 // The directory (PRD 4): q matches name, email or a department's name.
-export async function listUsers(companyId: string, q = "") {
+// With a page, returns PAGE_SIZE people from it; without, everyone (pickers).
+export async function listUsers(companyId: string, q = "", page?: number) {
   const like = `%${q.trim().replace(/[\\%_]/g, "\\$&")}%`;
   return withTenant(companyId, async (tx) => {
-    const people = await tx
-      .select({ id: user.id, name: user.name, email: user.email, deactivatedAt: user.deactivatedAt })
+    const query = tx
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        deactivatedAt: user.deactivatedAt,
+        total: sql<number>`count(*) over ()::int`,
+      })
       .from(user)
       .where(
         and(
@@ -25,16 +33,22 @@ export async function listUsers(companyId: string, q = "") {
             : undefined,
         ),
       )
-      .orderBy(user.name);
+      .orderBy(user.name, asc(user.id))
+      .$dynamic();
+    const rows = page ? await query.limit(PAGE_SIZE).offset((page - 1) * PAGE_SIZE) : await query;
+    const people = rows;
+    const ids = people.map((p) => p.id);
     const memberOf = await tx
       .select({ userId: departmentMembers.userId, name: departments.name, isManager: departmentMembers.isManager })
       .from(departmentMembers)
       .innerJoin(departments, eq(departments.id, departmentMembers.departmentId))
+      .where(inArray(departmentMembers.userId, ids))
       .orderBy(departments.name);
     const held = await tx
       .select({ userId: userRoles.userId, name: roles.name })
       .from(userRoles)
       .innerJoin(roles, eq(roles.id, userRoles.roleId))
+      .where(inArray(userRoles.userId, ids))
       .orderBy(roles.name);
     const pending = await tx
       .select({ id: invitations.id, email: invitations.email, expiresAt: invitations.expiresAt })
@@ -48,6 +62,7 @@ export async function listUsers(companyId: string, q = "") {
         departments: memberOf.filter((m) => m.userId === p.id).map(({ name, isManager }) => ({ name, isManager })),
       })),
       pending,
+      total: rows[0]?.total ?? 0,
     };
   });
 }

@@ -2,6 +2,21 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-20 — Team list pages (audit #10)
+
+- The Team page loaded every member at once. It now shows 25 per page
+  (`PAGE_SIZE`, same as Reminders) with the shared `Pager`; the search
+  carries across pages. Pending invites stay unpaged.
+- `listUsers(companyId, q, page?)` returns `total`; without a page it still
+  returns everyone, so the pickers (reminder form, setup, integrations)
+  are unchanged. Department and role lookups now fetch only the listed
+  people, not the whole company. Ties on name sort by id so no one shows
+  on two pages.
+- **Verified:** new test in `src/lib/users.test.ts` (26 matching people:
+  25 + 1, total 26, no repeats, unpaged returns all 26). Full suite 260
+  pass, 2 browser-only skips; typecheck, lint. Not yet looked at in the
+  browser.
+
 ## 2026-10-19 — volume alert looks ahead (PRD 6)
 
 - Audit item #9. The PRD wants a warning when any **upcoming** day has more

@@ -5,6 +5,7 @@ import { authDb } from "./auth";
 import { type Access, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "./permissions";
 import { seeder } from "./test-helpers";
 import { adminResetTwoFactor, listUsers, personSessions, renamePerson, setActive, setUserRoles, signOutPerson } from "./users";
+import { PAGE_SIZE } from "./views";
 
 const s = seeder();
 let admin: { id: string; access: Access };
@@ -76,6 +77,20 @@ test("directory: departments listed; search by name, email or department", async
   assert.deepEqual(await ids("pat sm"), [pat]);
   assert.deepEqual(await ids("%"), []); // literal
   assert.deepEqual((await listUsers(s.companyId)).users.find((u) => u.id === pat)!.departments, [{ name: "Field Ops", isManager: true }]);
+});
+
+test("directory pages: PAGE_SIZE per page, total counts the search, no one twice", async () => {
+  for (let i = 0; i < PAGE_SIZE + 1; i++) {
+    const id = await s.user();
+    await s.owner.query(`update "user" set name = 'Pager Person' where id = $1`, [id]);
+  }
+  const one = await listUsers(s.companyId, "pager person", 1);
+  const two = await listUsers(s.companyId, "pager person", 2);
+  assert.equal(one.users.length, PAGE_SIZE);
+  assert.equal(two.users.length, 1);
+  assert.equal(one.total, PAGE_SIZE + 1);
+  assert.equal(new Set([...one.users, ...two.users].map((u) => u.id)).size, PAGE_SIZE + 1);
+  assert.equal((await listUsers(s.companyId, "pager person")).users.length, PAGE_SIZE + 1);
 });
 
 test("admin 2FA reset: clears it, ends sessions; guarded like deactivation", async () => {

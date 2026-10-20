@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import { Avatar } from "@/components/avatar";
-import { FilterBar } from "@/components/filters";
+import { FilterBar, Pager } from "@/components/filters";
 import { Button, Field, firstParam, LinkButton, Page, Section } from "@/components/form";
 import { Badge, Muted, Table } from "@/components/table";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { listUsers } from "@/lib/users";
+import { PAGE_SIZE } from "@/lib/views";
 import { revokeInvite } from "./actions";
 import styles from "./page.module.css";
 
@@ -14,7 +15,9 @@ export default async function Users(props: PageProps<"/users">) {
   if (!can(access, "users.view")) notFound();
   const sp = await props.searchParams;
   const q = firstParam(sp.q)?.slice(0, 100) ?? "";
-  const { users, pending } = await listUsers(companyId, q);
+  const n = Number(firstParam(sp.page));
+  const page = Number.isInteger(n) && n > 0 && n < 10_000 ? n : 1;
+  const { users, pending, total } = await listUsers(companyId, q, page);
   const canInvite = can(access, "users.create");
   const showRoles = can(access, "users.manage_roles");
 
@@ -64,6 +67,14 @@ export default async function Users(props: PageProps<"/users">) {
           ],
         }))}
       />
+      {total > PAGE_SIZE && (
+        <Pager
+          page={page}
+          total={total}
+          pageSize={PAGE_SIZE}
+          href={(p) => `/users?${new URLSearchParams({ ...(q && { q }), ...(p > 1 && { page: String(p) }) })}`}
+        />
+      )}
       {canInvite && pending.length > 0 && (
         <Section title="Pending invites">
           <Table
