@@ -324,6 +324,9 @@ export const reminders = pgTable(
     meetingUrl: text(),
     // Minutes before the start for "starts soon" notices; [] = none.
     notifyBefore: integer().array().notNull().default(sql`'{}'`),
+    // PRD 14.3 change notices: what guests were last told (the worker compares
+    // the event with it and sends what changed). Null until it's first scheduled.
+    announced: jsonb().$type<import("@/lib/invite").Announced>(),
     // Free-form labels for filtering (PRD 5.1): lowercase, validated in validateInput.
     tags: text().array().notNull().default(sql`'{}'`),
     status: text().$type<ReminderStatus>().notNull(),
@@ -415,6 +418,8 @@ export const reminderOccurrences = pgTable(
 // the worker (owner connection); read by the web for the delivery log.
 // kind = invite (PRD 14.3): an event's invite, one per guest for the whole
 // event (no occurrence), unique per (event, channel, address).
+// kind = update / cancel / uninvite: a change notice (slice 4), one per
+// (event, kind, version, channel, address); detail = what changed.
 // kind = soon: a "starts soon" notice, one per (event, date, minutes before,
 // channel, address). Sent before the date has an occurrence, so it's keyed
 // by occurs_at and before_minutes instead.
@@ -429,9 +434,11 @@ export const deliveries = pgTable(
       .notNull()
       .references(() => reminders.id, { onDelete: "cascade" }),
     occurrenceId: uuid().references(() => reminderOccurrences.id, { onDelete: "cascade" }),
-    kind: text().$type<"reminder" | "invite" | "soon">().notNull().default("reminder"),
+    kind: text().$type<"reminder" | "invite" | "soon" | "update" | "cancel" | "uninvite">().notNull().default("reminder"),
     occursAt: ts(),
     beforeMinutes: integer(),
+    version: integer(),
+    detail: text(),
     channel: text().$type<"email" | "slack">().notNull().default("email"),
     // email: the address. slack: a channel id (C…) or, for a DM, the internal
     // user id (the Slack user id is looked up at send time).
@@ -457,7 +464,11 @@ export const deliveries = pgTable(
     uniqueIndex("deliveries_soon_idx")
       .on(t.reminderId, t.occursAt, t.beforeMinutes, t.channel, t.address)
       .where(sql`${t.kind} = 'soon'`),
-    check("deliveries_kind_valid", sql`(${t.kind} = 'reminder') = (${t.occurrenceId} is not null) and ${t.kind} in ('reminder','invite','soon')`),
+    uniqueIndex("deliveries_change_idx")
+      .on(t.reminderId, t.kind, t.version, t.channel, t.address)
+      .where(sql`${t.kind} in ('update','cancel','uninvite')`),
+    check("deliveries_kind_valid", sql`(${t.kind} = 'reminder') = (${t.occurrenceId} is not null) and ${t.kind} in ('reminder','invite','soon','update','cancel','uninvite')`),
+    check("deliveries_change_versioned", sql`(${t.kind} in ('update','cancel','uninvite')) = (${t.version} is not null)`),
     check("deliveries_soon_keyed", sql`(${t.kind} = 'soon') = (${t.occursAt} is not null and ${t.beforeMinutes} is not null)`),
     check("deliveries_channel_valid", sql`${t.channel} in ('email','slack')`),
     index().on(t.reminderId),

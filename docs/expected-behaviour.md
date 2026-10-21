@@ -511,13 +511,13 @@ Anything not mentioned works as it does for reminders.
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| UP1 | Time, place or link changes (form, drag or "Move to…") | Every guest gets "Updated" with what changed and a new `.ics` (same event, next version); answers stay | PRD 14.3 | |
-| UP2 | Only the description, files or colour change | No update notice | **(proposed)** | |
-| UP3 | A guest is added | They get the invite | | |
-| UP4 | A guest is removed | They get "You're no longer invited" with a cancelling `.ics` | **(proposed)** | |
-| UP5 | Cancelled or deleted | Every guest gets "Cancelled" with a cancelling `.ics`; it leaves calendars (ours and, via the `.ics`, theirs) | PRD 14.3 | |
-| UP6 | One date of a repeating event moved or deleted (this one / following / all) | Guests are told about that date (or the rest); the `.ics` update covers it | PRD 14.2, 14.3 | |
-| UP7 | A change that widens the guests beyond what was approved | Needs approval again; until then the old guests keep the old event | PRD 5.9 | |
+| UP1 | Time, place or link changes (form, drag or "Move to…") | Every guest gets "Updated" with what changed and a new `.ics` (same event, next version); answers stay | PRD 14.3 | PASS (the .ics content; Google / Outlook / Apple applying it is a manual check) |
+| UP2 | Only the description, files or colour change | No update notice | **(proposed)** | PASS |
+| UP3 | A guest is added | They get the invite | | PASS |
+| UP4 | A guest is removed | They get "You're no longer invited" with a cancelling `.ics` | **(proposed)** | PASS |
+| UP5 | Cancelled or deleted | Every guest gets "Cancelled" with a cancelling `.ics`; it leaves calendars (ours and, via the `.ics`, theirs) | PRD 14.3 | PASS |
+| UP6 | One date of a repeating event moved or deleted (this one / following / all) | Guests are told about that date (or the rest); the `.ics` update covers it | PRD 14.2, 14.3 | PASS |
+| UP7 | A change that widens the guests beyond what was approved | Needs approval again. Until it's approved nothing is sent (no update, cancel or invite), so guests' own calendars keep the old event; inside NotifyHub they see the change marked "Needs approval" (reworded 2026-10-21 after the spec test: the user chose this over keeping a pending revision) | PRD 5.9 | PASS after rewording (first run FAIL: the NotifyHub calendar showed the pending change; decided the spec was wrong) |
 
 ### Calendar and visibility
 

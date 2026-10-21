@@ -1,14 +1,13 @@
 import { type AnyColumn, and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
-import { attachments, companies, companyLogos, deliveries, emailSuppressions, notifications, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user, userRoles } from "@/db/schema";
+import { attachments, companies, companyLogos, deliveries, emailSuppressions, eventResponses, notifications, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user, userRoles } from "@/db/schema";
 import { COMPANY_ADMIN_ROLE_ID } from "@/lib/permissions";
 import { emailFiles } from "@/lib/attachments";
-import { brandFor, renderInviteEmail, renderReminderEmail, renderSoonEmail } from "@/lib/email-render";
-import { dueNotices, eventIcs, eventWhen, noticeStart, rsvpUrl, startsIn } from "@/lib/invite";
-import { eventResponses } from "@/db/schema";
+import { brandFor, renderChangeEmail, renderInviteEmail, renderReminderEmail, renderSoonEmail } from "@/lib/email-render";
+import { type Announced, announce, changes, dueNotices, eventEnd, eventIcs, eventWhen, noticeStart, rsvpUrl, startsIn } from "@/lib/invite";
 import { getBlob } from "@/lib/storage";
 import { decrypt } from "@/lib/crypto";
-import { inviteMessage, lookupByEmail, openDm, postMessage, reminderMessage, SlackError, soonMessage, uploadFile } from "@/lib/slack";
-import { between, nextAfter } from "@/lib/recurrence";
+import { changeMessage, inviteMessage, lookupByEmail, openDm, postMessage, reminderMessage, SlackError, soonMessage, uploadFile } from "@/lib/slack";
+import { between, firstAtOrAfter, nextAfter } from "@/lib/recurrence";
 import { formatInZone, toLocalInput } from "@/lib/time";
 import { sendMail } from "@/lib/mail";
 import { addNotifications, planTell, sendTell } from "@/lib/notifications";
@@ -381,6 +380,128 @@ export async function dispatchSoon(enqueue: (deliveryIds: string[]) => Promise<v
   return count;
 }
 
+// --- Change and cancel notices (PRD 14.3, UP1-UP7) -------------------------------------
+// Each run, every event that guests were told about is compared with what they
+// were told (reminders.announced), however it changed: the form, a drag,
+// "Move to…", "this one / following / all", skip, cancel or delete.
+// - time, repeat, place, link or removed dates differ: a new version, and an
+//   "Updated" notice to everyone invited who's still a guest (UP1, UP6);
+//   description, files and colour aren't compared (UP2);
+// - someone invited is no longer a guest: "You're no longer invited" (UP4);
+// - cancelled or deleted: "Cancelled" to everyone invited (UP5);
+// - waiting for approval or rejected: nothing, so guests keep the old event
+//   until a change is approved (UP7).
+// New guests get the invite (dispatchInvites, UP3), which runs after this.
+// ponytail: someone removed and later added back keeps their old invite row,
+// so they get no new invite; add a re-invite kind if that turns up.
+
+// A series' dates taken out: skipped, or moved by an approved "this one" copy.
+async function exdatesOf(tx: Tx, r: Reminder) {
+  if (!r.recurrence) return [];
+  const skipped = await tx
+    .select({ at: reminderOccurrences.occursAt })
+    .from(reminderOccurrences)
+    .where(and(eq(reminderOccurrences.reminderId, r.id), eq(reminderOccurrences.status, "skipped")));
+  const moved = await tx
+    .select({ at: reminders.replacesOccursAt })
+    .from(reminders)
+    .where(and(eq(reminders.replacesSeriesId, r.id), inArray(reminders.status, ["scheduled", "sending", "sent"]), isNull(reminders.deletedAt)));
+  return [...new Set([...skipped, ...moved].map((x) => x.at!.toISOString()))].sort();
+}
+
+// The email and Slack rows for these people, over the event's channels.
+async function changeRows(tx: Tx, r: Reminder, userIds: string[], targets: { kind: string }[]) {
+  if (!userIds.length) return [];
+  const people = await tx
+    .select({ id: user.id, email: user.email })
+    .from(user)
+    .where(and(inArray(user.id, userIds), eq(user.companyId, r.companyId), isNull(user.deactivatedAt)));
+  return [
+    ...(r.channels.includes("email") ? people.map((u) => ({ channel: "email" as const, address: u.email.toLowerCase(), userId: u.id })) : []),
+    ...(r.channels.includes("slack") && !targets.some((t) => t.kind === "company")
+      ? people.map((u) => ({ channel: "slack" as const, address: u.id, userId: u.id }))
+      : []),
+  ];
+}
+
+export async function dispatchChanges(enqueue: (deliveryIds: string[]) => Promise<void>, onlyCompany?: string, now = new Date()) {
+  const events = await ownerDb
+    .select({ id: reminders.id })
+    .from(reminders)
+    .where(
+      and(
+        eq(reminders.isEvent, true),
+        sql`coalesce((${reminders.announced}->>'cancelled')::boolean, false) = false`,
+        sql`${reminders.status} not in ('pending_approval', 'rejected')`, // UP7: on hold
+        or(sql`${reminders.announced} is not null`, eq(reminders.status, "scheduled")),
+        // Something still to come: a series not yet over, or a one-time event not yet ended.
+        or(
+          sql`${reminders.recurrence} is not null and ${reminders.status} <> 'sent'`,
+          sql`${reminders.sendAt} + make_interval(mins => coalesce(${reminders.durationMinutes}, 60)) > ${now}`,
+        ),
+        notSuspended(reminders.companyId),
+        onlyCompany ? eq(reminders.companyId, onlyCompany) : undefined,
+      ),
+    );
+  let count = 0;
+  for (const { id } of events) {
+    const ids = await ownerDb.transaction(async (tx) => {
+      const [r] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update", { skipLocked: true });
+      if (!r) return [];
+      const save = (announced: Announced) => tx.execute(sql`update reminders set announced = ${JSON.stringify(announced)}::jsonb where id = ${r.id}`);
+      const current = announce(r, await exdatesOf(tx, r), r.announced?.version ?? 0);
+      // First time scheduled: this is what the invites tell.
+      if (!r.announced) {
+        if (r.status === "scheduled" && !r.deletedAt) await save(current);
+        return [];
+      }
+      const before = r.announced;
+      const targets = await tx.select({ kind: reminderTargets.kind, ref: reminderTargets.ref }).from(reminderTargets).where(eq(reminderTargets.reminderId, r.id));
+      const sentTo = async (kind: "invite" | "uninvite") =>
+        new Set(
+          (
+            await tx
+              .selectDistinct({ userId: deliveries.userId })
+              .from(deliveries)
+              .where(and(eq(deliveries.reminderId, r.id), eq(deliveries.kind, kind), inArray(deliveries.status, ["queued", "sending", "sent"])))
+          ).map((x) => x.userId!),
+        );
+      const gone = await sentTo("uninvite");
+      const told = [...(await sentTo("invite"))].filter((u) => !gone.has(u));
+      const insert = async (kind: "update" | "cancel" | "uninvite", userIds: string[], version: number, detail: string | null) => {
+        const rows = await changeRows(tx, r, userIds, targets);
+        if (!rows.length) return [];
+        return (
+          await tx
+            .insert(deliveries)
+            .values(rows.map((x) => ({ ...x, kind, version, detail, companyId: r.companyId, reminderId: r.id })))
+            .onConflictDoNothing()
+            .returning({ id: deliveries.id })
+        ).map((d) => d.id);
+      };
+
+      if (r.deletedAt || r.status === "cancelled") {
+        // UP5. Already over: nothing to take out of anyone's calendar.
+        const ahead = r.recurrence ? firstAtOrAfter(r.recurrence, r.anchorLocal, r.timeZone, now) !== null : eventEnd(r) > now;
+        const version = before.version + 1;
+        await save({ ...before, version, cancelled: true });
+        return ahead ? insert("cancel", told, version, null) : [];
+      }
+      const guests = new Set((await resolveRecipients(tx, r.companyId, targets)).users.filter((u) => u.id !== r.createdBy).map((u) => u.id));
+      // UP4: invited, no longer a guest. Its version is one past what they had, so their calendar accepts the cancel.
+      const out = await insert("uninvite", told.filter((u) => !guests.has(u)), before.version + 1, null);
+      const lines = changes(before, current);
+      if (!lines.length) return out;
+      const version = before.version + 1;
+      await save({ ...current, version });
+      return [...out, ...(await insert("update", told.filter((u) => guests.has(u)), version, lines.join("\n")))];
+    });
+    count += ids.length;
+    if (ids.length) await enqueue(ids);
+  }
+  return count;
+}
+
 const inFlight = sql`('queued','sending')`;
 
 // An occurrence is sent once none of its deliveries is still in flight.
@@ -483,7 +604,13 @@ async function sendInviteEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
     tooBig,
     brand: await brandOf(e.companyId),
   });
-  const ics = eventIcs(e, { organizer: { name: r.creatorName, email: r.creatorEmail }, attendee: { name: guest?.name ?? d.address, email: d.address }, url: appUrl });
+  const ics = eventIcs(e, {
+    organizer: { name: r.creatorName, email: r.creatorEmail },
+    attendee: { name: guest?.name ?? d.address, email: d.address },
+    url: appUrl,
+    sequence: e.announced?.version ?? 0,
+    exdates: e.announced?.exdates,
+  });
   await send({
     to: d.address,
     ...email,
@@ -517,6 +644,33 @@ async function sendSoonEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
   return {};
 }
 
+// UP1, UP4, UP5: "Updated" (what changed, and the new .ics), "Cancelled" or
+// "You're no longer invited" (a cancelling .ics), for the event as it is now.
+const CHANGE_HEADLINE = { update: "Updated", cancel: "Cancelled", uninvite: "You’re no longer invited" } as const;
+async function sendChangeEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
+  const e = r.reminder;
+  const kind = d.kind as keyof typeof CHANGE_HEADLINE;
+  const [guest] = await ownerDb.select({ name: user.name }).from(user).where(eq(user.id, d.userId!));
+  const appUrl = `${process.env.BETTER_AUTH_URL}/reminders/${e.id}`;
+  const email = renderChangeEmail({ ...e, kind, headline: CHANGE_HEADLINE[kind], when: eventWhen(e), changes: d.detail?.split("\n") ?? [], appUrl, brand: await brandOf(e.companyId) });
+  const ics = eventIcs(e, {
+    organizer: { name: r.creatorName, email: r.creatorEmail },
+    attendee: { name: guest?.name ?? d.address, email: d.address },
+    url: appUrl,
+    method: kind === "update" ? "REQUEST" : "CANCEL",
+    sequence: d.version!,
+    exdates: e.announced?.exdates,
+  });
+  const method = kind === "update" ? "REQUEST" : "CANCEL";
+  await send({
+    to: d.address,
+    ...email,
+    replyTo: r.creatorEmail,
+    attachments: [{ filename: kind === "update" ? "invite.ics" : "cancel.ics", content: Buffer.from(ics), contentType: `text/calendar; charset=utf-8; method=${method}` }],
+  });
+  return {};
+}
+
 // A DM (address = internal user id) or a channel post (address = channel id).
 // Someone with no Slack account: posted to the fallback channel with a note.
 async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
@@ -544,7 +698,9 @@ async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
       ? inviteMessage({ ...r.reminder, when: eventWhen(r.reminder), eventId: r.reminder.id, appUrl, note })
       : d.kind === "soon"
         ? soonMessage({ ...r.reminder, ...soonText(d, r.reminder), appUrl, note })
-        : reminderMessage({
+        : d.kind === "update" || d.kind === "cancel" || d.kind === "uninvite"
+          ? changeMessage({ title: r.reminder.title, headline: CHANGE_HEADLINE[d.kind], when: eventWhen(r.reminder), changes: d.detail?.split("\n") ?? [], appUrl, note })
+          : reminderMessage({
           title: r.reminder.title,
           description: r.reminder.description,
           links: r.reminder.links,
@@ -568,8 +724,8 @@ async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
   let failed = 0;
   let scopeMissing = false;
   let notInChannel = false;
-  // Files go with the message and the invite, not with "starts soon".
-  for (const file of d.kind === "soon" ? [] : await filesOf(r.reminder.id)) {
+  // Files go with the message and the invite, not with notices.
+  for (const file of d.kind === "reminder" || d.kind === "invite" ? await filesOf(r.reminder.id) : []) {
     try {
       const data = await getBlob(ownerDb, file.id);
       if (data) await uploadFile(token, { channel: posted.channel, threadTs: posted.ts, filename: file.fileName, data }, f);
@@ -712,7 +868,9 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
           ? await sendInviteEmail(d, r, send)
           : d.kind === "soon"
             ? await sendSoonEmail(d, r, send)
-            : await sendEmail(d, r, send);
+            : d.kind === "update" || d.kind === "cancel" || d.kind === "uninvite"
+              ? await sendChangeEmail(d, r, send)
+              : await sendEmail(d, r, send);
   } catch (e) {
     const final = e instanceof Permanent || d.attempts >= MAX_ATTEMPTS;
     await ownerDb
@@ -742,7 +900,8 @@ async function notifyFailed(d: { companyId: string; reminderId: string; occurren
   const [r] = await ownerDb.select({ createdBy: reminders.createdBy, title: reminders.title }).from(reminders).where(eq(reminders.id, d.reminderId));
   if (!r) return;
   const people = new Set([r.createdBy, ...(await companyAdmins(d.companyId)).map((a) => a.id)]);
-  const text = { reminder: "Some deliveries failed", invite: "Some invites failed", soon: "Some “starts soon” notices failed" }[d.kind] ?? "Some deliveries failed";
+  const text =
+    { reminder: "Some deliveries failed", invite: "Some invites failed", soon: "Some “starts soon” notices failed" }[d.kind] ?? "Some change notices failed";
   try {
     const fresh = await ownerDb
       .insert(notifications)

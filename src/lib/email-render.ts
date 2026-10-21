@@ -153,3 +153,29 @@ export function renderSoonEmail(r: {
   const extra = { heading: `${r.title}: ${r.headline.toLowerCase()}`, footer: `Sent by ${r.senderName} through NotifyHub.`, footerLinks: [], brand: r.brand };
   return { subject, text, links, ...extra, fromName: `${r.senderName} via NotifyHub` };
 }
+
+// PRD 14.3 (UP1, UP4, UP5): "Updated" with what changed, or "Cancelled" /
+// "You're no longer invited". The .ics travels as an attachment.
+export function renderChangeEmail(r: {
+  kind: "update" | "cancel" | "uninvite";
+  headline: string;
+  title: string;
+  senderName: string;
+  when: string;
+  location: string | null;
+  meetingUrl: string | null;
+  changes: string[];
+  appUrl: string;
+  brand?: Brand;
+}) {
+  const subject = `${r.headline}: ${r.title}`;
+  const text =
+    r.kind === "update"
+      ? `${r.senderName} changed this event. Your answer stays as it was.\n\n${r.changes.join("\n")}\n\nNow: ${r.when}${r.location ? `\nWhere: ${r.location}` : ""}`
+      : r.kind === "cancel"
+        ? `${r.senderName} cancelled this event (${r.when}). The attached file takes it out of your calendar.`
+        : `${r.senderName} took you off the guest list for this event (${r.when}). The attached file takes it out of your calendar.`;
+  const links = [{ label: "Open in NotifyHub", url: r.appUrl }, ...(r.kind === "update" && r.meetingUrl ? [{ label: "Join the meeting", url: r.meetingUrl }] : [])];
+  const extra = { heading: subject, footer: `Sent by ${r.senderName} through NotifyHub.`, footerLinks: [], brand: r.brand };
+  return { subject, text, links, ...extra, fromName: `${r.senderName} via NotifyHub` };
+}

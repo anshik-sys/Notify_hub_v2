@@ -337,6 +337,13 @@
       "when": 1792565708561,
       "tag": "0047_invite_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1792570919235,
+      "tag": "0048_change_notices",
+      "breakpoints": true
     }
   ]
 }

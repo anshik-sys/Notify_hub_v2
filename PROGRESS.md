@@ -2,6 +2,51 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-21 — events slice 4: change and cancel notices
+
+- **Compare, don't hook.** An event changes through a dozen paths (form,
+  drag, Move to…, this one / following / all, skip, pause, cancel, delete,
+  approval). Rejected: calling a "notify" from each one, because every new
+  path would be a chance to forget.
+  - Instead `reminders.announced` (migration 0048) holds what guests were
+    last told, and `dispatchChanges` compares each live event with it every
+    run.
+  - A difference in time, repeat, place, link or removed dates is a new
+    version: "Updated" with what changed, and an `.ics` with the same UID and
+    SEQUENCE = version.
+  - Description, files and colour aren't compared (UP2).
+- **Cancelled / deleted:** "Cancelled" with METHOD:CANCEL to everyone invited
+  (UP5), but only if the event still had something to come.
+- **Removed guests:** "You're no longer invited", also a cancel, at version
+  + 1 so calendars accept it (UP4).
+- **Moved or deleted dates of a series (UP6):**
+  - become EXDATEs: skipped dates, plus dates replaced by an approved "this
+    one" copy;
+  - "this one" also gives guests an invite for the copy, which is its own
+    event with a new UID;
+  - "following" changes the series' end (an update) and starts a new event
+    (invites).
+- **Order:** `dispatchChanges` runs before `dispatchInvites`, so a guest
+  added by a change gets only the invite (UP3).
+- **UP7 failed in the independent tests.** Nothing was sent while a widening
+  change waited for approval, but an existing guest's NotifyHub calendar
+  already showed the new time.
+  - The user decided the spec was wrong, not the product: guests' own
+    calendars keep the old event (nothing is sent), and NotifyHub shows the
+    change marked "Needs approval".
+  - Rejected: storing a pending revision next to the live event, which would
+    have changed how editing and approval work.
+- **Known limits:**
+  - someone removed and later added back keeps their old invite row, so they
+    get no new invite;
+  - a rejected change leaves the event on hold: guests keep the old event in
+    their calendars and nothing tells them;
+  - no in-app notification for updates (email and Slack only).
+- **Verified:** typecheck, lint, my tests, the full suite (418 pass, the
+  rest skipped as before), and spec UP1–UP7.
+  - **Not verified:** whether Google, Outlook and Apple actually replace or
+    remove the event from our `.ics` updates and cancels.
+
 ## 2026-10-21 — "New ▾" instead of "New reminder"
 
 - The user pointed out that "New reminder" / "Create reminder" was wrong:

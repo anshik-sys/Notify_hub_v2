@@ -26,12 +26,15 @@ const overdue = (dueAt: Date | null) => Boolean(dueAt && dueAt.getTime() < Date.
 const OCCURRENCE_NOTE = { missed: "Missed: the sending service was down", skipped: "Skipped" } as const;
 
 type DeliveryRow = Awaited<ReturnType<typeof deliveryLog>>["rows"][number];
-const deliveryTable = (rows: DeliveryRow[], tz: string) => (
+const NOTICE_LABELS: Record<string, string> = { update: "Updated", cancel: "Cancelled", uninvite: "No longer invited" };
+// withKind: a first column naming the notice (the change notices table).
+const deliveryTable = (rows: DeliveryRow[], tz: string, withKind = false) => (
   <Table
-    columns={["Recipient", "Channel", "Status", "Sent", "Note"]}
+    columns={[...(withKind ? ["Notice"] : []), "Recipient", "Channel", "Status", "Sent", "Note"]}
     rows={rows.map((d) => ({
       key: d.id,
       cells: [
+        ...(withKind ? [NOTICE_LABELS[d.kind] ?? d.kind] : []),
         // A Slack DM row's address is the user id: show the name instead.
         d.channel === "slack" && d.userName ? d.userName : d.address,
         d.channel === "slack" ? (d.address.startsWith("C") ? "Slack channel" : "Slack DM") : "Email",
@@ -265,6 +268,13 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                   {log.invites.filter((d) => d.status === "queued" || d.status === "sending").length} pending
                 </Hint>
                 {deliveryTable(log.invites, tz)}
+              </Section>
+            )}
+
+            {log && log.changed.length > 0 && (
+              <Section title="Change notices">
+                <Hint>Sent when the time, place, link or dates change, or the event is cancelled, and to guests taken off the list.</Hint>
+                {deliveryTable(log.changed, tz, true)}
               </Section>
             )}
 

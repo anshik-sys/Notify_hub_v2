@@ -425,6 +425,20 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     restarted worker never sends "in 1 day" ten minutes before. All-day
     dates count back from 09:00 in the event's zone, which is why a one-time
     all-day event that's already `sent` (at midnight) is still scanned.
+  - **Change notices compare, they don't hook.** `reminders.announced` holds
+    what guests were last told (time, repeat, place, link, removed dates,
+    version). Each run `dispatchChanges` compares every live event with it
+    and sends Updated / Cancelled / No longer invited (`kind` update, cancel,
+    uninvite, keyed by `version`). That's why every way of changing an event
+    (form, drag, Move to…, this one / following / all, skip, cancel, delete)
+    is covered without each one calling anything.
+    - A new edit path needs nothing here.
+    - A new field guests should hear about goes into `Announced` and
+      `changes()` in `src/lib/invite.ts`.
+    - `pending_approval` and `rejected` are skipped on purpose (UP7: guests
+      keep the old event until a change is approved).
+    - It runs **before** `dispatchInvites`, so a guest added by a change gets
+      only the invite.
   - **Guests are the targets resolved now, minus the organiser**, not a
     stored list. `event_responses` holds only answers, so someone who leaves
     a guest department drops out of the counts and can't answer. The

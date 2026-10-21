@@ -1414,6 +1414,7 @@ export async function deliveryLog(companyId: string, reminderId: string) {
           sentAt: deliveries.sentAt,
           lastError: deliveries.lastError,
           attempts: deliveries.attempts,
+          kind: deliveries.kind,
         })
         .from(deliveries)
         .leftJoin(user, eq(user.id, deliveries.userId))
@@ -1432,7 +1433,11 @@ export async function deliveryLog(companyId: string, reminderId: string) {
     const notices = last?.at
       ? { at: last.at, rows: await select(and(eq(deliveries.reminderId, reminderId), eq(deliveries.kind, "soon"), eq(deliveries.occursAt, last.at))!) }
       : null;
-    return { latest: latest ?? null, rows, invites, notices, history };
+    // Change notices (slice 4), newest version first.
+    const changed = (await select(and(eq(deliveries.reminderId, reminderId), inArray(deliveries.kind, ["update", "cancel", "uninvite"]))!)).sort(
+      (a, b) => (b.sentAt?.getTime() ?? Infinity) - (a.sentAt?.getTime() ?? Infinity),
+    );
+    return { latest: latest ?? null, rows, invites, notices, changed, history };
   });
 }
 

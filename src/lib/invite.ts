@@ -75,7 +75,6 @@ export const answerOpen = (e: { status: string; recurrence: Rule | null; sendAt:
 // One VEVENT per event; a series carries its RRULE, so it's one invite. A
 // one-time event is in UTC. A series is in its zone (TZID, no VTIMEZONE: Google,
 // Outlook and Apple resolve IANA names), so 10:00 stays 10:00 across DST.
-// ponytail: no EXDATE for skipped or moved dates yet (change notices, slice 4).
 
 const WEEKDAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
 const utcStamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -120,10 +119,21 @@ export function rrule(rule: Rule, anchorLocal: string, tz: string) {
   return parts.join(";");
 }
 
+// method CANCEL (with STATUS:CANCELLED) takes it out of the guest's calendar;
+// sequence is the announced version, so calendars apply updates in order (UP1).
 export function eventIcs(
   e: Event,
-  p: { organizer: { name: string; email: string }; attendee: { name: string; email: string }; url: string; now?: Date },
+  p: {
+    organizer: { name: string; email: string };
+    attendee: { name: string; email: string };
+    url: string;
+    now?: Date;
+    method?: "REQUEST" | "CANCEL";
+    sequence?: number;
+    exdates?: string[]; // ISO: dates of a series taken out (UP6)
+  },
 ) {
+  const method = p.method ?? "REQUEST";
   const minutes = e.durationMinutes ?? 60;
   // A series starts at its first date (the anchor); a one-time event at send_at.
   const startLocal = e.recurrence ? e.anchorLocal : toLocalInput(e.sendAt, e.timeZone);
@@ -140,13 +150,20 @@ export function eventIcs(
     "VERSION:2.0",
     "PRODID:-//NotifyHub//Events//EN",
     "CALSCALE:GREGORIAN",
-    "METHOD:REQUEST",
+    `METHOD:${method}`,
     "BEGIN:VEVENT",
     `UID:${e.id}@notifyhub`,
-    "SEQUENCE:0",
+    `SEQUENCE:${p.sequence ?? 0}`,
     `DTSTAMP:${utcStamp(p.now ?? new Date())}`,
     ...when,
     ...(e.recurrence ? [`RRULE:${rrule(e.recurrence, e.anchorLocal, e.timeZone)}`] : []),
+    ...(e.recurrence && p.exdates?.length
+      ? [
+          e.allDay
+            ? `EXDATE;VALUE=DATE:${p.exdates.map((x) => dateStamp(toLocalInput(new Date(x), e.timeZone))).join(",")}`
+            : `EXDATE;TZID=${e.timeZone}:${p.exdates.map((x) => localStamp(toLocalInput(new Date(x), e.timeZone))).join(",")}`,
+        ]
+      : []),
     `SUMMARY:${text(e.title)}`,
     `DESCRIPTION:${text(description)}`,
     ...(e.location ? [`LOCATION:${text(e.location)}`] : []),
@@ -154,7 +171,7 @@ export function eventIcs(
     `ORGANIZER;CN="${p.organizer.name.replace(/"/g, "'")}":mailto:${p.organizer.email}`,
     // RSVP=FALSE: answers come back through our links and buttons, not as iMIP replies.
     `ATTENDEE;CN="${p.attendee.name.replace(/"/g, "'")}";ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=FALSE:mailto:${p.attendee.email}`,
-    "STATUS:CONFIRMED",
+    method === "CANCEL" ? "STATUS:CANCELLED" : "STATUS:CONFIRMED",
     "END:VEVENT",
     "END:VCALENDAR",
   ];
@@ -196,4 +213,55 @@ export function startsIn(startsAt: Date, now: Date) {
   if (min < 60) return `in ${min} minute${min === 1 ? "" : "s"}`;
   if (min < 1440) return `in ${Math.round(min / 60)} hour${Math.round(min / 60) === 1 ? "" : "s"}`;
   return `in ${Math.round(min / 1440)} day${Math.round(min / 1440) === 1 ? "" : "s"}`;
+}
+
+// --- Change notices (slice 4, UP1-UP7) -------------------------------------------------
+// What guests were last told about an event. The worker compares the event
+// with it each run: a change of time, repeat, place, link or removed dates is
+// a new version, announced to the guests.
+
+export type Announced = {
+  version: number;
+  sendAt: string; // ISO: a one-time event's start (a series' send_at moves on by itself)
+  anchorLocal: string;
+  recurrence: Rule | null;
+  timeZone: string;
+  durationMinutes: number;
+  allDay: boolean;
+  location: string | null;
+  meetingUrl: string | null;
+  exdates: string[]; // ISO, sorted: dates of a series taken out (skipped, or moved by "this one")
+  cancelled?: boolean;
+};
+
+export const announce = (e: Omit<Event, "id" | "title" | "description">, exdates: string[], version: number): Announced => ({
+  version,
+  sendAt: e.sendAt.toISOString(),
+  anchorLocal: e.anchorLocal,
+  recurrence: e.recurrence,
+  timeZone: e.timeZone,
+  durationMinutes: e.durationMinutes ?? 60,
+  allDay: e.allDay,
+  location: e.location,
+  meetingUrl: e.meetingUrl,
+  exdates,
+});
+
+const whenOf = (a: Announced) => eventWhen({ ...a, sendAt: new Date(a.sendAt) });
+const dayOf = (iso: string, tz: string) => formatInZone(new Date(iso), tz);
+
+// What changed, as lines for the notice; [] = nothing guests need to hear
+// about (UP2: description, files and colour aren't compared).
+export function changes(before: Announced, after: Announced) {
+  const lines: string[] = [];
+  const timing = (a: Announced) =>
+    JSON.stringify([a.recurrence ? [a.anchorLocal, a.recurrence] : a.sendAt, a.timeZone, a.durationMinutes, a.allDay]);
+  if (timing(before) !== timing(after)) lines.push(`When: ${whenOf(after)} (was ${whenOf(before)})`);
+  if ((before.location ?? "") !== (after.location ?? "")) lines.push(`Where: ${after.location || "no place"} (was ${before.location || "no place"})`);
+  if ((before.meetingUrl ?? "") !== (after.meetingUrl ?? "")) lines.push(after.meetingUrl ? `Meeting link: ${after.meetingUrl}` : "The meeting link was removed");
+  const gone = after.exdates.filter((x) => !before.exdates.includes(x));
+  const back = before.exdates.filter((x) => !after.exdates.includes(x));
+  if (gone.length) lines.push(`Not on: ${gone.map((x) => dayOf(x, after.timeZone)).join(", ")}`);
+  if (back.length) lines.push(`Back on: ${back.map((x) => dayOf(x, after.timeZone)).join(", ")}`);
+  return lines;
 }

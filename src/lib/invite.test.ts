@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { signToken } from "./crypto";
-import { answerOpen, dueNotices, eventIcs, eventWhen, readRsvp, rrule, rsvpUrl, startsIn } from "./invite";
+import { announce, answerOpen, changes, dueNotices, eventIcs, eventWhen, readRsvp, rrule, rsvpUrl, startsIn } from "./invite";
 import { unsubscribeToken } from "./unsubscribe";
 
 const base = {
@@ -116,4 +116,24 @@ test("startsIn: minutes, hours, days", () => {
   assert.equal(startsIn(new Date("2026-11-04T10:00:20Z"), now), "in 1 minute");
   assert.equal(startsIn(new Date("2026-11-04T12:00:00Z"), now), "in 2 hours");
   assert.equal(startsIn(new Date("2026-11-05T10:00:00Z"), now), "in 1 day");
+});
+
+test("changes: time, place, link and dates; description doesn't count", () => {
+  const a = announce(base, [], 0);
+  assert.deepEqual(changes(a, announce({ ...base }, [], 0)), []);
+  assert.deepEqual(changes(a, announce({ ...base, location: "Room 5" }, [], 0)), ["Where: Room 5 (was Room 2)"]);
+  assert.deepEqual(changes(a, announce({ ...base, meetingUrl: null }, [], 0)), ["The meeting link was removed"]);
+  assert.match(changes(a, announce({ ...base, durationMinutes: 30 }, [], 0))[0], /^When: 4 Nov 2026, 14:00 – 14:30 \(Asia\/Dubai\) \(was 4 Nov 2026, 14:00 – 15:30/);
+  // A series: its next date moving on by itself isn't a change; a skipped date is.
+  const weekly = { ...base, recurrence: { freq: "weekly" as const, interval: 1, end: { type: "never" as const } } };
+  const s0 = announce(weekly, [], 0);
+  assert.deepEqual(changes(s0, announce({ ...weekly, sendAt: new Date("2026-11-11T10:00:00Z") }, [], 0)), []);
+  assert.deepEqual(changes(s0, announce(weekly, ["2026-11-11T10:00:00.000Z"], 0)), ["Not on: 11 Nov 2026, 14:00"]);
+});
+
+test("ics: a cancel carries METHOD:CANCEL, STATUS:CANCELLED and the version", () => {
+  const ics = eventIcs(base, { ...people, method: "CANCEL", sequence: 3 });
+  assert.match(ics, /METHOD:CANCEL/);
+  assert.match(ics, /SEQUENCE:3/);
+  assert.match(ics, /STATUS:CANCELLED/);
 });

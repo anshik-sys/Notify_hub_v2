@@ -261,6 +261,16 @@ export function soonMessage(m: { title: string; headline: string; when: string; 
   return { text: `${m.headline}: ${m.title}`, blocks };
 }
 
+// PRD 14.3 (UP1, UP4, UP5): "Updated" / "Cancelled" / "You're no longer invited".
+export function changeMessage(m: { title: string; headline: string; when: string; changes: string[]; appUrl: string; note?: string }) {
+  const blocks: unknown[] = [{ type: "header", text: { type: "plain_text", text: `${m.headline}: ${m.title}`.slice(0, 150) } }];
+  if (m.note) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: esc(m.note) }] });
+  if (m.changes.length) blocks.push({ type: "section", text: { type: "mrkdwn", text: m.changes.map((c) => `• ${esc(c)}`).join("\n").slice(0, 3000) } });
+  blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: esc(m.when) }] });
+  blocks.push({ type: "actions", block_id: "change", elements: [openButton(m.appUrl)] });
+  return { text: `${m.headline}: ${m.title}`, blocks };
+}
+
 // After an answer: the buttons stay (it can change), with the answer under them.
 export const withAnswer = (blocks: { type: string; block_id?: string }[], status: string) => [
   ...blocks.filter((b) => b.block_id !== "status"),
