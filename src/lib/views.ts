@@ -66,7 +66,7 @@ export type Filters = {
   channel?: "email" | "slack";
   repeat?: (typeof REPEATS)[number];
   creator?: string;
-  type?: "task" | "reminder";
+  type?: "task" | "reminder" | "event";
   from?: string; // YYYY-MM-DD, company time zone, inclusive
   to?: string;
   tag?: string;
@@ -89,7 +89,7 @@ export function parseFilters(p: Params): Filters {
     channel: pick(one(p.channel), ["email", "slack"] as const),
     repeat: pick(one(p.repeat), REPEATS),
     creator: UUIDISH.test(one(p.creator)) ? one(p.creator) : undefined,
-    type: pick(one(p.type), ["task", "reminder"] as const),
+    type: pick(one(p.type), ["task", "reminder", "event"] as const),
     from: DATE.test(one(p.from)) ? one(p.from) : undefined,
     to: DATE.test(one(p.to)) ? one(p.to) : undefined,
     tag: one(p.tag).toLowerCase().slice(0, 30) || undefined,
@@ -149,7 +149,8 @@ export async function searchReminders(companyId: string, viewer: Viewer, timeZon
   if (f.repeat === "none") where.push(sql`${reminders.recurrence} is null`);
   else if (f.repeat) where.push(sql`${reminders.recurrence}->>'freq' = ${f.repeat}`);
   if (f.creator) where.push(eq(reminders.createdBy, f.creator));
-  if (f.type) where.push(eq(reminders.isTask, f.type === "task"));
+  // EN3: three kinds; "reminder" is neither a task nor an event.
+  if (f.type) where.push(f.type === "task" ? eq(reminders.isTask, true) : f.type === "event" ? eq(reminders.isEvent, true) : and(eq(reminders.isTask, false), eq(reminders.isEvent, false))!);
   if (f.from) where.push(gte(reminders.sendAt, zonedToUtc(`${f.from}T00:00`, timeZone)!));
   if (f.to) where.push(lt(reminders.sendAt, zonedToUtc(`${nextDay(f.to)}T00:00`, timeZone)!));
   if (f.tag) where.push(sql`${f.tag} = any(${reminders.tags})`);

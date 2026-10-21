@@ -76,6 +76,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   const [error, notice] = [firstParam(errorParam), firstParam(noticeParam)];
 
   const editable = ["pending_approval", "rejected", "scheduled", "paused"].includes(r.status);
+  const kind = r.isEvent ? "event" : r.isTask ? "task" : "reminder"; // EN4: the buttons name it
   const tz = r.timeZone;
   // Same rule as mayChange in src/lib/reminders.ts: "full" already means they can see it in full.
   const owner = user.id === r.createdBy;
@@ -94,7 +95,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
       notice={notice}
       actions={
         mayChange && (
-          <LinkButton href={`/reminders/${r.id}/edit`}>{r.recurrence ? "Edit series" : "Edit reminder"}</LinkButton>
+          <LinkButton href={`/reminders/${r.id}/edit`}>{r.recurrence ? "Edit series" : `Edit ${kind}`}</LinkButton>
         )
       }
     >
@@ -410,14 +411,14 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                 {mayChange && (
                   <form action={cancelReminderAction}>
                     <input type="hidden" name="id" value={r.id} />
-                    <Button variant="secondary">{r.recurrence ? "Cancel the whole series" : "Cancel reminder"}</Button>
+                    <Button variant="secondary">{r.recurrence ? "Cancel the whole series" : `Cancel ${kind}`}</Button>
                   </form>
                 )}
                 {mayDelete && (
                   <Form action={deleteReminderAction}>
                     <input type="hidden" name="id" value={r.id} />
                     <Checkbox label="Delete it for everyone, with its delivery log and comments. This can’t be undone." required />
-                    <Button variant="danger">Delete reminder</Button>
+                    <Button variant="danger">Delete {kind}</Button>
                   </Form>
                 )}
               </Section>

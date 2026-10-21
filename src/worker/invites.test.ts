@@ -48,6 +48,8 @@ test("scheduled: one invite per guest at once, never the organiser; a rerun adds
   assert.deepEqual(rows.map((r) => [r.channel, r.user_id, r.occurrence_id, r.status]), [["email", alice, null, "queued"]]);
   assert.equal(ids.length, 1);
   assert.deepEqual(await dispatch(), []);
+  // EN1: an in-app notification too, once.
+  assert.deepEqual(await q("select user_id, kind, text from notifications where reminder_id = $1", [id]), [{ user_id: alice, kind: "invite", text: "Olga invited you to Planning" }]);
   // Its start still sends nothing itself, and doesn't touch the invites.
   await dispatchDue(async () => {}, s.companyId, new Date(Date.now() + 2 * 86_400_000));
   assert.equal((await invitesOf(id)).length, 1);

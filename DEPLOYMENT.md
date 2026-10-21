@@ -38,6 +38,9 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0047: the `invite` notification kind (an in-app "X invited you to
+…" when an invite is created). Restart the worker with it.
+
 Migration 0046: delivery status `dropped` ("Not sent"): a queued "starts
 soon" notice that no longer applied when its turn came.
 
@@ -325,6 +328,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
 - [ ] An event for a department you're in, on Email + Slack: each other member gets "Invitation: …" within seconds (you, the organiser, don't), with `invite.ics`. Opening the `.ics` in Google Calendar, Outlook and Apple Calendar shows the right time, title, place and link. The Slack DM has Yes / Maybe / No; clicking one shows "Your answer" under it.
 - [ ] Click "Maybe" in the email while signed in → your dashboard, blurred, with a pop-up naming the event and Maybe picked → click it → the pop-up closes with "Answer saved: Maybe". Signed out (a private window) → the same pop-up over a blurred page, "Answering as <guest>" → after answering it stays open with "Saved: Maybe". Signed in as someone else → "This invite is for <guest>", no answer buttons. The organiser's event page lists the guest as Maybe with the totals; a guest sees only the totals and their own answer. A repeating event sends one invite, with the repeat in the `.ics`.
+- [ ] Sidebar → Events (also as a member who can't create reminders): your upcoming invitations with Yes / Maybe / No in the row, your own events marked "Organiser"; Past lists ended ones. Home shows "Upcoming events". The bell has "… invited you to …". Reminders → Type → Event lists only events.
 - [ ] An event starting in 15 minutes with "10 minutes before": at about 10 minutes before, each guest who hasn't said No gets "Starts in 10 minutes: …" with Join (email and/or Slack), once; the event page lists them under "Starts soon" notices. A guest who answered No gets nothing.
 - [ ] A reminder to an outside address: the email ends with "Unsubscribe", and Gmail shows its own Unsubscribe next to the sender. Clicking it → the confirm page names the company; confirm → the next reminder to that address isn't sent. A member's copy has no unsubscribe link.
 - [ ] Daily email limit: on `/platform/companies/<id>` set a test company's limit to 1, send a reminder to two people → one sent, the other shows "Held" in the reminder's log; its admins get one notice (in the app and by email); raise the limit → the held one goes out within a couple of minutes, once. Settings → Unsubscribed lists the address; the reminder marks it "Unsubscribed"; "Subscribe again" on the same link brings delivery back.

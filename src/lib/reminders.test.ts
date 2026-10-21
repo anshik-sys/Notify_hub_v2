@@ -950,6 +950,7 @@ test("visibility: guests open a scheduled event and assignees a scheduled task b
   await s.owner.query("update reminders set status = 'scheduled', is_event = false, duration_minutes = null, is_task = true, due_after_minutes = 60 where id = $1", [opsEvent.id]);
   assert.equal(await as(alice), "viewer"); // an upcoming task: its assignee too (VS2)
   await s.owner.query("update reminders set is_task = false, due_after_minutes = null where id = $1", [opsEvent.id]);
+  await s.owner.query("delete from deliveries where reminder_id = $1", [opsEvent.id]); // a live worker's late invite, if any
   assert.equal(await as(alice), null); // a plain reminder: only once it's sent (unchanged)
   await cancelReminder(await actor(bob), s.companyId, opsEvent.id);
 });

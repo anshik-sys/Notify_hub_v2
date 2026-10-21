@@ -263,13 +263,25 @@ export async function dispatchInvites(enqueue: (deliveryIds: string[]) => Promis
           : []),
       ];
       if (!rows.length) return [];
-      return (
-        await tx
-          .insert(deliveries)
-          .values(rows.map((x) => ({ ...x, kind: "invite" as const, companyId: r.companyId, reminderId: r.id })))
-          .onConflictDoNothing()
-          .returning({ id: deliveries.id })
-      ).map((d) => d.id);
+      const fresh = await tx
+        .insert(deliveries)
+        .values(rows.map((x) => ({ ...x, kind: "invite" as const, companyId: r.companyId, reminderId: r.id })))
+        .onConflictDoNothing()
+        .returning({ id: deliveries.id, userId: deliveries.userId });
+      // EN1: in the app too, once per guest and event (the dedupe key).
+      await addNotifications(
+        tx,
+        [...new Set(fresh.map((d) => d.userId!))].map((userId) => ({
+          companyId: r.companyId,
+          userId,
+          kind: "invite" as const,
+          reminderId: r.id,
+          actorId: r.createdBy,
+          text: `${r.senderName} invited you to ${r.title}`,
+          dedupeKey: `invite:${r.id}`,
+        })),
+      );
+      return fresh.map((d) => d.id);
     });
     count += ids.length;
     if (ids.length) await enqueue(ids);

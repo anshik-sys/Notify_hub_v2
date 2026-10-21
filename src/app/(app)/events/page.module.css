@@ -1,0 +1,12 @@
+.title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Yes / Maybe / No in the row (EP5). */
+.answers {
+  display: flex;
+  gap: 6px;
+}

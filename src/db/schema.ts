@@ -737,7 +737,7 @@ export const notifications = pgTable(
     uniqueIndex().on(t.userId, t.dedupeKey),
     check(
       "notifications_kind_valid",
-      sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed','escalated','rsvp')`,
+      sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed','escalated','rsvp','invite')`,
     ),
     tenantPolicy("company_id"),
   ],

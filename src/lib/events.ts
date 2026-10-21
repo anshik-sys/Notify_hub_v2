@@ -1,7 +1,8 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { type EventAnswer, eventResponses, reminders, reminderTargets, user } from "@/db/schema";
-import { ANSWER_LABEL, answerOpen, eventWhen, isAnswer, readRsvp } from "./invite";
+import { ANSWER_LABEL, answerOpen, eventEnd, eventWhen, isAnswer, readRsvp } from "./invite";
+import { invitedSql } from "./reminders";
 import { addNotifications, planTell, sendTell } from "./notifications";
 import { resolveRecipients, type Tx } from "./recipients";
 
@@ -111,4 +112,64 @@ export async function respondByToken(token: string, answer: unknown) {
   const t = readRsvp(token);
   if (!t) return "This link isn’t valid.";
   return respond(t.companyId, t.userId, t.eventId, answer, t.userId);
+}
+
+// --- The Events page (section 12) ----------------------------------------------------
+// Events I organise or am a guest of (EP2, EP9: not everything I could open).
+// Guests only see scheduled ones (invitedSql, VS1); my own waiting or rejected
+// ones show with a badge (EP7). Cancelled and deleted never (EP8).
+// Upcoming: not ended, soonest first; a series is one row at its next date.
+// Past: ended, latest first, paged.
+
+export const EVENTS_PAGE = 25;
+const end = sql`${reminders.sendAt} + make_interval(mins => coalesce(${reminders.durationMinutes}, 60))`;
+
+export async function myEvents(companyId: string, userId: string, opts: { past: boolean; page?: number; limit?: number }, now = new Date()) {
+  const mine = or(eq(reminders.createdBy, userId), invitedSql(userId));
+  const upcoming = or(
+    inArray(reminders.status, ["pending_approval", "rejected", "scheduled", "paused"]),
+    and(eq(reminders.status, "sent"), isNull(reminders.recurrence), sql`${end} > ${now}`),
+  );
+  const ended = and(eq(reminders.status, "sent"), or(sql`${reminders.recurrence} is not null`, sql`${end} <= ${now}`));
+  const where = and(eq(reminders.isEvent, true), isNull(reminders.deletedAt), mine, opts.past ? ended : upcoming);
+  const limit = opts.limit ?? EVENTS_PAGE;
+  const page = Math.max(1, opts.page ?? 1);
+  return withTenant(companyId, async (tx) => {
+    const rows = await tx
+      .select({
+        id: reminders.id,
+        title: reminders.title,
+        status: reminders.status,
+        sendAt: reminders.sendAt,
+        durationMinutes: reminders.durationMinutes,
+        allDay: reminders.allDay,
+        location: reminders.location,
+        recurrence: reminders.recurrence,
+        anchorLocal: reminders.anchorLocal,
+        timeZone: reminders.timeZone,
+        createdBy: reminders.createdBy,
+        organiser: user.name,
+        answer: sql<EventAnswer | null>`(select er.answer from event_responses er where er.reminder_id = "reminders"."id" and er.user_id = ${userId})`,
+        going: sql<Record<EventAnswer, number>>`(select json_build_object('yes', 1 + count(*) filter (where er.answer = 'yes'),
+          'maybe', count(*) filter (where er.answer = 'maybe'), 'no', count(*) filter (where er.answer = 'no'))
+          from event_responses er where er.reminder_id = "reminders"."id")`,
+      })
+      .from(reminders)
+      .innerJoin(user, eq(user.id, reminders.createdBy))
+      .where(where)
+      .orderBy(opts.past ? desc(reminders.sendAt) : asc(reminders.sendAt))
+      .limit(limit)
+      .offset((page - 1) * limit);
+    const [{ total }] = await tx.select({ total: sql<number>`count(*)::int` }).from(reminders).where(where);
+    return {
+      total,
+      rows: rows.map((r) => ({
+        ...r,
+        when: eventWhen(r),
+        organising: r.createdBy === userId,
+        now: r.sendAt <= now && eventEnd(r) > now, // EP2: running
+        open: answerOpen(r, now),
+      })),
+    };
+  });
 }

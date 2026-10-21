@@ -99,7 +99,7 @@ export default async function Reminders(props: PageProps<"/reminders">) {
           label="Type"
           name="type"
           defaultValue={f.type ?? ""}
-          options={[any, { value: "task", label: "Task" }, { value: "reminder", label: "Reminder" }]}
+          options={[any, { value: "task", label: "Task" }, { value: "reminder", label: "Reminder" }, { value: "event", label: "Event" }]}
         />
         {f.failed && <input type="hidden" name="failed" value="1" />}
       </FilterBar>

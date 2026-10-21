@@ -76,6 +76,11 @@ test("search and filters", async () => {
   assert.deepEqual(await titles(alice, { repeat: "weekly" }), ["Fire drill"]);
   assert.deepEqual(await titles(alice, { repeat: "none" }), ["Payroll run", "Timesheet"]);
   assert.deepEqual(await titles(alice, { type: "task" }), ["Timesheet"]);
+  // EN3: three kinds; "reminder" is neither a task nor an event.
+  await s.owner.query("update reminders set is_event = true, duration_minutes = 30 where company_id = $1 and title = 'Fire drill'", [s.companyId]);
+  assert.deepEqual(await titles(alice, { type: "event" }), ["Fire drill"]);
+  assert.deepEqual(await titles(alice, { type: "reminder" }), ["Payroll run"]);
+  await s.owner.query("update reminders set is_event = false, duration_minutes = null where company_id = $1 and title = 'Fire drill'", [s.companyId]);
   assert.deepEqual(await titles(alice, { tag: "Payroll" }), ["Payroll run"]);
   assert.deepEqual(await titles(alice, { from: "2030-01-15", to: "2030-02-01" }), ["Timesheet"]);
   assert.deepEqual(await titles(alice, { to: "2030-01-10" }), ["Fire drill", "Payroll run"]); // "to" is inclusive

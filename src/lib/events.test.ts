@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
-import { eventGuests, respond, respondByToken, rsvpTarget } from "./events";
+import { eventGuests, myEvents, respond, respondByToken, rsvpTarget } from "./events";
 import { rsvpUrl } from "./invite";
 import { seeder } from "./test-helpers";
 
@@ -89,4 +89,27 @@ test("email link: the token answers for its guest only", async () => {
   assert.match((await respondByToken(`${t}x`, "yes"))!, /isn’t valid/);
   // A link made for a non-guest still can't answer.
   assert.match((await respondByToken(token(id, carol), "yes"))!, /not invited/);
+});
+
+test("Events page: mine and my invitations, upcoming or past; not others', not cancelled or deleted", async () => {
+  const soon = await event();
+  const waiting = await event("status = 'pending_approval'");
+  const running = await event("status = 'sent', send_at = now() - interval '10 minutes'");
+  const ended = await event("status = 'sent', send_at = now() - interval '3 hours'");
+  const cancelled = await event("status = 'cancelled'");
+  const deleted = await event("deleted_at = now()");
+  const ids = async (u: string, past: boolean) => (await myEvents(s.companyId, u, { past })).rows.map((r) => r.id);
+  const aliceUp = await ids(alice, false);
+  assert.ok(aliceUp.includes(soon) && aliceUp.includes(running));
+  assert.ok(!aliceUp.includes(waiting), "a guest doesn't see one waiting for approval");
+  for (const x of [ended, cancelled, deleted]) assert.ok(!aliceUp.includes(x));
+  assert.ok((await ids(alice, true)).includes(ended));
+  // The organiser sees their waiting one; carol (not a guest) sees none of them.
+  const mine = (await myEvents(s.companyId, creator, { past: false })).rows;
+  assert.equal(mine.find((r) => r.id === waiting)?.status, "pending_approval");
+  assert.ok(mine.every((r) => r.organising));
+  assert.equal((await ids(carol, false)).filter((x) => [soon, waiting, running].includes(x)).length, 0);
+  const row = (await myEvents(s.companyId, alice, { past: false })).rows.find((r) => r.id === running)!;
+  assert.equal(row.now, true);
+  assert.deepEqual(row.going, { yes: 1, maybe: 0, no: 0 }); // the organiser
 });

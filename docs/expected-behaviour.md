@@ -573,24 +573,24 @@ member without `reminders.create` doesn't even see Calendar or Reminders.
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| EP1 | The sidebar | "Events" for every signed-in member (like Tasks), whatever their permissions | Decided 2026-10-21 | |
-| EP2 | Upcoming tab (default) | Events I **organise** or am a **guest** of that haven't ended, soonest first. A series is one row showing its next date and how it repeats | **(proposed)** | |
-| EP3 | Past tab | Ended events, latest first, 25 per page | **(proposed)** | |
-| EP4 | A row | Title (opens the event), when, where, organiser, my answer, and the Going totals (organiser counted as Yes) | Decided 2026-10-21 | |
-| EP5 | My answer, as a guest of an upcoming event | Yes / Maybe / No buttons in the row, the current one filled; same rules as RS1 / RS3; the page stays on the same tab | Decided 2026-10-21 | |
-| EP6 | My answer, as the organiser | "Organiser" instead of buttons | EV8 | |
-| EP7 | My own event waiting for approval or rejected | Listed for me with a "Needs approval" / "Not approved" badge; guests don't see it (VS1) | **(proposed)** | |
-| EP8 | Cancelled or deleted | Not listed | | |
-| EP9 | Admins and managers | See only their own and their invitations here, not every event they could open (that's Reminders and Calendar) | **(proposed)** | |
+| EP1 | The sidebar | "Events" for every signed-in member (like Tasks), whatever their permissions | Decided 2026-10-21 | PASS in code (a member with no permissions gets their invitations); the sidebar item seen in Chrome |
+| EP2 | Upcoming tab (default) | Events I **organise** or am a **guest** of that haven't ended, soonest first. A series is one row showing its next date and how it repeats | **(proposed)** | PASS |
+| EP3 | Past tab | Ended events, latest first, 25 per page | **(proposed)** | PASS |
+| EP4 | A row | Title (opens the event), when, where, organiser, my answer, and the Going totals (organiser counted as Yes) | Decided 2026-10-21 | PASS in code; the row layout seen in Chrome |
+| EP5 | My answer, as a guest of an upcoming event | Yes / Maybe / No buttons in the row, the current one filled; same rules as RS1 / RS3; the page stays on the same tab | Decided 2026-10-21 | PASS in code; buttons in the row seen in Chrome |
+| EP6 | My answer, as the organiser | "Organiser" instead of buttons | EV8 | PASS in code; "Organiser" seen in Chrome |
+| EP7 | My own event waiting for approval or rejected | Listed for me with a "Needs approval" / "Not approved" badge; guests don't see it (VS1) | **(proposed)** | PASS in code; badge wording is a browser check |
+| EP8 | Cancelled or deleted | Not listed | | PASS |
+| EP9 | Admins and managers | See only their own and their invitations here, not every event they could open (that's Reminders and Calendar) | **(proposed)** | PASS |
 
 ### Elsewhere
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| EN1 | An invite is created for me (IN1, IN6) | An in-app notification "Olga invited you to Planning", once per event, linking to it; always on (in-app isn't mutable) | Decided 2026-10-21 | |
-| EN2 | Home | "Upcoming events": my next 5 (organiser or guest), with my answer; "All events" goes to the Events page | Decided 2026-10-21 | |
-| EN3 | Reminders list, Type filter | Gains "Event"; "Reminder" no longer includes events | Decided 2026-10-21 | |
-| EN4 | The event's page | Its buttons say "Edit event", "Cancel event", "Delete event" (and "series" for a repeating one) | Decided 2026-10-21 | |
+| EN1 | An invite is created for me (IN1, IN6) | An in-app notification "Olga invited you to Planning", once per event, linking to it; always on (in-app isn't mutable) | Decided 2026-10-21 | PASS |
+| EN2 | Home | "Upcoming events": my next 5 (organiser or guest), with my answer; "All events" goes to the Events page | Decided 2026-10-21 | PASS in code; the Home section seen in Chrome |
+| EN3 | Reminders list, Type filter | Gains "Event"; "Reminder" no longer includes events | Decided 2026-10-21 | PASS |
+| EN4 | The event's page | Its buttons say "Edit event", "Cancel event", "Delete event" (and "series" for a repeating one) | Decided 2026-10-21 | "Edit event" and "Cancel event" checked in the rendered page; "Delete event" is a browser check |
 
 ### Not in this step
 

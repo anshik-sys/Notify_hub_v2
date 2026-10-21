@@ -330,6 +330,13 @@
       "when": 1792562919452,
       "tag": "0046_dropped_notices",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1792565708561,
+      "tag": "0047_invite_notifications",
+      "breakpoints": true
     }
   ]
 }

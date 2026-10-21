@@ -107,6 +107,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <NavLink href="/tasks" icon="tasks">
               Tasks
             </NavLink>
+            {/* Section 12: everyone, like Tasks (EP1). */}
+            <NavLink href="/events" icon="event">
+              Events
+            </NavLink>
             {seesReminders && (
               <>
                 <NavLink href="/reminders" icon="reminders">

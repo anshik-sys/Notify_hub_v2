@@ -1,7 +1,7 @@
 import { Banner, Columns, firstParam, Hint, Page, Section } from "@/components/form";
 import { RsvpDialog } from "@/components/rsvp-dialog";
-import { rsvpTarget } from "@/lib/events";
-import { isAnswer, readRsvp } from "@/lib/invite";
+import { myEvents, rsvpTarget } from "@/lib/events";
+import { ANSWER_LABEL, isAnswer, readRsvp } from "@/lib/invite";
 import { List, ListRow } from "@/components/list";
 import { StatCards } from "@/components/stats";
 import { listNotifications } from "@/lib/notifications";
@@ -18,6 +18,7 @@ const isOverdue = (d: Date | null) => Boolean(d && d.getTime() < Date.now());
 
 const TASKS_SHOWN = 5;
 const ACTIVITY_SHOWN = 3; // the full list is behind the bell
+const EVENTS_SHOWN = 5;
 
 export default async function Home(props: PageProps<"/">) {
   const { user, companyId, access, timeZone: tz } = await requireMember();
@@ -37,6 +38,8 @@ export default async function Home(props: PageProps<"/">) {
     listNotifications(companyId, user.id).then((n) => n.items.slice(0, ACTIVITY_SHOWN)),
     can(access, "company.edit") ? setupStatus(companyId, user.id) : null,
   ]);
+  // EN2: my next events, organised or invited.
+  const events = (await myEvents(companyId, user.id, { past: false, limit: EVENTS_SHOWN })).rows;
 
   const tasksSection = tasks.length > 0 && (
     <Section title="Your open tasks">
@@ -51,6 +54,23 @@ export default async function Home(props: PageProps<"/">) {
           />
         ))}
         {tasks.length > TASKS_SHOWN && <ListRow href="/tasks" title="See all tasks" />}
+      </List>
+    </Section>
+  );
+
+  const eventsSection = events.length > 0 && (
+    <Section title="Upcoming events">
+      <List>
+        {events.map((e) => (
+          <ListRow
+            key={e.id}
+            href={`/reminders/${e.id}`}
+            title={e.title}
+            badge={e.organising ? "Organiser" : e.answer ? ANSWER_LABEL[e.answer] : "Not answered"}
+            meta={e.when}
+          />
+        ))}
+        <ListRow href="/events" title="All events" />
       </List>
     </Section>
   );
@@ -110,9 +130,10 @@ export default async function Home(props: PageProps<"/">) {
   // Two columns: your work on the left (tasks, what's coming), things that
   // need a look on the right (approvals, activity). With no work to show,
   // the right column's content moves left.
-  const work = (tasksSection || upcomingSection) && (
+  const work = (tasksSection || eventsSection || upcomingSection) && (
     <>
       {tasksSection}
+      {eventsSection}
       {upcomingSection}
     </>
   );

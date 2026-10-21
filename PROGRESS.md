@@ -2,6 +2,31 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-21 — events: an Events page, invite notifications, Home section
+
+- The user asked where a guest finds and changes an event. There was no
+  single place: the invite, the calendar layer, the event page. A member
+  without `reminders.create` doesn't see Calendar or Reminders in the sidebar
+  at all, so had no way in except the email.
+- Spec section 12 (approved as written). Built:
+  - **Events in the sidebar for everyone**, with Upcoming and Past tabs;
+  - answers in the row; the page lists only *my* events and invitations
+    (`myEvents`), so admins aren't flooded and nobody sees one they can't
+    open;
+  - an in-app **"X invited you to …"** notification (new kind `invite`,
+    migration 0047), written with the invite delivery and deduped per event;
+  - **"Upcoming events" on Home**, an **Event** type in the Reminders filter
+    ("Reminder" no longer includes events), and **"Edit / Cancel / Delete
+    event"** labels (tasks now say "task" too).
+- Known limit: the invite notification is written only when an invite
+  delivery is new, so a company-wide event sent on Slack only (no DMs to
+  everyone, PRD 5.3) creates no in-app notification either.
+- Home's older "Upcoming" (what I created) still lists my own events too, so
+  an organiser sees them twice on Home. Left as is: they're different lists.
+- Verified: typecheck, lint, my tests, and the pages rendered as a demo
+  member in Chrome (Events, Past, Home, Reminders?type=event), with no page
+  errors.
+
 ## 2026-10-21 — events: the end is optional, an hour by default
 
 - The user asked whether an event needs an end. It does inside the app (the
