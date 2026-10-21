@@ -18,8 +18,10 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 - **All-day (SN5):** counts back from 09:00 in the event's zone. A one-time
   all-day event is already `sent` at midnight, so `dispatchSoon` scans
   `sent` too, within a 10-hour window.
-- **Who:** guests who haven't said No. The organiser gets none, read
-  literally from SN1 ("each guest"). Worth asking whether they want one too.
+- **Who:** guests who haven't said No, and the organiser. The first version
+  left the organiser out (SN1 said "each guest"). The user decided they get
+  it too, and SN1 was reworded; the independent tests were updated from the
+  new wording.
 - **Wording:** "Starts in 10 minutes" uses the notice's own minutes, or the
   real time left when it went late. The first version used only the real
   time; the spec test caught "in 11 minutes" when sent at 10.6.

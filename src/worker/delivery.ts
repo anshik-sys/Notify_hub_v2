@@ -279,8 +279,8 @@ export async function dispatchInvites(enqueue: (deliveryIds: string[]) => Promis
 
 // --- "Starts soon" notices (PRD 14.3, SN1-SN6) ---------------------------------------
 // Each run: for every scheduled event with notice times, the notice due now
-// for each date (dueNotices), to each guest who hasn't said No, over the
-// event's channels. The partial unique index deliveries_soon_idx makes it
+// for each date (dueNotices), to each guest who hasn't said No and the
+// organiser, over the event's channels. The partial unique index deliveries_soon_idx makes it
 // once per (date, minutes before, channel, guest). A skipped date, or one
 // replaced by an approved "only this one" copy, gets none; cancelled, deleted
 // and paused events aren't scheduled.
@@ -341,6 +341,12 @@ export async function dispatchSoon(enqueue: (deliveryIds: string[]) => Promise<v
           ).map((x) => x.userId),
         );
         const guests = (await resolveRecipients(tx, r.companyId, targets)).users.filter((u) => u.id !== r.createdBy && !saidNo.has(u.id));
+        // The organiser too (SN1, decided 2026-10-21), while they're an active member.
+        const [organiser] = await tx
+          .select({ id: user.id, email: user.email })
+          .from(user)
+          .where(and(eq(user.id, r.createdBy), eq(user.companyId, r.companyId), isNull(user.deactivatedAt)));
+        if (organiser) guests.push({ id: organiser.id, email: organiser.email.toLowerCase() });
         const rows = [
           ...(r.channels.includes("email") ? guests.map((u) => ({ channel: "email" as const, address: u.email, userId: u.id })) : []),
           ...(r.channels.includes("slack") && !targets.some((t) => t.kind === "company")

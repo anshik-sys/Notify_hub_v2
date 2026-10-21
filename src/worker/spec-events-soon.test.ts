@@ -132,9 +132,11 @@ after(async () => {
   await authDb.$client.end();
 });
 
+// SN1 changed 2026-10-21: the organiser (olga, who has no answer row) gets
+// every notice too, on the event's channels; so does every case below.
 // "By default" is the form's default (10 minutes ticked); that is a browser
 // check. Here the event carries {10}, as the form saves it.
-test("SN1: 10 minutes before, each guest who hasn't said No gets 'Starts in 10 minutes' with the Join link, over the event's channels", async () => {
+test("SN1: 10 minutes before, each guest who hasn't said No, and the organiser, gets 'Starts in 10 minutes' with the Join link, over the event's channels", async () => {
   const START = new Date("2031-03-03T10:00:00Z");
   const id = await event({ start: START, anchorLocal: "2031-03-03T10:00", notifyBefore: [10], channels: "{email,slack}", guests: [alice, bob, carol] });
   await answer(id, bob, "maybe");
@@ -144,7 +146,7 @@ test("SN1: 10 minutes before, each guest who hasn't said No gets 'Starts in 10 m
   assert.deepEqual(await soonOf(id), []);
   await tick(new Date(START.getTime() - 10 * MIN));
   const rows = await soonOf(id);
-  assert.deepEqual(summary(rows), ["alice:email:10", "alice:slack:10", "bob:email:10", "bob:slack:10"], "alice (no answer) and bob (Maybe); not carol (No) nor the organiser");
+  assert.deepEqual(summary(rows), ["alice:email:10", "alice:slack:10", "bob:email:10", "bob:slack:10", "olga:email:10", "olga:slack:10"], "alice (no answer), bob (Maybe) and the organiser; not carol (No)");
   for (const r of rows) assert.equal(new Date(r.occurs_at).getTime(), START.getTime(), "occurs_at is the date's start");
   for (const r of rows.filter((r) => r.channel === "email")) assert.equal(r.address, emailOf(r.user_id));
 
@@ -155,7 +157,7 @@ test("SN1: 10 minutes before, each guest who hasn't said No gets 'Starts in 10 m
   const live = await event({ start: soon, anchorLocal: soon.toISOString().slice(0, 16), notifyBefore: [10], channels: "{email,slack}", guests: [alice, bob] });
   await tick(new Date(soon.getTime() - 10 * MIN));
   const liveRows = await soonOf(live);
-  assert.deepEqual(summary(liveRows), ["alice:email:10", "alice:slack:10", "bob:email:10", "bob:slack:10"]);
+  assert.deepEqual(summary(liveRows), ["alice:email:10", "alice:slack:10", "bob:email:10", "bob:slack:10", "olga:email:10", "olga:slack:10"]);
   const box: Mail[] = [];
   assert.equal(await deliverOne(liveRows.find((r) => r.channel === "email" && r.user_id === alice)!.id, capture(box)), "sent");
   assert.equal(box.length, 1);
@@ -172,10 +174,27 @@ test("SN1: 10 minutes before, each guest who hasn't said No gets 'Starts in 10 m
   assert.match(sl.posts[0].text, /starts in 10 minutes/i);
   assert.ok(`${sl.posts[0].text}${sl.posts[0].blocks}`.includes(MEET), "the Slack message carries the Join link");
 
+  // The organiser's own email and Slack DM say the same.
+  const orgBox: Mail[] = [];
+  assert.equal(await deliverOne(liveRows.find((r) => r.channel === "email" && r.user_id === olga)!.id, capture(orgBox)), "sent");
+  assert.equal(orgBox.length, 1);
+  assert.equal(orgBox[0].to, emailOf(olga));
+  assert.match(`${orgBox[0].subject}\n${orgBox[0].text}`, /starts in 10 minutes/i, "the organiser's email says 'Starts in 10 minutes'");
+  assert.ok((orgBox[0].links ?? []).some((l) => l.url === MEET && /join/i.test(l.label)), "the organiser's email has the Join link");
+  const orgSl = fakeSlack();
+  assert.equal(await deliverOne(liveRows.find((r) => r.channel === "slack" && r.user_id === olga)!.id, undefined, orgSl.f), "sent");
+  assert.equal(orgSl.posts.length, 1);
+  assert.match(orgSl.posts[0].text, /starts in 10 minutes/i);
+
+  // The organiser also listed as a guest: still one notice per channel.
+  const selfInvited = await event({ start: START, anchorLocal: "2031-03-03T10:00", notifyBefore: [10], channels: "{email}", guests: [alice, olga] });
+  await tick(new Date(START.getTime() - 10 * MIN));
+  assert.deepEqual(summary(await soonOf(selfInvited)), ["alice:email:10", "olga:email:10"]);
+
   // Channels followed: an email-only event gets no Slack notices.
   const emailOnly = await event({ start: START, anchorLocal: "2031-03-03T10:00", notifyBefore: [10], channels: "{email}", guests: [alice] });
   await tick(new Date(START.getTime() - 10 * MIN));
-  assert.deepEqual(summary(await soonOf(emailOnly)), ["alice:email:10"]);
+  assert.deepEqual(summary(await soonOf(emailOnly)), ["alice:email:10", "olga:email:10"]);
 });
 
 test("SN2: several notices (1 day and 10 minutes): each sent once per date, in time order; a changed setting is followed", async () => {
@@ -186,21 +205,21 @@ test("SN2: several notices (1 day and 10 minutes): each sent once per date, in t
   await tick(at(1441));
   assert.deepEqual(summary(await soonOf(id)), [], "nothing before the first one is due");
   await tick(at(1440));
-  assert.deepEqual(summary(await soonOf(id)), ["alice:email:1440"], "the day-before one first, alone");
+  assert.deepEqual(summary(await soonOf(id)), ["alice:email:1440", "olga:email:1440"], "the day-before ones first, alone");
   await tick(at(1440));
   await tick(at(600));
-  assert.deepEqual(summary(await soonOf(id)), ["alice:email:1440"], "not again on later runs");
+  assert.deepEqual(summary(await soonOf(id)), ["alice:email:1440", "olga:email:1440"], "not again on later runs");
   await tick(at(10));
   await tick(at(10));
   await tick(at(5));
-  assert.deepEqual(summary(await soonOf(id)), ["alice:email:10", "alice:email:1440"], "then the 10-minute one, once");
+  assert.deepEqual(summary(await soonOf(id)), ["alice:email:10", "alice:email:1440", "olga:email:10", "olga:email:1440"], "then the 10-minute ones, once");
 
   // Sent in time order: the 1-day one goes out before the 10-minute one.
   const rows = await soonOf(id);
   const box: Mail[] = [];
   for (const r of rows) assert.equal(await deliverOne(r.id, capture(box)), "sent");
   assert.equal(await deliverOne(rows[0].id, capture(box)), "skipped", "a retry doesn't send twice");
-  assert.equal(box.length, 2);
+  assert.equal(box.length, 4);
 
   // The organiser changes it: from {10} to 1 hour and 10 minutes before the date is due.
   const START2 = new Date("2031-04-08T10:00:00Z");
@@ -208,9 +227,9 @@ test("SN2: several notices (1 day and 10 minutes): each sent once per date, in t
   await tick(new Date(START2.getTime() - 2 * 60 * MIN));
   await q("update reminders set notify_before = '{60,10}' where id = $1", [changed]);
   await tick(new Date(START2.getTime() - 60 * MIN));
-  assert.deepEqual(summary(await soonOf(changed)), ["alice:email:60"], "the added 1-hour notice goes");
+  assert.deepEqual(summary(await soonOf(changed)), ["alice:email:60", "olga:email:60"], "the added 1-hour notice goes");
   await tick(new Date(START2.getTime() - 10 * MIN));
-  assert.deepEqual(summary(await soonOf(changed)), ["alice:email:10", "alice:email:60"]);
+  assert.deepEqual(summary(await soonOf(changed)), ["alice:email:10", "alice:email:60", "olga:email:10", "olga:email:60"]);
 });
 
 test("SN3: 'None' sends no notices before", async () => {
@@ -236,8 +255,8 @@ test("SN4: a repeating event gets its notices before every date", async () => {
   for (const r of rows) byDate.set(new Date(r.occurs_at).getTime(), [...(byDate.get(new Date(r.occurs_at).getTime()) ?? []), name(r.user_id)]);
   assert.deepEqual(
     [...byDate.entries()].map(([t, who]) => [new Date(t).toISOString(), who.sort()]),
-    [0, 1, 2].map((d) => [new Date(START.getTime() + d * DAY).toISOString(), ["alice", "bob"]]),
-    "each guest once before each of the three dates",
+    [0, 1, 2].map((d) => [new Date(START.getTime() + d * DAY).toISOString(), ["alice", "bob", "olga"]]),
+    "each guest and the organiser once before each of the three dates",
   );
   assert.ok(rows.every((r) => r.before_minutes === 10));
 });
@@ -259,14 +278,14 @@ test("SN5: an all-day event's notices count back from 09:00 company time that da
     await tick(new Date(NINE.getTime() - 1441 * MIN));
     assert.deepEqual(summary(await soonOf(id)), [], "the day-before one isn't due before 09:00 the day before");
     await tick(new Date(NINE.getTime() - 1440 * MIN));
-    assert.deepEqual(summary(await soonOf(id)), ["alice:email:1440"], "09:00 the day before (1 day before 09:00)");
+    assert.deepEqual(summary(await soonOf(id)), ["alice:email:1440", "olga:email:1440"], "09:00 the day before (1 day before 09:00)");
     // Counting back from midnight would send the 10-minute one at 19:50Z on the 11th: it must not.
     await tick(new Date(MIDNIGHT.getTime() - 10 * MIN));
-    assert.deepEqual(summary(await soonOf(id)), ["alice:email:1440"], "the 10-minute one isn't counted from midnight");
+    assert.deepEqual(summary(await soonOf(id)), ["alice:email:1440", "olga:email:1440"], "the 10-minute one isn't counted from midnight");
     await tick(new Date(NINE.getTime() - 11 * MIN));
-    assert.deepEqual(summary(await soonOf(id)), ["alice:email:1440"], "the 10-minute one isn't due before 08:50");
+    assert.deepEqual(summary(await soonOf(id)), ["alice:email:1440", "olga:email:1440"], "the 10-minute one isn't due before 08:50");
     await tick(new Date(NINE.getTime() - 10 * MIN));
-    assert.deepEqual(summary(await soonOf(id)), ["alice:email:10", "alice:email:1440"], "08:50 company time that day");
+    assert.deepEqual(summary(await soonOf(id)), ["alice:email:10", "alice:email:1440", "olga:email:10", "olga:email:1440"], "08:50 company time that day");
   } finally {
     await q("update companies set time_zone = $2 where id = $1", [s.companyId, oldTz]);
   }
@@ -283,9 +302,10 @@ test("SN6: nothing for a skipped date, a cancelled or deleted event, or a guest 
       await tick(new Date(date - 10 * MIN));
       await tick(new Date(date));
     }
-    const dates = (await soonOf(id)).map((r) => new Date(r.occurs_at).toISOString());
-    assert.ok(!dates.includes(skipped.toISOString()), `no notice for the skipped date: ${JSON.stringify(dates)}`);
-    assert.deepEqual(dates, [START.toISOString(), new Date(START.getTime() + 2 * DAY).toISOString()], "the other dates still get theirs");
+    const got = (await soonOf(id)).map((r) => `${new Date(r.occurs_at).toISOString()} ${name(r.user_id)}`).sort();
+    assert.ok(!got.some((x) => x.startsWith(skipped.toISOString())), `no notice for the skipped date: ${JSON.stringify(got)}`);
+    const other = [START, new Date(START.getTime() + 2 * DAY)].map((d) => d.toISOString());
+    assert.deepEqual(got, other.flatMap((d) => [`${d} alice`, `${d} olga`]), "the other dates still get theirs (guest and organiser)");
   });
 
   await t.test("cancelled", async () => {
@@ -310,11 +330,11 @@ test("SN6: nothing for a skipped date, a cancelled or deleted event, or a guest 
     const id = await event({ start: START, anchorLocal: "2031-07-16T10:00", notifyBefore: [60, 10], guests: [alice, bob] });
     await answer(id, bob, "no");
     await tick(new Date(START.getTime() - 60 * MIN));
-    assert.deepEqual(summary(await soonOf(id)), ["alice:email:60"]);
+    assert.deepEqual(summary(await soonOf(id)), ["alice:email:60", "olga:email:60"], "bob said No; alice and the organiser are told");
     // Alice changes to No between the two notices: no 10-minute one for her.
     await answer(id, alice, "no");
     await tick(new Date(START.getTime() - 10 * MIN));
-    assert.deepEqual(summary(await soonOf(id)), ["alice:email:60"]);
+    assert.deepEqual(summary(await soonOf(id)), ["alice:email:60", "olga:email:10", "olga:email:60"], "the organiser still gets the 10-minute one");
   });
 
   // Literal reading of "Nothing": a notice already queued isn't sent once the
@@ -327,15 +347,22 @@ test("SN6: nothing for a skipped date, a cancelled or deleted event, or a guest 
     await q("update reminders set status = 'cancelled' where id = $1", [c]);
     await q("update reminders set deleted_at = now(), status = 'cancelled' where id = $1", [d]);
     await answer(no, alice, "no");
+    // Cancelled / deleted: nobody's goes (guest or organiser). Alice said No:
+    // hers doesn't go; the organiser's still does (she can't say No).
     const outcome: Record<string, string> = {};
     for (const [label, id] of [["cancelled", c], ["deleted", d], ["said No", no]] as const) {
       const rows = await soonOf(id);
-      assert.equal(rows.length, 1, `${label}: one queued before the change`);
-      const box: Mail[] = [];
-      const r = await deliverOne(rows[0].id, capture(box));
-      outcome[label] = `${r}, ${box.length} email(s)`;
+      assert.deepEqual(summary(rows), ["alice:email:10", "olga:email:10"], `${label}: queued before the change`);
+      for (const row of rows) {
+        const box: Mail[] = [];
+        const r = await deliverOne(row.id, capture(box));
+        outcome[`${label} ${name(row.user_id)}`] = `${r}, ${box.length} email(s)`;
+      }
     }
-    for (const label of Object.keys(outcome)) assert.doesNotMatch(outcome[label], /^sent|, [1-9]/, `${label}: not sent (all: ${JSON.stringify(outcome)})`);
+    const all = JSON.stringify(outcome);
+    for (const key of ["cancelled alice", "cancelled olga", "deleted alice", "deleted olga", "said No alice"])
+      assert.doesNotMatch(outcome[key], /^sent|, [1-9]/, `${key}: not sent (all: ${all})`);
+    assert.equal(outcome["said No olga"], "sent, 1 email(s)", `said No olga: the organiser's still goes (all: ${all})`);
   });
 });
 
@@ -352,16 +379,16 @@ test("RC2: notices count toward the daily email limit and wait while it's reache
     const id = await event({ start: START, anchorLocal: "2031-08-04T10:00", notifyBefore: [10], guests: [alice, bob, dan] });
     await tick(new Date(START.getTime() - 10 * MIN));
     const rows = await soonOf(id);
-    assert.equal(rows.length, 3);
+    assert.equal(rows.length, 4, "three guests and the organiser");
     const before = await sentToday();
     await q("update companies set daily_email_limit = $2 where id = $1", [s.companyId, before + 1]); // room for one more
     try {
       const results: string[] = [];
       for (const r of rows) results.push(await deliverOne(r.id, capture([])));
-      assert.deepEqual(results.sort(), ["held", "held", "sent"]);
+      assert.deepEqual(results.sort(), ["held", "held", "held", "sent"]);
       assert.equal(await sentToday(), before + 1, "the sent notice counts toward the limit");
       const held = await q("select attempts from deliveries where reminder_id = $1 and kind = 'soon' and status = 'queued'", [id]);
-      assert.equal(held.length, 2, "the other two wait (still queued)");
+      assert.equal(held.length, 3, "the other three wait (still queued)");
       assert.ok(held.every((h) => h.attempts === 0), "waiting uses no attempt");
 
       // A reminder email now waits too: the notice used the last room.
@@ -380,8 +407,8 @@ test("RC2: notices count toward the daily email limit and wait while it's reache
       await q("update companies set daily_email_limit = 2000 where id = $1", [s.companyId]);
       const box: Mail[] = [];
       for (const r of rows) await deliverOne(r.id, capture(box));
-      assert.equal(box.length, 2);
-      assert.deepEqual((await soonOf(id)).map((r) => r.status), ["sent", "sent", "sent"]);
+      assert.equal(box.length, 3);
+      assert.deepEqual((await soonOf(id)).map((r) => r.status), ["sent", "sent", "sent", "sent"]);
     } finally {
       await q("update companies set daily_email_limit = 2000 where id = $1", [s.companyId]);
     }
@@ -399,6 +426,6 @@ test("RC2: notices count toward the daily email limit and wait while it's reache
       await q("update companies set suspended_at = null where id = $1", [s.companyId]);
     }
     await tick(new Date(START.getTime() - 5 * MIN));
-    assert.deepEqual(summary(await soonOf(id)), ["alice:email:10"], "it waited and goes once the suspension is lifted");
+    assert.deepEqual(summary(await soonOf(id)), ["alice:email:10", "olga:email:10"], "it waited and goes once the suspension is lifted");
   });
 });

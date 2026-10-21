@@ -469,7 +469,7 @@ Anything not mentioned works as it does for reminders.
 | EV5 | Repeating event (every Monday 10:00–10:30) | Same repeat rules as reminders (5.5); each date keeps the same length | PRD 14.3 | |
 | EV6 | Guests | Picked like recipients: people, groups, departments, the whole company. **Members only**: no typed outside emails, no Slack channels as guests | PRD 14.3 "Company members only" | |
 | EV7 | Guests outside the organiser's scope | Needs approval first, as for reminders (5.9); nothing is sent until approved | PRD 14.3, 5.9 | |
-| EV8 | The organiser | The creator; counts as "Yes" and gets no invite | **(proposed)** | |
+| EV8 | The organiser | The creator; counts as "Yes" and gets no invite (but does get the "starts soon" notices, SN1) | **(proposed)** | |
 | EV9 | An event can't also be a task | The form offers Reminder / Task / Event, one of them | **(proposed)** | |
 | EV10 | Files and description | As for reminders; files go with the invite | PRD 14.3 | |
 
@@ -500,7 +500,7 @@ Anything not mentioned works as it does for reminders.
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| SN1 | 10 minutes before the start, by default | Each guest who hasn't said No gets "Starts in 10 minutes" with the Join link, over the event's channels | PRD 14.3 | PASS (the form ticks 10 minutes by default: a browser check) |
+| SN1 | 10 minutes before the start, by default | Each guest who hasn't said No, **and the organiser** (decided 2026-10-21), gets "Starts in 10 minutes" with the Join link, over the event's channels | PRD 14.3 | PASS (the form ticks 10 minutes by default: a browser check) |
 | SN2 | The organiser changes it or adds more (e.g. 1 day and 10 minutes) | Each one sent once per date, in time order | PRD 14.3 | PASS |
 | SN3 | "None" | No notices before | **(proposed)** | PASS |
 | SN4 | Repeating event | Before every date | PRD 14.3 | PASS |

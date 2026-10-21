@@ -29,7 +29,7 @@ const dispatch = async (now: Date) => {
 };
 const notices = async (id: string) =>
   (await q("select user_id, before_minutes from deliveries where reminder_id = $1 and kind = 'soon'", [id]))
-    .map((r) => `${r.user_id === alice ? "alice" : r.user_id === bob ? "bob" : r.user_id}:${r.before_minutes}`)
+    .map((r) => `${r.user_id === alice ? "alice" : r.user_id === bob ? "bob" : r.user_id === creator ? "olga" : r.user_id}:${r.before_minutes}`)
     .sort();
 
 before(async () => {
@@ -43,20 +43,22 @@ after(async () => {
   await ownerDb.$client.end();
 });
 
-test("1 day and 10 minutes: each once, in order, to guests only (not the organiser)", async () => {
+test("1 day and 10 minutes: each once, in order, to guests and the organiser", async () => {
   const id = await event();
-  assert.deepEqual(await dispatch(before_(1441)), []);
-  assert.equal((await dispatch(before_(1440))).length, 2);
-  assert.deepEqual(await dispatch(before_(600)), []); // the day-before one isn't sent again
-  assert.equal((await dispatch(before_(10))).length, 2);
-  assert.deepEqual(await dispatch(before_(5)), []);
-  assert.deepEqual(await notices(id), ["alice:10", "alice:1440", "bob:10", "bob:1440"]);
+  await dispatch(before_(1441));
+  assert.deepEqual(await notices(id), []);
+  await dispatch(before_(1440));
+  await dispatch(before_(600)); // the day-before one isn't sent again
+  assert.deepEqual(await notices(id), ["alice:1440", "bob:1440", "olga:1440"]);
+  await dispatch(before_(10));
+  await dispatch(before_(5));
+  assert.deepEqual(await notices(id), ["alice:10", "alice:1440", "bob:10", "bob:1440", "olga:10", "olga:1440"]);
 });
 
 test("created late: only the nearest notice, no stale 'in 1 day'", async () => {
   const id = await event();
   await dispatch(before_(5));
-  assert.deepEqual(await notices(id), ["alice:10", "bob:10"]);
+  assert.deepEqual(await notices(id), ["alice:10", "bob:10", "olga:10"]);
 });
 
 test("nothing for a guest who said No, nor for cancelled, deleted, paused or 'none'", async () => {
@@ -67,7 +69,7 @@ test("nothing for a guest who said No, nor for cancelled, deleted, paused or 'no
   const paused = await event("status = 'paused'");
   const none = await event("notify_before = '{}'");
   await dispatch(before_(10));
-  assert.deepEqual(await notices(id), ["alice:10"]);
+  assert.deepEqual(await notices(id), ["alice:10", "olga:10"]);
   for (const x of [cancelled, deleted, paused, none]) assert.deepEqual(await notices(x), []);
 });
 
@@ -91,7 +93,7 @@ test("all day: counts back from 09:00 that day", async () => {
   await dispatch(new Date("2031-03-03T08:49:00Z"));
   assert.deepEqual(await notices(id), []);
   await dispatch(new Date("2031-03-03T08:50:00Z"));
-  assert.deepEqual(await notices(id), ["alice:10", "bob:10"]);
+  assert.deepEqual(await notices(id), ["alice:10", "bob:10", "olga:10"]);
 });
 
 test("the email: 'Starts in 10 minutes' with Join", async () => {
