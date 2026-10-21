@@ -41,6 +41,7 @@
   --shadow-hover: 0 12px 28px -18px rgb(60 30 20 / 0.35);
   --shadow-card: 0 1px 2px rgb(60 30 20 / 0.04), 0 8px 24px -16px rgb(60 30 20 / 0.14);
   --shadow-pop: 0 8px 24px rgb(60 30 20 / 0.14); /* dropdowns */
+  --scrim: rgb(43 21 16 / 0.28); /* behind a pop-up over the page */
   /* Calendar entry colours (PRD 14.2): text on fill ≥ 6:1 in both themes. */
   --cal-tomato-bg: #fde2df;
   --cal-tomato-fg: #9b1c12;
@@ -103,6 +104,7 @@
     --shadow-hover: 0 12px 28px -18px rgb(0 0 0 / 0.8);
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.6);
     --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.5);
+    --scrim: rgb(0 0 0 / 0.55);
     /* Calendar entry colours (PRD 14.2): text on fill ≥ 6:1 in both themes. */
     --cal-tomato-bg: #4a1d19;
     --cal-tomato-fg: #ffc2bb;
@@ -162,6 +164,7 @@
   --shadow-hover: 0 12px 28px -18px rgb(0 0 0 / 0.8);
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.6);
   --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.5);
+  --scrim: rgb(0 0 0 / 0.55);
   /* Calendar entry colours (PRD 14.2): text on fill ≥ 6:1 in both themes. */
   --cal-tomato-bg: #4a1d19;
   --cal-tomato-fg: #ffc2bb;

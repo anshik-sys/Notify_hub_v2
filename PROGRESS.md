@@ -33,7 +33,22 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
     day of the month, while BYMONTHDAY=31 skips short months. No EXDATE for
     skipped or moved dates yet (change notices are slice 4).
 - **Reply links:** signed like unsubscribe links (purpose `rsvp`), with a
-  confirm click and a per-IP rate limit. `respond()` re-checks the person is a
+  confirm click and a per-IP rate limit.
+  - First version: a plain page. The user tried it: clicking No saved, but
+    the page barely changed (only a small "Answer saved" line), so it looked
+    stuck. Replaced the same day with a pop-up (`RsvpDialog`): over the
+    blurred dashboard when it's the guest's own session (`/?rsvp=<token>`),
+    over a blurred stand-in when signed out. Answering closes it onto the
+    dashboard, or onto sign-in, with "Answer saved: …". The user chose that
+    answering never needs a password.
+  - Answering inside Gmail itself was asked for. Gmail's own buttons send an
+    iMIP email to the organiser, which NotifyHub never sees. Doing it would
+    need inbound mail; not built. Saving on a plain link open was rejected
+    too: mail scanners open links.
+  - Found while testing: Next's CSS compiler turned `backdrop-filter` plus a
+    hand-written `-webkit-backdrop-filter` into only the prefixed one, so
+    Chrome showed no blur. Write the unprefixed property alone; the
+    compiler adds the prefix. `respond()` re-checks the person is a
   guest now, so a forwarded or stale link can't answer for someone removed.
 - **RS7:** a new `rsvp` notification kind and preference ("A guest answered
   my event"), email and Slack off by default. A changed answer is a new
@@ -50,7 +65,10 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
     (`src/worker/spec-events-invites.test.ts`);
   - one real invite through Mailpit: `invite.ics` as `text/calendar;
     method=REQUEST`;
-  - the reply page rendered on :3000 without sign-in.
+  - the reply page rendered on :3000 without sign-in;
+  - the pop-up in Chrome (Playwright), signed out and signed in as a demo
+    guest: the answer saves, and it closes onto sign-in or the dashboard
+    with the notice.
 - **Not verified:** importing the `.ics` into the real Google, Outlook and
   Apple calendars; the Slack buttons against real Slack (fake Slack only);
   the page and card layout in a browser.

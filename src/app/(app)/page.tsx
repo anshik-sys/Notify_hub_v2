@@ -1,4 +1,7 @@
-import { Banner, Columns, Hint, Page, Section } from "@/components/form";
+import { Banner, Columns, firstParam, Hint, Page, Section } from "@/components/form";
+import { RsvpDialog } from "@/components/rsvp-dialog";
+import { rsvpTarget } from "@/lib/events";
+import { isAnswer, readRsvp } from "@/lib/invite";
 import { List, ListRow } from "@/components/list";
 import { StatCards } from "@/components/stats";
 import { listNotifications } from "@/lib/notifications";
@@ -16,8 +19,13 @@ const isOverdue = (d: Date | null) => Boolean(d && d.getTime() < Date.now());
 const TASKS_SHOWN = 5;
 const ACTIVITY_SHOWN = 3; // the full list is behind the bell
 
-export default async function Home() {
+export default async function Home(props: PageProps<"/">) {
   const { user, companyId, access, timeZone: tz } = await requireMember();
+  const sp = await props.searchParams;
+  // PRD 14.3: an emailed reply link, for this person, opens its pop-up over the dashboard.
+  const rsvp = firstParam(sp.rsvp) ?? "";
+  const invite = readRsvp(rsvp)?.userId === user.id ? await rsvpTarget(rsvp) : null;
+  const picked = firstParam(sp.a);
   const viewer = { id: user.id, access };
   const seesReminders = can(access, "reminders.create") || can(access, "reminders.view_all");
   const approver = can(access, "reminders.approve") && (await mayDecide(companyId, viewer));
@@ -115,7 +123,8 @@ export default async function Home() {
     </>
   );
   return (
-    <Page title={`Hi, ${user.name.split(" ")[0]}`}>
+    <Page title={`Hi, ${user.name.split(" ")[0]}`} notice={firstParam(sp.notice)} error={invite ? undefined : firstParam(sp.error)}>
+      {invite && <RsvpDialog token={rsvp} target={invite} picked={isAnswer(picked) ? picked : null} error={firstParam(sp.error)} closeHref="/" />}
       {setup && !setup.complete && !setup.dismissed && (
         <Banner href="/setup" title="Finish setting up" done={setup.done} total={3} action="Continue" />
       )}

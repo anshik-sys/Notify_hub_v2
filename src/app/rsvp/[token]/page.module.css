@@ -1,8 +1,53 @@
-.answers {
+/* The blurred stand-in for NotifyHub behind the reply pop-up (signed out). */
+.backdrop {
+  position: fixed;
+  inset: 0;
   display: flex;
-  gap: 8px;
+  gap: 24px;
+  padding: 24px;
+  background: var(--canvas);
 }
 
-.answers > * {
+.rail {
+  width: 220px;
+  border-radius: var(--radius-card);
+  background: var(--panel);
+}
+
+.body {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.bar {
+  width: 40%;
+  height: 36px;
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.cards > div {
+  height: 110px;
+  border-radius: var(--radius-card);
+  background: var(--panel);
+}
+
+.panel {
+  flex: 1;
+  border-radius: var(--radius-card);
+  background: var(--panel);
+}
+
+@media (max-width: 767px) {
+  .rail {
+    display: none;
+  }
 }
