@@ -18,14 +18,14 @@ export const brandFor = (base: string, companyId: string, name: string, logoVers
 // most of it), so the palette is repeated here as plain values and everything
 // is inline, in tables. Keep it in step with the light theme in globals.css.
 const C = {
-  canvas: "#f3eeea",
+  canvas: "#f0f0f0",
   card: "#ffffff",
-  border: "#ebe4df",
-  text: "#2b1510",
-  muted: "#6c605a",
+  border: "#e5e5e5",
+  text: "#111111",
+  muted: "#666666",
   accent: "#c4553a",
-  button: "#2b1510",
-  buttonText: "#f4ede9",
+  button: "#111111",
+  buttonText: "#ffffff",
 };
 const FONT = "'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 

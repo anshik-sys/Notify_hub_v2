@@ -2,6 +2,21 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-21 — light theme: neutral white, grey and black
+
+- The user asked to go back to a white background and black text.
+  - The cards (`#fcfaf8`) and text (`#22140f`) were already close to that.
+    The warm feel came from the periwinkle-to-butter canvas gradient, the
+    espresso buttons and the brown-tinted greys and shadows.
+  - The user picked the full neutral version: canvas `#f0f0f0`, frame and
+    cards `#ffffff`, text `#111111`, muted `#666666`, neutral borders and
+    shadows, near-black buttons.
+- Kept: terracotta focus, periwinkle accents, the status and calendar
+  colours, and the dark theme (untouched, so its two blocks stay identical).
+- The email palette (`email-render.ts`) moved with it, as its comment asks.
+- The 2026-10-14 palette is replaced in light mode only.
+- Checked: a light-mode screenshot of Events at 1440; the email tests pass.
+
 ## 2026-10-21 — events slice 4: change and cancel notices
 
 - **Compare, don't hook.** An event changes through a dozen paths (form,

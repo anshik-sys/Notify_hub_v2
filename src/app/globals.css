@@ -7,18 +7,18 @@
 
 :root {
   color-scheme: light;
-  --canvas: linear-gradient(135deg, #c9ccf6 0%, #e4e2f2 45%, #f6e7cf 100%); /* periwinkle to butter, around the cream frame */
-  --bg: #fcfaf8; /* warm off-white: the frame and cards */
-  --panel: #f3eeea; /* warm grey: hover rows, round buttons, tracks */
-  --fg: #22140f;
-  --muted: #6c605a;
-  --border: #ebe4de;
-  --surface: #ebe4df; /* stronger hover, neutral pills */
+  --canvas: #f0f0f0; /* plain light grey around the white frame (neutral since 2026-10-21) */
+  --bg: #ffffff; /* the frame and cards */
+  --panel: #f5f5f5; /* hover rows, round buttons, tracks */
+  --fg: #111111;
+  --muted: #666666;
+  --border: #e5e5e5;
+  --surface: #ebebeb; /* stronger hover, neutral pills */
   --input-bg: #ffffff;
-  --input-border: #8c7f78; /* 3:1 on the frame and the panel: a field's edge must show (WCAG 1.4.11) */
-  --primary-bg: #2b1510; /* espresso: main buttons, current page */
+  --input-border: #8a8a8a; /* 3:1 on the frame and the panel: a field's edge must show (WCAG 1.4.11) */
+  --primary-bg: #111111; /* near-black: main buttons, current page */
   --primary-fg: #ffffff;
-  --primary-hover: #4a2a21;
+  --primary-hover: #333333;
   --brand: #c4553a; /* terracotta: focus rings, ticks, progress */
   --accent-bg: #e7e8fb; /* periwinkle: avatars, icon circles, current tab */
   --accent-fg: #4a51b5;
@@ -33,15 +33,15 @@
   --warning-fg: #85600c;
   --info-bg: #e4e5fb;
   --info-fg: #4a51b5;
-  --card-border: #ece6e1; /* hairline round cards on the frame */
+  --card-border: #e8e8e8; /* hairline round cards on the frame */
   --radius: 12px; /* inputs, small boxes */
   --radius-card: 24px;
   --radius-frame: 32px;
-  --shadow: 0 30px 80px -30px rgb(60 30 20 / 0.22);
-  --shadow-hover: 0 12px 28px -18px rgb(60 30 20 / 0.35);
-  --shadow-card: 0 1px 2px rgb(60 30 20 / 0.04), 0 8px 24px -16px rgb(60 30 20 / 0.14);
-  --shadow-pop: 0 8px 24px rgb(60 30 20 / 0.14); /* dropdowns */
-  --scrim: rgb(43 21 16 / 0.28); /* behind a pop-up over the page */
+  --shadow: 0 30px 80px -30px rgb(0 0 0 / 0.18);
+  --shadow-hover: 0 12px 28px -18px rgb(0 0 0 / 0.3);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04), 0 8px 24px -16px rgb(0 0 0 / 0.12);
+  --shadow-pop: 0 8px 24px rgb(0 0 0 / 0.12); /* dropdowns */
+  --scrim: rgb(0 0 0 / 0.28); /* behind a pop-up over the page */
   /* Calendar entry colours (PRD 14.2): text on fill ≥ 6:1 in both themes. */
   --cal-tomato-bg: #fde2df;
   --cal-tomato-fg: #9b1c12;
