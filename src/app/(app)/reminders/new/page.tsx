@@ -25,7 +25,7 @@ export default async function NewReminder(props: PageProps<"/reminders/new">) {
   const local = (d: Date) => toLocalInput(d, company.timeZone);
 
   return (
-    <Page title="New reminder" back={{ href: "/reminders", label: "Reminders" }} error={error} actions={<Button form={REMINDER_FORM_ID}>Create reminder</Button>}>
+    <Page title={`New ${asEvent ? "event" : asTask ? "task" : "reminder"}`} back={{ href: "/reminders", label: "Reminders" }} error={error} actions={<Button form={REMINDER_FORM_ID}>Create</Button>}>
       <ReminderForm
         brand={brandFor("", companyId, company.name, (await companyBrand(companyId)).logoVersion)}
         {...choices}

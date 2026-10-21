@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { FilterBar, Pager } from "@/components/filters";
-import { Field, firstParam, LinkButton, Page, SelectField } from "@/components/form";
+import { Field, firstParam, Page, SelectField } from "@/components/form";
+import { NewMenu } from "@/components/new-menu";
 import { Badge, Muted, Table } from "@/components/table";
 import { REMINDER_STATUSES } from "@/db/schema";
 import { can } from "@/lib/permissions";
@@ -29,7 +30,7 @@ export default async function Reminders(props: PageProps<"/reminders">) {
     <Page
       title="Reminders"
       notice={firstParam(params.notice)}
-      actions={can(access, "reminders.create") && <LinkButton href="/reminders/new">New reminder</LinkButton>}
+      actions={can(access, "reminders.create") && <NewMenu id="new-menu-page" />}
     >
       <FilterBar
         action="/reminders"

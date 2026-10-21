@@ -2,6 +2,22 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-21 — "New ▾" instead of "New reminder"
+
+- The user pointed out that "New reminder" / "Create reminder" was wrong:
+  the form makes reminders, tasks and events.
+- The top bar and the Reminders list now have "+ New ▾" (`NewMenu`, a native
+  popover like the calendar's view menu) with Reminder / Task / Event, each
+  opening the form with that kind picked.
+  - The form page's title follows the pick ("New event"); its buttons say
+    "Create" and, when editing, "Save".
+  - The edit page is "Edit event / task / reminder"; "Create a new one" after
+    a cancel keeps the kind.
+- The title is set by the menu pick and doesn't follow the Kind radio if
+  it's changed on the form (no client JS). Hence the neutral button labels.
+- Checked in Chrome as a demo member: the menu lists the three kinds,
+  "Event" lands on "New event" with Event picked, and the menu closes.
+
 ## 2026-10-21 — events: an Events page, invite notifications, Home section
 
 - The user asked where a guest finds and changes an event. There was no

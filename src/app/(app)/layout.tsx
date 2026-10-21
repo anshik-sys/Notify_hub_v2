@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
+import { NewMenu } from "@/components/new-menu";
 import { ThemeToggle } from "@/components/theme-switcher";
 import { unreadCount } from "@/lib/notifications";
 import { can } from "@/lib/permissions";
@@ -87,12 +88,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <Avatar name={user.name} photo={photos.get(user.id)} size="large" />
             </button>
             {can(access, "reminders.create") && (
-              // Reminders has its own "New reminder" page action; the form needs no link to itself.
+              // Reminders has its own "New" page action; the form needs no link to itself.
               <HideOn paths={["/reminders", "/reminders/new"]}>
-                <Link href="/reminders/new" className={styles.create} aria-label="New reminder">
-                  <Icon name="plus" />
-                  <span className={styles.createLabel}>New reminder</span>
-                </Link>
+                <NewMenu id="new-menu" className={styles.create} labelClassName={styles.createLabel} />
               </HideOn>
             )}
           </div>

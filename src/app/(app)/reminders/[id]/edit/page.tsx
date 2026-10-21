@@ -39,7 +39,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
   const refs = (kind: string) => r.targets.filter((t) => t.kind === kind).map((t) => t.ref!);
 
   return (
-    <Page title="Edit reminder" back={{ href: `/reminders/${r.id}`, label: r.title }} error={error} actions={<Button form={REMINDER_FORM_ID}>Save reminder</Button>}>
+    <Page title={`Edit ${r.isEvent ? "event" : r.isTask ? "task" : "reminder"}`} back={{ href: `/reminders/${r.id}`, label: r.title }} error={error} actions={<Button form={REMINDER_FORM_ID}>Save</Button>}>
       <ReminderForm
         brand={brandFor("", companyId, company.name, (await companyBrand(companyId)).logoVersion)}
         {...choices}

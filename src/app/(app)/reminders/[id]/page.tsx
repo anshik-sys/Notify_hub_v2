@@ -444,7 +444,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
 
             {!mayChange && user.id === r.createdBy && r.status === "cancelled" && (
               <Hint>
-                This reminder was cancelled. <Link href="/reminders/new">Create a new one</Link>
+                This {kind} was cancelled. <Link href={`/reminders/new${r.isEvent ? "?event=1" : r.isTask ? "?task=1" : ""}`}>Create a new one</Link>
               </Hint>
             )}
           </>

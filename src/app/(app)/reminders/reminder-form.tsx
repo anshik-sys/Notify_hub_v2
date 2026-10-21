@@ -492,7 +492,7 @@ export function ReminderForm({
         </div>
       </details>
 
-      <Button>{defaults.id ? "Save reminder" : "Create reminder"}</Button>
+      <Button>{defaults.id ? "Save" : "Create"}</Button>
     </StepsForm>
   );
 }
