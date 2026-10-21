@@ -97,14 +97,14 @@ export async function rsvpTarget(token: string) {
     t.companyId,
     (tx) =>
       tx
-        .select({ event: reminders, answer: eventResponses.answer, name: user.name })
+        .select({ event: reminders, answer: eventResponses.answer, name: user.name, email: user.email })
         .from(reminders)
         .innerJoin(user, eq(user.id, t.userId))
         .leftJoin(eventResponses, and(eq(eventResponses.reminderId, reminders.id), eq(eventResponses.userId, t.userId)))
         .where(and(eq(reminders.id, t.eventId), eq(reminders.isEvent, true), isNull(reminders.deletedAt))),
     t.userId,
   );
-  return row ? { title: row.event.title, when: eventWhen(row.event), location: row.event.location, answer: row.answer, name: row.name } : null;
+  return row ? { title: row.event.title, when: eventWhen(row.event), location: row.event.location, answer: row.answer, name: row.name, email: row.email } : null;
 }
 
 export async function respondByToken(token: string, answer: unknown) {

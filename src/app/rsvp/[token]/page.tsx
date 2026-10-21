@@ -8,8 +8,9 @@ import { isAnswer, readRsvp } from "@/lib/invite";
 import styles from "./page.module.css";
 
 // PRD 14.3 (RS2), from the Yes / No / Maybe links in an invite email. The
-// guest's own session: the pop-up opens over their dashboard. Otherwise it
-// opens here, over a blurred stand-in, and saves without signing in.
+// guest's own session: the pop-up opens over their dashboard. Signed out: it
+// opens here, over a blurred stand-in, and saves without signing in. Signed in
+// as someone else: it says whose invite it is and offers to sign out.
 export default async function Rsvp(props: PageProps<"/rsvp/[token]">) {
   const { token } = await props.params;
   const sp = await props.searchParams;
@@ -39,7 +40,15 @@ export default async function Rsvp(props: PageProps<"/rsvp/[token]">) {
           <div className={styles.panel} />
         </div>
       </div>
-      <RsvpDialog token={token} target={target} picked={isAnswer(picked) ? picked : null} error={firstParam(sp.error)} closeHref="/sign-in" />
+      <RsvpDialog
+        token={token}
+        target={target}
+        picked={isAnswer(picked) ? picked : null}
+        error={firstParam(sp.error)}
+        closeHref={session ? "/" : "/sign-in"}
+        signedInAs={session?.user.name}
+        saved={Boolean(firstParam(sp.saved))}
+      />
     </>
   );
 }

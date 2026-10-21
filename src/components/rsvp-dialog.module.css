@@ -49,6 +49,22 @@
   color: var(--danger-fg);
 }
 
+.who {
+  margin: 16px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.875rem;
+}
+
+.saved {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--success-bg);
+  color: var(--success-fg);
+}
+
 .question {
   margin: 20px 0 10px;
   font-weight: 600;
@@ -61,6 +77,7 @@
 
 .answer {
   flex: 1;
+  padding: 0 16px;
   min-height: 40px;
   border: 1px solid var(--input-border);
   border-radius: 999px;

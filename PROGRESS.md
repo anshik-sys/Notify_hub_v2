@@ -41,6 +41,19 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
     over a blurred stand-in when signed out. Answering closes it onto the
     dashboard, or onto sign-in, with "Answer saved: …". The user chose that
     answering never needs a password.
+  - Then the user opened alice's invite in Mailpit, clicked Maybe, signed in
+    as maya, and saw the answer on alice: "isn't it a bug?" Working as
+    designed (the link is alice's, like an unsubscribe link, and it saved
+    before the sign-in), but the pop-up never said whose answer it was. The
+    user kept one-click, and the pop-up now:
+    - says "Answering as <name> (<email>)";
+    - stays open after a signed-out answer with "Saved: …" (no jump to
+      sign-in);
+    - signed in as someone else, it shows "This invite is for Alice. You're
+      signed in as Maya", with a sign-out button instead of the answers. The
+      action refuses that case too, not only the UI.
+    The rejected option was requiring sign-in as the guest: safer against a
+    forwarded email, but a password to answer.
   - Answering inside Gmail itself was asked for. Gmail's own buttons send an
     iMIP email to the organiser, which NotifyHub never sees. Doing it would
     need inbound mail; not built. Saving on a plain link open was rejected
