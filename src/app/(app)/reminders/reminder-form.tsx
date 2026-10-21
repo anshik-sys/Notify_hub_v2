@@ -403,6 +403,7 @@ export function ReminderForm({
             <Checkbox label="All day" name="allDay" defaultChecked={defaults.allDay} />
             <div className={styles.endsAt}>
               <Field label={`Ends (${timeZone})`} name="endsAt" type="datetime-local" defaultValue={defaults.endLocal} />
+              <Hint>Leave it empty for an hour.</Hint>
             </div>
             <div className={styles.endDate}>
               <Field label="Last day" name="endDate" type="date" defaultValue={defaults.endDate} />

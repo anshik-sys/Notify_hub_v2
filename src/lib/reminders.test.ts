@@ -905,7 +905,8 @@ test("events: start and end, all day, members only as guests, where and a meetin
   const err = (over: Partial<RawReminder>) => (ev(over) as { error: string }).error;
   assert.match(err({ endLocal: "2031-07-01T14:00" }), /end after/);
   assert.match(err({ endLocal: "2031-07-01T13:00" }), /end after/);
-  assert.match(err({ endLocal: "" }), /ends/);
+  assert.equal(ev({ endLocal: "" }).input!.durationMinutes, 60); // no end: an hour
+  assert.match(err({ endLocal: "soon" }), /ends/);
   assert.match(err({ allDay: true, endDate: "2031-06-30" }), /last day/);
   assert.match(err({ emails: "out@x.test" }), /people in the company/);
   assert.match(err({ meetingUrl: "javascript:alert(1)" }), /http/);

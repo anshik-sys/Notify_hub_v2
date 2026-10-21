@@ -231,8 +231,10 @@ export function validateInput(
       const midnight = zonedToUtc(`${first}T00:00`, timeZone);
       if (!midnight) return { error: "Pick a start date." };
       sendAt = recurrence ? firstAtOrAfter(recurrence, `${first}T00:00`, timeZone, midnight)! : midnight;
+    } else if (!raw.endLocal) {
+      durationMinutes = 60; // no end picked: an hour, as in Google Calendar
     } else {
-      const end = zonedToUtc(raw.endLocal ?? "", timeZone);
+      const end = zonedToUtc(raw.endLocal, timeZone);
       if (!end) return { error: "Pick when the event ends." };
       durationMinutes = Math.round((end.getTime() - zonedToUtc(anchorLocal, timeZone)!.getTime()) / 60_000);
       if (durationMinutes < 1) return { error: "The event must end after it starts." };

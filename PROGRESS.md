@@ -2,6 +2,16 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-21 — events: the end is optional, an hour by default
+
+- The user asked whether an event needs an end. It does inside the app (the
+  calendar block, the `.ics` DTEND, "answers open until it ends"), but
+  typing one was mandatory only on New reminder: quick create already set an
+  hour. An empty Ends now means 60 minutes, and the field says so.
+- Not done: prefilling Ends with start + 1 hour on a blank form. Without
+  client JS it wouldn't follow a changed start, and a stale prefilled end is
+  worse than an empty one.
+
 ## 2026-10-21 — events slice 3: "starts soon" notices
 
 - **Notices are `deliveries` with `kind = 'soon'`** (migration 0045), keyed by
