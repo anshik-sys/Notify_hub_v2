@@ -2,6 +2,59 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-21 — events slice 2: invites and replies
+
+- **Invites are `deliveries` rows** (`kind = 'invite'`, no occurrence,
+  migration 0044), so they get the claim, retries, sweep, daily email limit,
+  suspension and the failure notice for free. Rejected: a separate invites
+  table with its own status machine (a second copy of all of that).
+  - The cost: `occurrence_id` is nullable. A check ties null to `invite`, and
+    `deliverOne` left-joins the occurrence. The old worker can't handle such
+    rows, so the worker must be restarted with this migration.
+- **`dispatchInvites` re-resolves every upcoming scheduled event's guests on
+  each run**, and the partial unique index makes repeats insert nothing.
+  - That one rule covers IN1 (at once: `notifyIfDue` now wakes the worker for
+    any scheduled event), IN5 (a waiting event isn't scheduled) and IN6
+    (someone who joins a guest department later).
+  - The cost is a recipients query per upcoming event per minute. Fine at
+    current sizes; a "guests may have changed" flag would fix it if a company
+    ever holds thousands of upcoming events.
+- **No stored guest list.** Guests = targets resolved now minus the
+  organiser, and `event_responses` holds only answers. Someone who leaves a
+  guest department drops out of the counts and can't answer. The organiser
+  has no row and is shown as Yes (EV8).
+- **The `.ics`:**
+  - a one-time event is in UTC;
+  - a series uses `TZID=<IANA zone>` plus an RRULE, with no VTIMEZONE block,
+    so 10:00 stays 10:00 across DST. Google, Outlook and Apple accept IANA
+    names; **not yet tried in Outlook desktop**;
+  - `RSVP=FALSE`: answers come back through our links and buttons, not iMIP;
+  - known mismatches: a monthly "day 31" in our rules falls back to the last
+    day of the month, while BYMONTHDAY=31 skips short months. No EXDATE for
+    skipped or moved dates yet (change notices are slice 4).
+- **Reply links:** signed like unsubscribe links (purpose `rsvp`), with a
+  confirm click and a per-IP rate limit. `respond()` re-checks the person is a
+  guest now, so a forwarded or stale link can't answer for someone removed.
+- **RS7:** a new `rsvp` notification kind and preference ("A guest answered
+  my event"), email and Slack off by default. A changed answer is a new
+  notification. Section 9's preferences table and its spec test gained the
+  row, an extension of the spec, not a weaker assertion.
+- **UI:**
+  - the event page has "Going?" (guests) and "Guests" (totals for everyone,
+    names for full access), plus an "Invites" delivery table;
+  - the calendar card shows the totals and, for guests, Yes / Maybe / No;
+  - `eventWhen` replaced the page's inline time formatting, and a one-time
+    all-day event now shows its date.
+- **Verified:**
+  - typecheck, lint, the full suite, and 15/15 independent spec tests
+    (`src/worker/spec-events-invites.test.ts`);
+  - one real invite through Mailpit: `invite.ics` as `text/calendar;
+    method=REQUEST`;
+  - the reply page rendered on :3000 without sign-in.
+- **Not verified:** importing the `.ics` into the real Google, Outlook and
+  Apple calendars; the Slack buttons against real Slack (fake Slack only);
+  the page and card layout in a browser.
+
 ## 2026-10-20 — events slice 1: the event itself, visibility, the calendar
 
 - Spec section 11 approved ("spec is fine"). Built in slices: 1 is the event

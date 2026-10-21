@@ -4,7 +4,8 @@ import { Icon } from "@/components/icon";
 import { CALENDAR_COLORS } from "@/db/schema";
 import { time12, toLocalInput } from "@/lib/time";
 import type { CalendarEntry } from "@/lib/views";
-import { deleteEntryAction, duplicateAction, editFollowingAction, markTaskAction, moveEntryAction, setColorAction } from "../reminders/actions";
+import { ANSWER_LABEL } from "@/lib/invite";
+import { deleteEntryAction, duplicateAction, editFollowingAction, markTaskAction, moveEntryAction, respondAction, setColorAction } from "../reminders/actions";
 import styles from "./entry.module.css";
 
 const STATE = { scheduled: "", pending: "Needs approval", sent: "Sent" } as const;
@@ -42,6 +43,8 @@ export function Entry({
   const stateLabel = e.event && e.state === "sent" ? "Past" : STATE[e.state];
   const label = [e.title, stateLabel].filter(Boolean).join(" · ");
   const ends = e.event && new Date(e.at.getTime() + e.event.minutes * 60_000);
+  // A guest answers until the event ends (RS1); respondAction checks again.
+  const mayAnswer = e.layers.includes("invited") && ends && ends > now;
   const sent = e.state === "sent";
   const series = e.repeat !== null; // an upcoming date of a repeating reminder
   const movable = e.canChange && !sent;
@@ -87,6 +90,23 @@ export function Entry({
         {e.event?.location && <p className={styles.meta}>{e.event.location}</p>}
         {e.repeat && <p className={styles.meta}>{e.repeat}</p>}
         {e.recipients && <p className={styles.meta}>To: {e.recipients}</p>}
+        {e.event && (
+          <p className={styles.meta}>
+            Going: {e.event.going.yes} yes · {e.event.going.maybe} maybe · {e.event.going.no} no
+          </p>
+        )}
+        {mayAnswer && (
+          <form action={respondAction} className={styles.answers}>
+            <input type="hidden" name="id" value={e.reminderId} />
+            <input type="hidden" name="next" value={next} />
+            <span className={styles.answersLabel}>{e.event!.answer ? "Your answer" : "Going?"}</span>
+            {(["yes", "maybe", "no"] as const).map((a) => (
+              <button key={a} name="answer" value={a} className={styles.action} aria-pressed={e.event!.answer === a}>
+                {ANSWER_LABEL[a]}
+              </button>
+            ))}
+          </form>
+        )}
 
         <div className={styles.actions}>
           {e.event?.meetingUrl && (

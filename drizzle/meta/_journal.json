@@ -309,6 +309,13 @@
       "when": 1792495453031,
       "tag": "0043_events",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1792558625483,
+      "tag": "0044_event_invites",
+      "breakpoints": true
     }
   ]
 }

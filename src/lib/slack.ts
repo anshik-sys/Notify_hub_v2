@@ -215,6 +215,44 @@ export function withStatus(blocks: { type: string; block_id?: string }[], status
   ];
 }
 
+// PRD 14.3: an event's invite DM. The buttons' value is the event; the
+// clicker must be one of its guests (handleRsvpAction).
+export function inviteMessage(m: {
+  title: string;
+  description: string;
+  links: { label: string; url: string }[];
+  senderName: string;
+  when: string;
+  location: string | null;
+  meetingUrl: string | null;
+  eventId: string;
+  appUrl: string;
+  note?: string;
+}) {
+  const facts = [`*When* ${esc(m.when)}`, m.location && `*Where* ${esc(m.location)}`].filter(Boolean).join("\n");
+  const blocks: unknown[] = [
+    { type: "header", text: { type: "plain_text", text: `Invitation: ${m.title}`.slice(0, 150) } },
+    { type: "context", elements: [{ type: "mrkdwn", text: `${esc(m.senderName)} invited you.` }] },
+  ];
+  if (m.note) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: esc(m.note) }] });
+  blocks.push({ type: "section", text: { type: "mrkdwn", text: facts } });
+  if (m.description) blocks.push({ type: "section", text: { type: "mrkdwn", text: esc(m.description).slice(0, 3000) } });
+  const links = [...(m.meetingUrl ? [{ label: "Join the meeting", url: m.meetingUrl }] : []), ...m.links];
+  if (links.length) blocks.push({ type: "section", text: { type: "mrkdwn", text: links.map((l) => `• <${l.url}|${esc(l.label)}>`).join("\n") } });
+  blocks.push({
+    type: "actions",
+    block_id: "rsvp",
+    elements: [button("Yes", "rsvp_yes", m.eventId, "primary"), button("Maybe", "rsvp_maybe", m.eventId), button("No", "rsvp_no", m.eventId), openButton(m.appUrl)],
+  });
+  return { text: `Invitation: ${m.title} (${m.when})`, blocks };
+}
+
+// After an answer: the buttons stay (it can change), with the answer under them.
+export const withAnswer = (blocks: { type: string; block_id?: string }[], status: string) => [
+  ...blocks.filter((b) => b.block_id !== "status"),
+  { type: "context", block_id: "status", elements: [{ type: "mrkdwn", text: esc(status) }] },
+];
+
 // --- Daily digest (PRD 7.2) ----------------------------------------------------------
 
 type DigestLine = { id: string; title: string; detail: string };

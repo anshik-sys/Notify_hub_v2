@@ -32,6 +32,7 @@ One package, two processes, one Postgres:
 | `src/lib/attachments.ts`, `src/lib/storage.ts` | File rules (content sniffing, CSV formula check, names, limits); the only code touching file bytes. |
 | `src/app/api/attachments/[id]` | Download (always as an attachment). |
 | `src/lib/unsubscribe.ts`, `src/app/unsubscribe/[token]`, `src/app/api/unsubscribe/[token]` | Outside recipients unsubscribing (PRD 7.1): signed link, confirm page, one-click endpoint. |
+| `src/lib/invite.ts`, `src/lib/events.ts`, `src/app/rsvp/[token]` | Events (PRD 14.3): the `.ics`, reply links and the event's "when" (worker-safe); answering and the guest list (web); the reply page for emailed links. |
 | `src/lib/comments.ts` | Reminder discussion: comments, replies, mentions, notifications. |
 | `src/lib/tasks.ts` | Task completion (`setDone`), progress, my open tasks. |
 | `src/lib/time.ts` | Company-time-zone wall clock ↔ UTC (Intl only, DST-tested). |
@@ -404,6 +405,25 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     *scheduled* event or task addressed to them (never while it waits for
     approval) before anything is sent. It's in both `reminderAccess` and
     `canViewWhere`; change them together.
+  - **Invites are `deliveries` rows with `kind = 'invite'` and no
+    occurrence.** One per guest per channel for the whole event (a series
+    too); the partial unique index `deliveries_invite_idx` is what stops a
+    second invite. A check ties `occurrence_id is null` to `kind = 'invite'`,
+    so code joining deliveries to occurrences must cope with null (the
+    delivery log reads invites separately).
+  - **`dispatchInvites` re-resolves the guests of every upcoming scheduled
+    event on each run** (every minute, and when the web app wakes the worker:
+    `notifyIfDue` wakes it for any scheduled event). That's how someone who
+    joins a guest department later gets their invite. Approval needs nothing
+    special: a waiting event isn't `scheduled`.
+  - **Guests are the targets resolved now, minus the organiser**, not a
+    stored list. `event_responses` holds only answers, so someone who leaves
+    a guest department drops out of the counts and can't answer. The
+    organiser has no row and is shown as Yes.
+  - **Reply links in emails need no sign-in**: the token signs company,
+    event and guest (purpose `rsvp`, like unsubscribe links), and the page
+    saves only on a click. `respond()` still checks the person is a guest
+    now, so an old link for someone removed is refused.
 - **Two visibility levels, each with an SQL twin for lists** (PRD 5.4, 8):
   - **full** (`canSeeReminder` / `overseeWhere`): the creator, everyone with
     `view_all`/`approve`, and managers of the creator's departments. They see

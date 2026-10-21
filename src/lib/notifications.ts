@@ -14,7 +14,7 @@ import { linkDm } from "./slack";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tx = Pick<PgTransaction<any, any, any>, "select" | "insert">;
-export type NotificationKind = "reminder" | "task" | "approval" | "mention" | "comment" | "decided" | "tasks_done" | "failed" | "escalated";
+export type NotificationKind = "reminder" | "task" | "approval" | "mention" | "comment" | "decided" | "tasks_done" | "failed" | "escalated" | "rsvp";
 export type NewNotification = typeof notifications.$inferInsert & { kind: NotificationKind };
 
 // The events a person can mute, and on which channels they're sent.
@@ -31,6 +31,7 @@ export const MUTABLE = [
   { event: "failed", label: "Some deliveries failed", channels: ["email", "slack"], off: ["slack"] },
   { event: "held", label: "My company reached its daily email limit", channels: ["email"], off: [] },
   { event: "escalated", label: "Someone in my department is late on a task", channels: ["email", "slack"], off: [] },
+  { event: "rsvp", label: "A guest answered my event", channels: ["email", "slack"], off: ["email", "slack"] },
 ] as const satisfies readonly { event: string; label: string; channels: readonly Channel[]; off: readonly Channel[] }[];
 type Channel = "email" | "slack";
 export type MutableEvent = (typeof MUTABLE)[number]["event"];

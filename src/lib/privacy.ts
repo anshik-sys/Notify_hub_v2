@@ -5,7 +5,7 @@ import { authDb } from "./auth";
 
 // PRD 11.5: everything NotifyHub holds about one person, as JSON. Tenant data
 // through withTenant (RLS), sessions through authDb (device and times only,
-// never tokens). Keep in step with erase_person (migration 0028): a new
+// never tokens). Keep in step with erase_person (latest: migration 0044): a new
 // table with personal data belongs in both.
 
 
@@ -46,6 +46,11 @@ export async function exportPerson(companyId: string, userId: string) {
     auditAsActor: await q(
       tx,
       sql`select at, action, object_type, object_label from audit_log where actor_id = ${userId} order by at`,
+    ),
+    // Their answers to events (PRD 14.3).
+    eventAnswers: await q(
+      tx,
+      sql`select r.title as event, e.answer, e.updated_at from event_responses e join reminders r on r.id = e.reminder_id where e.user_id = ${userId}`,
     ),
     // Their own calendar colours (PRD 14.2).
     reminderColors: await q(tx, sql`select r.title as reminder, c.color from reminder_colors c join reminders r on r.id = c.reminder_id where c.user_id = ${userId}`),

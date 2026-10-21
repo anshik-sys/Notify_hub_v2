@@ -86,7 +86,7 @@ test("mutes: unticked channels, unknown keys ignored", async () => {
 test("defaults: new events start off, existing ones on; opting in stores a row", async () => {
   const carol = await s.user();
   const off = await getMutes(s.companyId, carol);
-  assert.deepEqual([...off].sort(), ["approved:email", "approved:slack", "comment:email", "comment:slack", "failed:slack", "tasks_done:email", "tasks_done:slack"]);
+  assert.deepEqual([...off].sort(), ["approved:email", "approved:slack", "comment:email", "comment:slack", "failed:slack", "rsvp:email", "rsvp:slack", "tasks_done:email", "tasks_done:slack"]);
   const muted = (event: Parameters<typeof mutedFor>[2]) => withTenant(s.companyId, (tx) => mutedFor(tx, [carol], event));
   assert.deepEqual([...(await muted("comment"))].sort(), [`${carol}:email`, `${carol}:slack`]);
   assert.equal((await muted("mention")).size, 0);

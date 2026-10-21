@@ -270,6 +270,7 @@ Proposed list (**new** marks what changes):
 | Some deliveries failed | creator, admins | **new, on** | **new, off** | in-app only |
 | Daily email limit reached | admins | on (**now mutable**) | — | email, can't be turned off |
 | Someone in my department is late on a task | managers | on | **new, on** | email only |
+| A guest answered my event (added 2026-10-21 with events, 11 RS7) | organiser | **new, off** | **new, off** | — |
 
 "off" means a new message nobody gets until they tick it, so turning
 this on doesn't start emailing everyone. **(proposed defaults)** That needs
@@ -476,24 +477,24 @@ Anything not mentioned works as it does for reminders.
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| IN1 | An event is scheduled (created in scope, or approved) | Each guest gets an invite **at once**, not at the start time: email with title, when, where, the Join link, Yes / No / Maybe links and an `.ics` file; and/or a Slack DM with Yes / No / Maybe buttons, following the event's channels | PRD 14.3 | |
-| IN2 | Each guest | One invite each, exactly once (even with retries), addressed only to them | PRD 6, 7.1 | |
-| IN3 | The `.ics` | Opens in Google Calendar, Outlook and Apple Calendar with the right time (UTC inside), title, place and link | PRD 14.3 | |
-| IN4 | A repeating event | One invite for the series (the `.ics` repeats), not one per date | **(proposed)** | |
-| IN5 | Waiting for approval, or rejected | No invites | PRD 5.9 | |
-| IN6 | Someone joins a guest department or group later | They get an invite when they join, if the event is still to come | PRD 5.2 (current membership). **(proposed)** | |
+| IN1 | An event is scheduled (created in scope, or approved) | Each guest gets an invite **at once**, not at the start time: email with title, when, where, the Join link, Yes / No / Maybe links and an `.ics` file; and/or a Slack DM with Yes / No / Maybe buttons, following the event's channels | PRD 14.3 | PASS |
+| IN2 | Each guest | One invite each, exactly once (even with retries), addressed only to them | PRD 6, 7.1 | PASS |
+| IN3 | The `.ics` | Opens in Google Calendar, Outlook and Apple Calendar with the right time (UTC inside), title, place and link | PRD 14.3 | PASS in code (UTC times, title, place, link); importing into Google, Outlook and Apple is a browser check |
+| IN4 | A repeating event | One invite for the series (the `.ics` repeats), not one per date | **(proposed)** | PASS |
+| IN5 | Waiting for approval, or rejected | No invites | PRD 5.9 | PASS |
+| IN6 | Someone joins a guest department or group later | They get an invite when they join, if the event is still to come | PRD 5.2 (current membership). **(proposed)** | PASS |
 
 ### Replies (RSVP)
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| RS1 | A guest answers Yes / No / Maybe (email link, Slack button, the event's page or the calendar card) | Saved; they can change it until the event ends | PRD 14.3 | |
-| RS2 | The email links | Signed per guest and event (like unsubscribe links), so they work without signing in but can't be used for someone else; a click asks to confirm (mail scanners open links) | **(proposed)** | |
-| RS3 | Someone who isn't a guest tries to answer | Refused | | |
-| RS4 | The organiser opens the event | Counts and names: Yes, No, Maybe, no answer yet | PRD 14.3 | |
-| RS5 | A guest opens the event | Sees their own answer and the totals, not who said what | **(proposed)** | |
-| RS6 | Repeating event | One answer for the whole series | **(proposed: answering one date only comes later)** | |
-| RS7 | The organiser hears about answers | In the app, one notification per answer (mutable by email), not per date | PRD 7.5. **(proposed)** | |
+| RS1 | A guest answers Yes / No / Maybe (email link, Slack button, the event's page or the calendar card) | Saved; they can change it until the event ends | PRD 14.3 | PASS |
+| RS2 | The email links | Signed per guest and event (like unsubscribe links), so they work without signing in but can't be used for someone else; a click asks to confirm (mail scanners open links) | **(proposed)** | PASS |
+| RS3 | Someone who isn't a guest tries to answer | Refused | | PASS |
+| RS4 | The organiser opens the event | Counts and names: Yes, No, Maybe, no answer yet | PRD 14.3 | PASS |
+| RS5 | A guest opens the event | Sees their own answer and the totals, not who said what | **(proposed)** | PASS at access level; how the page looks to a guest is a browser check |
+| RS6 | Repeating event | One answer for the whole series | **(proposed: answering one date only comes later)** | PASS |
+| RS7 | The organiser hears about answers | In the app, one notification per answer (mutable by email), not per date | PRD 7.5. **(proposed)** | PASS (a changed answer is a new notification; email and Slack start off) |
 
 ### "Starts soon" notices
 
@@ -538,8 +539,8 @@ Anything not mentioned works as it does for reminders.
 |---|---|---|---|---|
 | RC1 | Invites, updates and "starts soon" | Never mutable (like reminders); answers to the organiser are | Decided 2026-10-07 | |
 | RC2 | Daily email limit, suspended company | Invites and notices count and wait like reminder emails | PRD 7.1, 9.2 | |
-| RC3 | Erase / export a person | Their answers are in the export and removed on erase | PRD 11.5 | |
-| RC4 | Audit log | Creating, changing and answering are logged | PRD 9.1 | |
+| RC3 | Erase / export a person | Their answers are in the export and removed on erase | PRD 11.5 | PASS (answers) |
+| RC4 | Audit log | Creating, changing and answering are logged | PRD 9.1 | PASS (answers) |
 
 ### Not in this step
 

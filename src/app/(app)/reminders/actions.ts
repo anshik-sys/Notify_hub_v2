@@ -26,6 +26,7 @@ import {
 } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { senderDefault } from "@/lib/company";
+import { respond } from "@/lib/events";
 import { limits } from "@/lib/rate-limit";
 import { channelChoices } from "@/lib/slack-installations";
 import { sendNow, sendTest } from "@/lib/send-now";
@@ -152,6 +153,17 @@ export async function markTaskAction(fd: FormData) {
   const error = await setDone(user.id, companyId, assignmentId, fd.get("done") === "true");
   // From the My tasks page, go back there.
   const back = fd.get("next") ? safeNext(fd.get("next")) : `/reminders/${id}`;
+  redirect(error ? errorUrl(back, error) : back);
+}
+
+// PRD 14.3: a guest's Yes / No / Maybe, from the event's page or the calendar
+// card. respond() checks they're a guest; no permission beyond that.
+export async function respondAction(fd: FormData) {
+  const { user, companyId } = await requireMember();
+  const id = str(fd, "id");
+  if (!isUuid(id)) notFound();
+  const back = fd.get("next") ? safeNext(fd.get("next")) : `/reminders/${id}`;
+  const error = await respond(companyId, user.id, id, str(fd, "answer"));
   redirect(error ? errorUrl(back, error) : back);
 }
 

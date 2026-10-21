@@ -101,3 +101,36 @@ export function renderReminderEmail(r: {
   };
   return { subject, text, links, ...extra, fromName: `${r.senderName} via NotifyHub`, html: mailBody(text, links, extra).html };
 }
+
+// PRD 14.3: an event's invite. The answer links come first, then Join, then
+// the event's own links; Open is the button.
+export function renderInviteEmail(r: {
+  title: string;
+  description: string;
+  links: Link[];
+  senderName: string;
+  when: string;
+  location: string | null;
+  meetingUrl: string | null;
+  answerUrls: { yes: string; no: string; maybe: string };
+  appUrl: string;
+  tooBig?: string[];
+  brand?: Brand;
+}) {
+  const subject = `Invitation: ${r.title}`;
+  let text = `${r.senderName} invited you.\n\nWhen: ${r.when}`;
+  if (r.location) text += `\nWhere: ${r.location}`;
+  if (r.description) text += `\n\n${r.description}`;
+  if (r.tooBig?.length) text += `\n\nNot attached (too large for email): ${r.tooBig.join(", ")}. Download in NotifyHub.`;
+  text += "\n\nWill you come? Pick an answer below; you can change it until the event ends.";
+  const links = [
+    { label: "Yes, I'll be there", url: r.answerUrls.yes },
+    { label: "Maybe", url: r.answerUrls.maybe },
+    { label: "No, I can't come", url: r.answerUrls.no },
+    ...(r.meetingUrl ? [{ label: "Join the meeting", url: r.meetingUrl }] : []),
+    ...r.links,
+    { label: "Open in NotifyHub", url: r.appUrl },
+  ];
+  const extra = { heading: r.title, footer: `Sent by ${r.senderName} through NotifyHub.`, footerLinks: [], brand: r.brand };
+  return { subject, text, links, ...extra, fromName: `${r.senderName} via NotifyHub` };
+}

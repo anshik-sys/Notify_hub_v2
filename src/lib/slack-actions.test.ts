@@ -3,7 +3,7 @@ import { after, before, test } from "node:test";
 import { db } from "@/db";
 import { authDb } from "./auth";
 import { encrypt } from "./crypto";
-import { type Click, handleTaskAction } from "./slack-actions";
+import { type Click, handleRsvpAction, handleTaskAction } from "./slack-actions";
 import { seeder } from "./test-helpers";
 
 const s = seeder();
@@ -121,4 +121,26 @@ test("mark done: DM message updated; channel gets an ephemeral; repeat is harmle
   const snooze = await handleTaskAction(click({ actionId: "snooze_1h" }), sl.f);
   assert.equal(snooze.outcome, "done");
   assert.equal((await state()).snoozed_until, null);
+});
+
+test("invite buttons: a guest answers for themselves; the DM shows it; others are refused (PRD 14.3)", async () => {
+  const [{ id: ev }] = await q(
+    `insert into reminders (company_id, short_id, created_by, title, sender_name, send_at, status, time_zone, anchor_local, is_event, duration_minutes, channels)
+     values ($1, $2, $3, 'Planning', 'HR', now() + interval '1 day', 'scheduled', 'UTC', '2026-01-01T00:00', true, 60, '{slack}') returning id`,
+    [s.companyId, `E-A${s.companyId.slice(0, 5).toUpperCase()}`, bob],
+  );
+  await q("insert into reminder_targets values ($1, $2, 'user', $3)", [ev, s.companyId, alice]);
+  const { teamId, slackUserId, channelId, messageTs, responseUrl } = click({});
+  const rest = { teamId, slackUserId, channelId, messageTs, responseUrl, blocks: [] };
+  const sl = fake(emails());
+  const yes = await handleRsvpAction({ ...rest, actionId: "rsvp_yes", eventId: ev, blocks: [{ type: "actions", block_id: "rsvp" }] }, sl.f);
+  await yes.after();
+  assert.equal(yes.outcome, "answered");
+  assert.deepEqual(await q("select user_id, answer from event_responses where reminder_id = $1", [ev]), [{ user_id: alice, answer: "yes" }]);
+  assert.match(sl.updates[0].status, /Your answer: Yes/);
+  // The organiser (bob) isn't a guest; in a channel the refusal is ephemeral.
+  const theirs = await handleRsvpAction({ ...rest, slackUserId: "UBOB", channelId: "C1", actionId: "rsvp_no", eventId: ev }, sl.f);
+  await theirs.after();
+  assert.equal(theirs.outcome, "refused");
+  assert.match(sl.ephemerals.at(-1)!, /organiser/);
 });

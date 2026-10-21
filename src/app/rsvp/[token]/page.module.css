@@ -1,0 +1,8 @@
+.answers {
+  display: flex;
+  gap: 8px;
+}
+
+.answers > * {
+  flex: 1;
+}

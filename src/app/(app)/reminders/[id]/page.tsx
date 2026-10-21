@@ -10,9 +10,11 @@ import { formatSize } from "@/lib/format";
 import { markReadForReminder } from "@/lib/notifications";
 import { requireMember } from "@/lib/session";
 import { myTaskStatus, taskProgress } from "@/lib/tasks";
-import { formatInZone, toLocalInput } from "@/lib/time";
+import { formatInZone } from "@/lib/time";
+import { eventGuests } from "@/lib/events";
+import { ANSWER_LABEL, answerOpen, eventWhen } from "@/lib/invite";
 import { isUuid } from "@/lib/validate";
-import { cancelReminderAction, decideReminderAction, deleteReminderAction, markOccurrenceAction, markTaskAction, sendNowAction, sendTestAction, seriesAction } from "../actions";
+import { cancelReminderAction, decideReminderAction, deleteReminderAction, markOccurrenceAction, markTaskAction, respondAction, sendNowAction, sendTestAction, seriesAction } from "../actions";
 import { Discussion } from "./discussion";
 import styles from "./page.module.css";
 import { listComments } from "@/lib/comments";
@@ -22,6 +24,27 @@ const DELIVERY_LABELS = { queued: "Queued", sending: "Sending", sent: "Sent", fa
 // Server-rendered per request, so "now" is the request time.
 const overdue = (dueAt: Date | null) => Boolean(dueAt && dueAt.getTime() < Date.now());
 const OCCURRENCE_NOTE = { missed: "Missed: the sending service was down", skipped: "Skipped" } as const;
+
+type DeliveryRow = Awaited<ReturnType<typeof deliveryLog>>["rows"][number];
+const deliveryTable = (rows: DeliveryRow[], tz: string) => (
+  <Table
+    columns={["Recipient", "Channel", "Status", "Sent", "Note"]}
+    rows={rows.map((d) => ({
+      key: d.id,
+      cells: [
+        // A Slack DM row's address is the user id: show the name instead.
+        d.channel === "slack" && d.userName ? d.userName : d.address,
+        d.channel === "slack" ? (d.address.startsWith("C") ? "Slack channel" : "Slack DM") : "Email",
+        <Badge key="s" tone={d.status === "failed" ? "danger" : d.status === "sent" ? "success" : "neutral"}>
+          {/* Held by the daily email limit: still queued, nothing tried yet. */}
+          {d.status === "queued" && d.lastError?.startsWith("Held:") ? "Held" : DELIVERY_LABELS[d.status]}
+        </Badge>,
+        d.sentAt ? formatInZone(d.sentAt, tz) : "—",
+        d.lastError ? <Muted key="n">{d.attempts ? `${d.lastError} (attempt ${d.attempts})` : d.lastError}</Muted> : "",
+      ],
+    }))}
+  />
+);
 
 export default async function ReminderDetail(props: PageProps<"/reminders/[id]">) {
   const { id } = await props.params;
@@ -37,6 +60,9 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   // Owners see everyone's progress on the latest occurrence; anyone assigned sees their own.
   const progress = r.isTask && log?.latest ? await taskProgress(companyId, log.latest.id) : null;
   const mine = r.isTask ? await myTaskStatus(companyId, user.id, r.id) : null;
+  // PRD 14.3: answers, once guests can see it (not while waiting for approval).
+  const guests = r.isEvent && ["scheduled", "paused", "sent"].includes(r.status) ? await eventGuests(companyId, r) : null;
+  const myAnswer = guests?.list.find((g) => g.id === user.id && !g.organiser);
   const [files, thread, people, photos] = await Promise.all([
     listAttachments(companyId, r.id),
     listComments(companyId, r.id),
@@ -106,17 +132,8 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
               {/* PRD 14.3: an event's when, where and meeting link. */}
               {r.isEvent && r.durationMinutes && (
                 <>
-                  <Hint>
-                    Event:{" "}
-                    {r.allDay
-                      ? `all day, ${r.durationMinutes / 1440} day${r.durationMinutes > 1440 ? "s" : ""}`
-                      : (() => {
-                          // The end without its date when it's the same day.
-                          const end = new Date(r.sendAt.getTime() + r.durationMinutes * 60_000);
-                          const sameDay = toLocalInput(end, tz).slice(0, 10) === toLocalInput(r.sendAt, tz).slice(0, 10);
-                          return `${formatInZone(r.sendAt, tz)} – ${sameDay ? toLocalInput(end, tz).slice(11, 16) : formatInZone(end, tz)} (${tz})`;
-                        })()}
-                  </Hint>
+                  {/* The repeat rule has its own line below. */}
+                  <Hint>Event: {eventWhen({ ...r, recurrence: null })}</Hint>
                   {r.location && <Hint>Where: {r.location}</Hint>}
                   {r.meetingUrl && (
                     <Hint>
@@ -215,23 +232,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                     ))}
                   </details>
                 )}
-                <Table
-                  columns={["Recipient", "Channel", "Status", "Sent", "Note"]}
-                  rows={log.rows.map((d) => ({
-                    key: d.id,
-                    cells: [
-                      // A Slack DM row's address is the user id: show the name instead.
-                      d.channel === "slack" && d.userName ? d.userName : d.address,
-                      d.channel === "slack" ? (d.address.startsWith("C") ? "Slack channel" : "Slack DM") : "Email",
-                      <Badge key="s" tone={d.status === "failed" ? "danger" : d.status === "sent" ? "success" : "neutral"}>
-                        {/* Held by the daily email limit: still queued, nothing tried yet. */}
-                        {d.status === "queued" && d.lastError?.startsWith("Held:") ? "Held" : DELIVERY_LABELS[d.status]}
-                      </Badge>,
-                      d.sentAt ? formatInZone(d.sentAt, tz) : "—",
-                      d.lastError ? <Muted key="n">{d.attempts ? `${d.lastError} (attempt ${d.attempts})` : d.lastError}</Muted> : "",
-                    ],
-                  }))}
-                />
+                {deliveryTable(log.rows, tz)}
                 {r.recurrence && log.history.length > 0 && (
                   // Native <details>: folded by default, no client JS.
                   <details className={styles.more}>
@@ -256,6 +257,16 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
               </Section>
             )}
 
+            {log && log.invites.length > 0 && (
+              <Section title="Invites">
+                <Hint>
+                  {log.invites.filter((d) => d.status === "sent").length} sent · {log.invites.filter((d) => d.status === "failed").length} failed ·{" "}
+                  {log.invites.filter((d) => d.status === "queued" || d.status === "sending").length} pending
+                </Hint>
+                {deliveryTable(log.invites, tz)}
+              </Section>
+            )}
+
             <Discussion
               reminderId={r.id}
               timeZone={tz}
@@ -269,6 +280,41 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
         }
         side={
           <>
+            {myAnswer && (
+              <Section title="Going?">
+                <Hint>
+                  {myAnswer.answer ? `Your answer: ${ANSWER_LABEL[myAnswer.answer]}.` : "You haven’t answered yet."}
+                  {answerOpen(r) ? " You can change it until the event ends." : " The event has ended."}
+                </Hint>
+                {answerOpen(r) && (
+                  <form action={respondAction} className={styles.answers}>
+                    <input type="hidden" name="id" value={r.id} />
+                    {(["yes", "maybe", "no"] as const).map((a) => (
+                      <Button key={a} name="answer" value={a} variant={a === myAnswer.answer ? "primary" : "secondary"} aria-pressed={a === myAnswer.answer}>
+                        {ANSWER_LABEL[a]}
+                      </Button>
+                    ))}
+                  </form>
+                )}
+              </Section>
+            )}
+
+            {guests && (
+              <Section title="Guests">
+                <Hint>
+                  {guests.counts.yes} yes · {guests.counts.maybe} maybe · {guests.counts.no} no · {guests.counts.none} no answer yet
+                </Hint>
+                {/* RS4 / RS5: names for the organiser and those who see it in full; guests see the totals. */}
+                {seeAs === "full" && (
+                  <List>
+                    {guests.list.map((g) => (
+                      <ListRow key={g.id} title={g.name} meta={g.organiser ? "Organiser" : undefined} badge={g.answer ? ANSWER_LABEL[g.answer] : "No answer yet"} />
+                    ))}
+                  </List>
+                )}
+              </Section>
+            )}
+
             {mine && (
               <Section title="Your task">
                 <Hint>

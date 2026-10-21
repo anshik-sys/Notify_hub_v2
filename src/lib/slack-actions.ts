@@ -1,9 +1,11 @@
 import { and, eq, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { reminderOccurrences, reminders, slackInstallations, taskAssignments, user } from "@/db/schema";
+import { type EventAnswer, reminderOccurrences, reminders, slackInstallations, taskAssignments, user } from "@/db/schema";
 import { authDb } from "./auth";
 import { decrypt } from "./crypto";
-import { respond, updateMessage, usersInfo, withStatus } from "./slack";
+import { respond as answerEvent } from "./events";
+import { ANSWER_LABEL } from "./invite";
+import { respond, updateMessage, usersInfo, withAnswer, withStatus } from "./slack";
 import { sendTell } from "./notifications";
 import { notifyIfAllDone } from "./tasks";
 import { formatInZone, toLocalInput, zonedToUtc } from "./time";
@@ -104,4 +106,35 @@ function nextLocalDate(now: Date, tz: string) {
   const d = new Date(`${today}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
+}
+
+// PRD 14.3: a Yes / No / Maybe click on an invite. The value is the event;
+// the clicker (Slack user -> email -> person) answers for themselves only,
+// and respond() refuses anyone who isn't a guest (RS3).
+export type RsvpClick = Omit<Click, "actionId" | "occurrenceId"> & { actionId: "rsvp_yes" | "rsvp_no" | "rsvp_maybe"; eventId: string };
+
+export async function handleRsvpAction(c: RsvpClick, f?: typeof fetch): Promise<{ outcome: "answered" | "refused" | "unknown"; after: () => Promise<void> }> {
+  const [inst] = await authDb
+    .select({ companyId: slackInstallations.companyId, tokenEnc: slackInstallations.botTokenEnc })
+    .from(slackInstallations)
+    .where(eq(slackInstallations.teamId, c.teamId));
+  if (!inst) return { outcome: "unknown", after: nothing };
+  const token = decrypt(inst.tokenEnc);
+  const ephemeral = (text: string) => () => respond(c.responseUrl, { response_type: "ephemeral", replace_original: false, text }, f);
+
+  const email = await usersInfo(token, c.slackUserId, f).catch(() => null);
+  if (!email) return { outcome: "refused", after: ephemeral("NotifyHub couldn't match your Slack account to a person (no email on your Slack profile).") };
+  const [person] = await withTenant(inst.companyId, (tx) => tx.select({ id: user.id }).from(user).where(and(eq(user.companyId, inst.companyId), eq(sql`lower(${user.email})`, email))), "");
+  if (!person) return { outcome: "refused", after: ephemeral("You're not invited to this event.") };
+  const answer = c.actionId.slice(5) as EventAnswer;
+  const error = await answerEvent(inst.companyId, person.id, c.eventId, answer, person.id);
+  if (error) return { outcome: "refused", after: ephemeral(error) };
+  const status = `Your answer: ${ANSWER_LABEL[answer]}. You can change it until the event ends.`;
+  // In a DM the message is the person's own: show the answer on it. A channel post is shared.
+  return {
+    outcome: "answered",
+    after: c.channelId.startsWith("D")
+      ? async () => void (await updateMessage(token, c.channelId, c.messageTs, "Invitation", withAnswer(c.blocks, status), f))
+      : ephemeral(status),
+  };
 }

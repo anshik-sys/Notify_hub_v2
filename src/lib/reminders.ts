@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { aliasedTable, and, desc, eq, gte, inArray, isNull, notInArray, or, sql } from "drizzle-orm";
+import { aliasedTable, and, desc, eq, gte, inArray, isNull, notInArray, or, type SQL, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { attachments, companies, companyApprovers, deliveries, departmentMembers, emailSuppressions, departments, groupMembers, groups, notifications, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, reminderColors, taskAssignments, user, userRoles, CALENDAR_COLORS, type CalendarColor, type ReminderStatus } from "@/db/schema";
 import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
@@ -499,9 +499,10 @@ export function listAttachments(companyId: string, reminderId: string) {
 
 // Wakes the worker (LISTEN reminders_due) so "now" means now. Postgres only
 // delivers it if this transaction commits. The worker's minute tick catches
-// anything a missed notification would have left behind.
-async function notifyIfDue(tx: Tx, status: ReminderStatus, sendAt: Date) {
-  if (status === "scheduled" && sendAt.getTime() <= Date.now()) await tx.execute(sql`select pg_notify('reminders_due', '')`);
+// anything a missed notification would have left behind. A scheduled event
+// wakes it too: its invites go at once (PRD 14.3), not at the start.
+async function notifyIfDue(tx: Tx, status: ReminderStatus, sendAt: Date, isEvent = false) {
+  if (status === "scheduled" && (isEvent || sendAt.getTime() <= Date.now())) await tx.execute(sql`select pg_notify('reminders_due', '')`);
 }
 
 async function refusals<T>(fn: () => Promise<T>): Promise<T | { error: string }> {
@@ -552,7 +553,7 @@ async function insertReminder(
   await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
   await saveShares(tx, companyId, id, actorId, shares);
   await saveAttachments(tx, companyId, id, actorId, files, []);
-  await notifyIfDue(tx, fields.status, input.sendAt);
+  await notifyIfDue(tx, fields.status, input.sendAt, "isEvent" in input && input.isEvent);
   return id;
 }
 
@@ -627,7 +628,7 @@ export async function updateReminder(
       await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
       await saveShares(tx, companyId, id, actor.id, shares);
       await saveAttachments(tx, companyId, id, actor.id, files, removeAttachmentIds);
-      await notifyIfDue(tx, status, input.sendAt);
+      await notifyIfDue(tx, status, input.sendAt, "isEvent" in input && input.isEvent);
       return {
         approvers: status === "pending_approval" ? await approversToTell(tx, companyId, id) : [],
         tell: approvesIt ? await tellDecision(tx, companyId, actor.id, { id, title: input.title, createdBy: creator.id }, true) : null,
@@ -1141,7 +1142,7 @@ export async function decideReminder(actor: Actor, companyId: string, id: string
           rejectionReason: approve ? null : reason,
         })
         .where(eq(reminders.id, id));
-      if (approve) await notifyIfDue(tx, "scheduled", current.sendAt);
+      if (approve) await notifyIfDue(tx, "scheduled", current.sendAt, current.isEvent);
       return { tell: await tellDecision(tx, companyId, actor.id, current, approve, reason) };
     }),
   );
@@ -1400,24 +1401,26 @@ export async function deliveryLog(companyId: string, reminderId: string) {
       .orderBy(desc(reminderOccurrences.occursAt))
       .limit(10);
     const latest = history.find((o) => o.status === "sending" || o.status === "sent");
-    const rows = latest
-      ? await tx
-          .select({
-            id: deliveries.id,
-            channel: deliveries.channel,
-            address: deliveries.address,
-            userName: user.name,
-            status: deliveries.status,
-            sentAt: deliveries.sentAt,
-            lastError: deliveries.lastError,
-            attempts: deliveries.attempts,
-          })
-          .from(deliveries)
-          .leftJoin(user, eq(user.id, deliveries.userId))
-          .where(eq(deliveries.occurrenceId, latest.id))
-          .orderBy(deliveries.channel, deliveries.address)
-      : [];
-    return { latest: latest ?? null, rows, history };
+    const select = (where: SQL) =>
+      tx
+        .select({
+          id: deliveries.id,
+          channel: deliveries.channel,
+          address: deliveries.address,
+          userName: user.name,
+          status: deliveries.status,
+          sentAt: deliveries.sentAt,
+          lastError: deliveries.lastError,
+          attempts: deliveries.attempts,
+        })
+        .from(deliveries)
+        .leftJoin(user, eq(user.id, deliveries.userId))
+        .where(where)
+        .orderBy(deliveries.channel, deliveries.address);
+    const rows = latest ? await select(eq(deliveries.occurrenceId, latest.id)) : [];
+    // An event's invites (PRD 14.3): one per guest, not per date.
+    const invites = await select(and(eq(deliveries.reminderId, reminderId), eq(deliveries.kind, "invite"))!);
+    return { latest: latest ?? null, rows, invites, history };
   });
 }
 

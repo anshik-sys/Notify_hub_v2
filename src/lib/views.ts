@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import { withTenant } from "@/db";
-import { type CalendarColor, REMINDER_STATUSES, reminderOccurrences, reminderShares, reminders, taskAssignments, user, type ReminderStatus } from "@/db/schema";
+import { type CalendarColor, type EventAnswer, REMINDER_STATUSES, reminderOccurrences, reminderShares, reminders, taskAssignments, user, type ReminderStatus } from "@/db/schema";
 import { type Access, can } from "./permissions";
 import { between, describe, type Rule } from "./recurrence";
 import { invitedSql, sharedWithSql } from "./reminders";
@@ -250,7 +250,16 @@ export type CalendarEntry = {
   canChange: boolean; // mayChange's twin: edit, delete, colour
   assignment: { id: string; done: boolean } | null; // the viewer's, on a sent task
   // PRD 14.3 events: length (minutes), all-day, where, and the meeting link.
-  event: { minutes: number; allDay: boolean; location: string | null; meetingUrl: string | null } | null;
+  // answer: the viewer's, as a guest (null: not answered or not a guest);
+  // going: Yes / Maybe / No totals, the organiser counted as Yes (EV8).
+  event: {
+    minutes: number;
+    allDay: boolean;
+    location: string | null;
+    meetingUrl: string | null;
+    answer: EventAnswer | null;
+    going: Record<EventAnswer, number>;
+  } | null;
 };
 // PRD 14.2 defaults when the viewer hasn't picked a colour (colours are personal).
 export const DEFAULT_COLOR = { reminder: "lavender", task: "sage" } as const;
@@ -316,6 +325,9 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
     location: reminders.location,
     meetingUrl: reminders.meetingUrl,
     color: sql<CalendarColor | null>`(select rc.color from reminder_colors rc where rc.reminder_id = "reminders"."id" and rc.user_id = ${viewer.id})`,
+    answer: sql<EventAnswer | null>`(select er.answer from event_responses er where er.reminder_id = "reminders"."id" and er.user_id = ${viewer.id})`,
+    going: sql<Record<EventAnswer, number> | null>`(select json_build_object('yes', count(*) filter (where er.answer = 'yes'), 'maybe', count(*) filter (where er.answer = 'maybe'),
+      'no', count(*) filter (where er.answer = 'no')) from event_responses er where er.reminder_id = "reminders"."id" and "reminders"."is_event")`,
   };
   const { rows, recorded, sent } = await withTenant(companyId, async (tx) => {
     const rows = await tx
@@ -398,6 +410,8 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
     recipients: string | null;
     createdBy: string;
     color: CalendarColor | null;
+    answer: EventAnswer | null;
+    going: Record<EventAnswer, number> | null;
   };
   const mayEdit = can(viewer.access, "reminders.edit");
   const base = (r: Flagged) => {
@@ -414,7 +428,16 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
       canChange: r.createdBy === viewer.id || (r.full && mayEdit),
       repeat: null,
       assignment: null,
-      event: r.isEvent ? { minutes: r.durationMinutes ?? 60, allDay: r.allDay, location: r.location, meetingUrl: r.meetingUrl } : null,
+      event: r.isEvent
+        ? {
+            minutes: r.durationMinutes ?? 60,
+            allDay: r.allDay,
+            location: r.location,
+            meetingUrl: r.meetingUrl,
+            answer: r.answer,
+            going: { yes: (r.going?.yes ?? 0) + 1, maybe: r.going?.maybe ?? 0, no: r.going?.no ?? 0 },
+          }
+        : null,
     };
   };
   const done = new Set(recorded.map((o) => `${o.reminderId}:${o.at.getTime()}`));

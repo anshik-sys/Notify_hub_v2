@@ -185,6 +185,27 @@
   background: var(--surface);
 }
 
+/* A guest's Yes / Maybe / No (PRD 14.3); the current answer is filled. */
+.answers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.answersLabel {
+  margin-right: 2px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.answers .action[aria-pressed="true"] {
+  border-color: var(--primary-bg);
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+}
+
 /* The meeting link: the card's main action for an event. */
 .join {
   border-color: var(--primary-bg);

@@ -44,6 +44,12 @@
   }
 }
 
+/* Yes / Maybe / No: one row, even in the narrow side column. */
+.answers {
+  display: flex;
+  gap: 8px;
+}
+
 /* Folded history under the delivery table. */
 .moreToggle {
   width: fit-content;

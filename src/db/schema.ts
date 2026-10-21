@@ -413,6 +413,8 @@ export const reminderOccurrences = pgTable(
 // One row per (occurrence, recipient email): the unique key is what makes a
 // second send of the same occurrence to the same person impossible. Written by
 // the worker (owner connection); read by the web for the delivery log.
+// kind = invite (PRD 14.3): an event's invite, one per guest for the whole
+// event (no occurrence), unique per (event, channel, address).
 export const deliveries = pgTable(
   "deliveries",
   {
@@ -423,9 +425,8 @@ export const deliveries = pgTable(
     reminderId: uuid()
       .notNull()
       .references(() => reminders.id, { onDelete: "cascade" }),
-    occurrenceId: uuid()
-      .notNull()
-      .references(() => reminderOccurrences.id, { onDelete: "cascade" }),
+    occurrenceId: uuid().references(() => reminderOccurrences.id, { onDelete: "cascade" }),
+    kind: text().$type<"reminder" | "invite">().notNull().default("reminder"),
     channel: text().$type<"email" | "slack">().notNull().default("email"),
     // email: the address. slack: a channel id (C…) or, for a DM, the internal
     // user id (the Slack user id is looked up at send time).
@@ -446,6 +447,8 @@ export const deliveries = pgTable(
   },
   (t) => [
     unique().on(t.occurrenceId, t.channel, t.address),
+    uniqueIndex("deliveries_invite_idx").on(t.reminderId, t.channel, t.address).where(sql`${t.kind} = 'invite'`),
+    check("deliveries_kind_valid", sql`(${t.kind} = 'reminder') = (${t.occurrenceId} is not null) and ${t.kind} in ('reminder','invite')`),
     check("deliveries_channel_valid", sql`${t.channel} in ('email','slack')`),
     index().on(t.reminderId),
     index().on(t.status, t.updatedAt),
@@ -594,6 +597,34 @@ export const reminderColors = pgTable(
   ],
 ).enableRLS();
 
+// PRD 14.3: a guest's answer to an event, one for the whole series. Who the
+// guests are comes from the targets (resolveRecipients), so no row = no
+// answer yet. The organiser never has a row: they count as Yes.
+export const EVENT_ANSWERS = ["yes", "no", "maybe"] as const;
+export type EventAnswer = (typeof EVENT_ANSWERS)[number];
+export const eventResponses = pgTable(
+  "event_responses",
+  {
+    reminderId: uuid()
+      .notNull()
+      .references(() => reminders.id, { onDelete: "cascade" }),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    answer: text().$type<EventAnswer>().notNull(),
+    updatedAt: ts().notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.reminderId, t.userId] }),
+    index().on(t.userId),
+    check("event_responses_answer_valid", sql`${t.answer} in ('yes','no','maybe')`),
+    tenantPolicy("company_id"),
+  ],
+).enableRLS();
+
 // A person's profile photo (PRD 3.3), one per person; bytes only through
 // src/lib/storage.ts.
 export const userPhotos = pgTable(
@@ -696,7 +727,7 @@ export const notifications = pgTable(
     uniqueIndex().on(t.userId, t.dedupeKey),
     check(
       "notifications_kind_valid",
-      sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed','escalated')`,
+      sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed','escalated','rsvp')`,
     ),
     tenantPolicy("company_id"),
   ],

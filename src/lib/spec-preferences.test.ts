@@ -70,6 +70,8 @@ const SPEC: Spec[] = [
   { key: "failed", re: /fail/i, channels: ["email", "slack"], off: ["slack"] },
   { key: "limit", re: /limit/i, channels: ["email"], off: [] },
   { key: "late", re: /\blate\b|overdue/i, channels: ["email", "slack"], off: [] },
+  // Added with events (section 11, RS7).
+  { key: "answered", re: /answered/i, channels: ["email", "slack"], off: ["email", "slack"] },
 ];
 const listed = () => MUTABLE.map((m) => `${m.event} "${m.label}" [${m.channels}] off [${m.off}]`).join("; ");
 const ev = (key: Spec["key"]) => {
@@ -170,7 +172,7 @@ after(async () => {
 // --- Tests -------------------------------------------------------------------------------
 
 test("N1: the preferences list has every event in the table with its channels and default-off choices; a new person's choices show the defaults", async () => {
-  assert.equal(MUTABLE.length, SPEC.length, `nine events; MUTABLE is: ${listed()}`);
+  assert.equal(MUTABLE.length, SPEC.length, `${SPEC.length} events; MUTABLE is: ${listed()}`);
   for (const spec of SPEC) {
     const event = ev(spec.key);
     const entry = MUTABLE.find((m) => m.event === event)!;

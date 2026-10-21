@@ -1,11 +1,12 @@
-import { type AnyColumn, and, asc, eq, inArray, lt, lte, sql } from "drizzle-orm";
+import { type AnyColumn, and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { attachments, companies, companyLogos, deliveries, emailSuppressions, notifications, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user, userRoles } from "@/db/schema";
 import { COMPANY_ADMIN_ROLE_ID } from "@/lib/permissions";
 import { emailFiles } from "@/lib/attachments";
-import { brandFor, renderReminderEmail } from "@/lib/email-render";
+import { brandFor, renderInviteEmail, renderReminderEmail } from "@/lib/email-render";
+import { eventIcs, eventWhen, rsvpUrl } from "@/lib/invite";
 import { getBlob } from "@/lib/storage";
 import { decrypt } from "@/lib/crypto";
-import { lookupByEmail, openDm, postMessage, reminderMessage, SlackError, uploadFile } from "@/lib/slack";
+import { inviteMessage, lookupByEmail, openDm, postMessage, reminderMessage, SlackError, uploadFile } from "@/lib/slack";
 import { between, nextAfter } from "@/lib/recurrence";
 import { formatInZone } from "@/lib/time";
 import { sendMail } from "@/lib/mail";
@@ -220,10 +221,66 @@ export async function dispatchDue(
   }
 }
 
+// --- Event invites (PRD 14.3) ----------------------------------------------------
+// Every scheduled event still to come: each guest, resolved now, has one
+// invite per channel (IN1). Someone who joined a guest department or group
+// since gets theirs on the next run (IN6); the partial unique index
+// (deliveries_invite_idx) makes a repeat insert nothing (IN2). Waiting for
+// approval or rejected isn't scheduled, so nothing goes (IN5). The organiser
+// gets none (EV8).
+// ponytail: re-resolves every upcoming event's guests on each run (every
+// minute and on each wake-up); track a "guests may have changed" flag if a
+// company ever holds thousands of upcoming events.
+export async function dispatchInvites(enqueue: (deliveryIds: string[]) => Promise<void>, onlyCompany?: string, now = new Date()) {
+  const events = await ownerDb
+    .select()
+    .from(reminders)
+    .where(
+      and(
+        eq(reminders.isEvent, true),
+        eq(reminders.status, "scheduled"),
+        isNull(reminders.deletedAt),
+        // A one-time event that hasn't ended; a scheduled series has dates to come.
+        or(sql`${reminders.recurrence} is not null`, sql`${reminders.sendAt} + make_interval(mins => ${reminders.durationMinutes}) > ${now}`),
+        notSuspended(reminders.companyId),
+        onlyCompany ? eq(reminders.companyId, onlyCompany) : undefined,
+      ),
+    );
+  let count = 0;
+  for (const r of events) {
+    const ids = await ownerDb.transaction(async (tx) => {
+      const targets = await tx
+        .select({ kind: reminderTargets.kind, ref: reminderTargets.ref })
+        .from(reminderTargets)
+        .where(eq(reminderTargets.reminderId, r.id));
+      const guests = (await resolveRecipients(tx, r.companyId, targets)).users.filter((u) => u.id !== r.createdBy);
+      const rows = [
+        ...(r.channels.includes("email") ? guests.map((u) => ({ channel: "email" as const, address: u.email, userId: u.id })) : []),
+        // Company-wide on Slack never DMs everyone (PRD 5.3), invites included.
+        ...(r.channels.includes("slack") && !targets.some((t) => t.kind === "company")
+          ? guests.map((u) => ({ channel: "slack" as const, address: u.id, userId: u.id }))
+          : []),
+      ];
+      if (!rows.length) return [];
+      return (
+        await tx
+          .insert(deliveries)
+          .values(rows.map((x) => ({ ...x, kind: "invite" as const, companyId: r.companyId, reminderId: r.id })))
+          .onConflictDoNothing()
+          .returning({ id: deliveries.id })
+      ).map((d) => d.id);
+    });
+    count += ids.length;
+    if (ids.length) await enqueue(ids);
+  }
+  return count;
+}
+
 const inFlight = sql`('queued','sending')`;
 
 // An occurrence is sent once none of its deliveries is still in flight.
-async function finishOccurrence(occurrenceId: string) {
+async function finishOccurrence(occurrenceId: string | null) {
+  if (!occurrenceId) return; // an invite: no occurrence
   await ownerDb
     .update(reminderOccurrences)
     .set({ status: "sent" })
@@ -251,7 +308,7 @@ async function finishReminder(reminderId: string) {
     );
 }
 
-async function finish(d: { occurrenceId: string; reminderId: string }) {
+async function finish(d: { occurrenceId: string | null; reminderId: string }) {
   await finishOccurrence(d.occurrenceId);
   await finishReminder(d.reminderId);
 }
@@ -261,7 +318,7 @@ class Permanent extends Error {}
 const PERMANENT_SLACK = new Set(["channel_not_found", "is_archived", "invalid_auth", "token_revoked", "account_inactive", "not_in_channel"]);
 
 type Delivery = typeof deliveries.$inferSelect;
-type Loaded = { reminder: typeof reminders.$inferSelect; creatorEmail: string; dueAt: Date | null };
+type Loaded = { reminder: typeof reminders.$inferSelect; creatorEmail: string; creatorName: string; dueAt: Date | null };
 
 // The reminder's files, in upload order (metadata only; bytes on demand).
 const filesOf = (reminderId: string) =>
@@ -271,16 +328,20 @@ const filesOf = (reminderId: string) =>
     .where(eq(attachments.reminderId, reminderId))
     .orderBy(attachments.createdAt);
 
-async function sendEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
-  // ponytail: bytes are re-read per recipient; cache per dispatch if large
-  // company-wide sends with files get slow.
-  const { attached, tooBig } = await emailFiles(await filesOf(r.reminder.id), (id) => getBlob(ownerDb, id));
+async function brandOf(companyId: string) {
   const [co] = await ownerDb
     .select({ name: companies.name, logoAt: companyLogos.updatedAt })
     .from(companies)
     .leftJoin(companyLogos, eq(companyLogos.companyId, companies.id))
-    .where(eq(companies.id, r.reminder.companyId));
-  const brand = brandFor(process.env.BETTER_AUTH_URL ?? "", r.reminder.companyId, co?.name ?? "", co?.logoAt ? String(co.logoAt.getTime()) : null);
+    .where(eq(companies.id, companyId));
+  return brandFor(process.env.BETTER_AUTH_URL ?? "", companyId, co?.name ?? "", co?.logoAt ? String(co.logoAt.getTime()) : null);
+}
+
+async function sendEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
+  // ponytail: bytes are re-read per recipient; cache per dispatch if large
+  // company-wide sends with files get slow.
+  const { attached, tooBig } = await emailFiles(await filesOf(r.reminder.id), (id) => getBlob(ownerDb, id));
+  const brand = await brandOf(r.reminder.companyId);
   // No user id: an outside address. Members can't unsubscribe (PRD 7.1).
   const unsub = d.userId ? null : unsubscribeUrls(r.reminder.companyId, d.address);
   const email = renderReminderEmail({
@@ -297,6 +358,33 @@ async function sendEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
   // RFC 8058 one-click, so mail apps show their own Unsubscribe button.
   const headers = unsub && { "List-Unsubscribe": `<${unsub.oneClick}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" };
   await send({ to: d.address, ...email, replyTo: r.creatorEmail, attachments: attached, ...(headers ? { headers } : {}) });
+  return {};
+}
+
+// An invite (PRD 14.3): when, where, Join, the guest's own Yes / No / Maybe
+// links (RS2), the event's files (EV10) and the .ics (IN3).
+async function sendInviteEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
+  const e = r.reminder;
+  const [guest] = await ownerDb.select({ name: user.name }).from(user).where(eq(user.id, d.userId!));
+  const { attached, tooBig } = await emailFiles(await filesOf(e.id), (id) => getBlob(ownerDb, id));
+  const appUrl = `${process.env.BETTER_AUTH_URL}/reminders/${e.id}`;
+  const when = eventWhen(e);
+  const email = renderInviteEmail({
+    ...e,
+    links: e.links,
+    when,
+    answerUrls: { yes: rsvpUrl(e.companyId, e.id, d.userId!, "yes"), no: rsvpUrl(e.companyId, e.id, d.userId!, "no"), maybe: rsvpUrl(e.companyId, e.id, d.userId!, "maybe") },
+    appUrl,
+    tooBig,
+    brand: await brandOf(e.companyId),
+  });
+  const ics = eventIcs(e, { organizer: { name: r.creatorName, email: r.creatorEmail }, attendee: { name: guest?.name ?? d.address, email: d.address }, url: appUrl });
+  await send({
+    to: d.address,
+    ...email,
+    replyTo: r.creatorEmail,
+    attachments: [{ filename: "invite.ics", content: Buffer.from(ics), contentType: "text/calendar; charset=utf-8; method=REQUEST" }, ...attached],
+  });
   return {};
 }
 
@@ -321,16 +409,20 @@ async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
       note = `For ${u.name}: they have no Slack account under ${u.email}, so this is posted here.`;
     } else throw new Permanent(`No Slack account for ${u.email}, and no fallback channel is set.`);
   }
-  const msg = reminderMessage({
-    title: r.reminder.title,
-    description: r.reminder.description,
-    links: r.reminder.links,
-    appUrl: `${process.env.BETTER_AUTH_URL}/reminders/${r.reminder.id}`,
-    due: r.reminder.isTask && r.dueAt ? `${formatInZone(r.dueAt, r.reminder.timeZone)} (${r.reminder.timeZone})` : undefined,
-    note,
-    // Buttons on tasks; snooze only in a real DM (a fallback-channel post is shared).
-    task: r.reminder.isTask ? { occurrenceId: d.occurrenceId, dm } : undefined,
-  });
+  const appUrl = `${process.env.BETTER_AUTH_URL}/reminders/${r.reminder.id}`;
+  const msg =
+    d.kind === "invite"
+      ? inviteMessage({ ...r.reminder, when: eventWhen(r.reminder), eventId: r.reminder.id, appUrl, note })
+      : reminderMessage({
+          title: r.reminder.title,
+          description: r.reminder.description,
+          links: r.reminder.links,
+          appUrl,
+          due: r.reminder.isTask && r.dueAt ? `${formatInZone(r.dueAt, r.reminder.timeZone)} (${r.reminder.timeZone})` : undefined,
+          note,
+          // Buttons on tasks; snooze only in a real DM (a fallback-channel post is shared).
+          task: r.reminder.isTask && d.occurrenceId ? { occurrenceId: d.occurrenceId, dm } : undefined,
+        });
   let posted: { channel: string; ts: string };
   try {
     posted = await postMessage(token, channel, msg.text, msg.blocks, f);
@@ -433,16 +525,22 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
   if (!d) return "skipped"; // sent, failed, or another worker has it
 
   const [loaded] = await ownerDb
-    .select({ reminder: reminders, creatorEmail: user.email, dueAt: reminderOccurrences.dueAt, snapshot: reminderOccurrences.snapshot })
+    .select({ reminder: reminders, creatorEmail: user.email, creatorName: user.name, dueAt: reminderOccurrences.dueAt, snapshot: reminderOccurrences.snapshot })
     .from(reminders)
     .innerJoin(user, eq(user.id, reminders.createdBy))
-    .innerJoin(reminderOccurrences, eq(reminderOccurrences.id, d.occurrenceId))
+    .leftJoin(reminderOccurrences, sql`${reminderOccurrences.id} = ${d.occurrenceId}`)
     .where(eq(reminders.id, d.reminderId));
   // Send what the occurrence recorded, even if the reminder was edited since.
+  // An invite has no occurrence: it's the event as it is now.
   const r = { ...loaded, reminder: { ...loaded.reminder, ...loaded.snapshot } };
   let result: { slackChannel?: string; slackTs?: string; lastError?: string | null };
   try {
-    result = d.channel === "slack" ? await sendSlack(d, r, slackFetch) : await sendEmail(d, r, send);
+    result =
+      d.channel === "slack"
+        ? await sendSlack(d, r, slackFetch)
+        : d.kind === "invite"
+          ? await sendInviteEmail(d, r, send)
+          : await sendEmail(d, r, send);
   } catch (e) {
     const final = e instanceof Permanent || d.attempts >= MAX_ATTEMPTS;
     await ownerDb
@@ -468,15 +566,15 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
 // deliveries failed.
 // Once per occurrence (the dedupe key): in the app, plus email (on by
 // default) or Slack (off) as each person chose.
-async function notifyFailed(d: { companyId: string; reminderId: string; occurrenceId: string }) {
+async function notifyFailed(d: { companyId: string; reminderId: string; occurrenceId: string | null }) {
   const [r] = await ownerDb.select({ createdBy: reminders.createdBy, title: reminders.title }).from(reminders).where(eq(reminders.id, d.reminderId));
   if (!r) return;
   const people = new Set([r.createdBy, ...(await companyAdmins(d.companyId)).map((a) => a.id)]);
-  const text = "Some deliveries failed";
+  const text = d.occurrenceId ? "Some deliveries failed" : "Some invites failed";
   try {
     const fresh = await ownerDb
       .insert(notifications)
-      .values([...people].map((userId) => ({ companyId: d.companyId, userId, kind: "failed" as const, reminderId: d.reminderId, text, dedupeKey: `failed:${d.occurrenceId}` })))
+      .values([...people].map((userId) => ({ companyId: d.companyId, userId, kind: "failed" as const, reminderId: d.reminderId, text, dedupeKey: `failed:${d.occurrenceId ?? `invite:${d.reminderId}`}` })))
       .onConflictDoNothing()
       .returning({ userId: notifications.userId });
     const tell = await planTell(ownerDb, d.companyId, fresh.map((f) => f.userId), "failed", {

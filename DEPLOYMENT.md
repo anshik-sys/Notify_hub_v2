@@ -38,6 +38,16 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0044: event invites and answers. `deliveries` gets `kind`
+(`reminder` / `invite`) and `occurrence_id` becomes nullable (only for
+invites, enforced by a check). New `event_responses` table (tenant RLS, audit
+trigger), the `rsvp` notification kind, and `erase_person()` replaced so it
+also deletes a person's answers. **Deploy the worker with it and restart it:**
+an older worker never sends invites, and its sweep would pick up queued
+invites and fail on them (it expects every delivery to have an occurrence).
+On its first run the new worker invites the guests of **every event already
+scheduled and still to come**: events created since 0043 never had invites.
+
 Migration 0043: event columns on `reminders` (`is_event`, `duration_minutes`,
 `all_day`, `location`, `meeting_url`, `notify_before`), with checks (not a
 task and an event at once; an event has a length). Existing reminders aren't
@@ -306,6 +316,8 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Export a person's data (JSON with every section, no tokens). Deactivate them → Erase permanently → they can't sign in, show as "Deleted person", their comments read "Comment deleted", and the audit log no longer contains their email.
 - [ ] Create a company on `/platform` with a contact email and phone → the first admin's invite arrives → accepting it lands on Home with "Finish setting up"; Settings → Company shows the contact details and saves edits. On the setup checklist, departments, invites and managers tick off as you do them, and Home stops showing "Finish setting up" once it's done.
 - [ ] Reject needs a reason and emails the creator; approve moves it to Scheduled.
+- [ ] An event for a department you're in, on Email + Slack: each other member gets "Invitation: …" within seconds (you, the organiser, don't), with `invite.ics`. Opening the `.ics` in Google Calendar, Outlook and Apple Calendar shows the right time, title, place and link. The Slack DM has Yes / Maybe / No; clicking one shows "Your answer" under it.
+- [ ] Click "Maybe" in the email → the page names the event and asks for a click → "Answer saved". The organiser's event page lists the guest as Maybe with the totals; a guest sees only the totals and their own answer. A repeating event sends one invite, with the repeat in the `.ics`.
 - [ ] A reminder to an outside address: the email ends with "Unsubscribe", and Gmail shows its own Unsubscribe next to the sender. Clicking it → the confirm page names the company; confirm → the next reminder to that address isn't sent. A member's copy has no unsubscribe link.
 - [ ] Daily email limit: on `/platform/companies/<id>` set a test company's limit to 1, send a reminder to two people → one sent, the other shows "Held" in the reminder's log; its admins get one notice (in the app and by email); raise the limit → the held one goes out within a couple of minutes, once. Settings → Unsubscribed lists the address; the reminder marks it "Unsubscribed"; "Subscribe again" on the same link brings delivery back.
 - [ ] Make someone manager of one department → they can add/remove members there, and the other departments show no member controls.
