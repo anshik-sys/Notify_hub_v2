@@ -558,6 +558,50 @@ by dragging, rooms or resource booking, and outside (non-member) guests.
 5. **VS2:** upcoming tasks visible to their assignees too, by the same rule?
 6. **SN5:** "starts soon" for an all-day event counts back from 09:00?
 
+## 12. Finding events: an Events page (v2, PRD 14.3)
+
+Decided 2026-10-21: events get their own sidebar item. Today a guest finds an
+event only through the invite, the calendar layer or the event's page; a
+member without `reminders.create` doesn't even see Calendar or Reminders.
+
+| Function | What it does |
+|---|---|
+| `myEvents(companyId, viewer, { past, page })` | Events I organise or am invited to: upcoming (and running) or past, with my answer and the Yes / Maybe / No totals. |
+| Invite notification | An in-app notification when an invite is created for me. |
+
+### The Events page
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| EP1 | The sidebar | "Events" for every signed-in member (like Tasks), whatever their permissions | Decided 2026-10-21 | |
+| EP2 | Upcoming tab (default) | Events I **organise** or am a **guest** of that haven't ended, soonest first. A series is one row showing its next date and how it repeats | **(proposed)** | |
+| EP3 | Past tab | Ended events, latest first, 25 per page | **(proposed)** | |
+| EP4 | A row | Title (opens the event), when, where, organiser, my answer, and the Going totals (organiser counted as Yes) | Decided 2026-10-21 | |
+| EP5 | My answer, as a guest of an upcoming event | Yes / Maybe / No buttons in the row, the current one filled; same rules as RS1 / RS3; the page stays on the same tab | Decided 2026-10-21 | |
+| EP6 | My answer, as the organiser | "Organiser" instead of buttons | EV8 | |
+| EP7 | My own event waiting for approval or rejected | Listed for me with a "Needs approval" / "Not approved" badge; guests don't see it (VS1) | **(proposed)** | |
+| EP8 | Cancelled or deleted | Not listed | | |
+| EP9 | Admins and managers | See only their own and their invitations here, not every event they could open (that's Reminders and Calendar) | **(proposed)** | |
+
+### Elsewhere
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| EN1 | An invite is created for me (IN1, IN6) | An in-app notification "Olga invited you to Planning", once per event, linking to it; always on (in-app isn't mutable) | Decided 2026-10-21 | |
+| EN2 | Home | "Upcoming events": my next 5 (organiser or guest), with my answer; "All events" goes to the Events page | Decided 2026-10-21 | |
+| EN3 | Reminders list, Type filter | Gains "Event"; "Reminder" no longer includes events | Decided 2026-10-21 | |
+| EN4 | The event's page | Its buttons say "Edit event", "Cancel event", "Delete event" (and "series" for a repeating one) | Decided 2026-10-21 | |
+
+### Not in this step
+
+Change and cancel notices (slice 4), and a "who's coming" export.
+
+### Open questions for the Events page
+
+1. **EP2:** "upcoming" includes an event that has started but not ended (shown as "Now")?
+2. **EP7:** your own waiting or rejected events listed here, with a badge?
+3. **EP9:** admins see only their own and their invitations, not everyone's events?
+
 ## Open questions found while testing
 
 - ~~**T7a/T7c:** when the copy needs approval, the series still skips that date
