@@ -540,6 +540,7 @@ A third type next to reminders and tasks.
 - **Responses:** the organiser sees who accepted, declined, said maybe or hasn't answered. RSVP is **for events only**; reminders and tasks keep their current behaviour (tasks have Mark done).
 
 ### 14.4 Google Calendar (and other calendar apps)
+- **Changed 2026-10-21:** instead of the link feed below, people **connect their Google account** (Profile → Connect Google Calendar) and NotifyHub keeps a "NotifyHub" calendar there up to date, within a minute. Still one way (NotifyHub → Google); NotifyHub doesn't read their other calendars. Spec: `docs/expected-behaviour.md` section 13. The link feed and Outlook / Apple are not in this step.
 - **One-way feed.** Each person has a private calendar link (iCal/ICS) to add to Google Calendar, Outlook or Apple Calendar. It shows the reminders, tasks and events they receive or created. It is read-only; changes are made in NotifyHub.
 - Each person can reset their link (the old one stops working). Admins can turn feeds off for the company.
 - The feed holds reminder content, so the link is a secret: it's long and random, and it never shows content the person couldn't see in the app.

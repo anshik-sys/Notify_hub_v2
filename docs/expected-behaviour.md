@@ -602,6 +602,65 @@ Change and cancel notices (slice 4), and a "who's coming" export.
 2. **EP7:** your own waiting or rejected events listed here, with a badge?
 3. **EP9:** admins see only their own and their invitations, not everyone's events?
 
+## 13. Connect Google Calendar (v2, replaces the PRD 14.4 link feed)
+
+Decided 2026-10-21: instead of a calendar link to paste, each person clicks
+**Connect Google Calendar** once. NotifyHub then keeps a calendar called
+"NotifyHub" in their Google account up to date: their reminders, tasks and
+events, changed within a minute of a change in NotifyHub. One way only:
+NotifyHub never reads their other Google calendars or events, and edits made
+in Google aren't brought back. (Two-way sync and Outlook / Apple are not in
+this step.)
+
+| Function | What it does |
+|---|---|
+| Profile → Connect Google Calendar | Google's consent screen for one narrow permission (`calendar.app.created`: make its own calendars and manage only their events); offline access, so it keeps working when signed out. |
+| `syncGoogle` (worker) | After a change, writes the person's affected entries into their "NotifyHub" calendar: create, update or delete, by a stable id per entry. |
+| Disconnect | Stops syncing, deletes the "NotifyHub" calendar from their Google account, and forgets the tokens. |
+| Company setting "Google Calendar" | Admins (company.edit) allow or block connecting for the company. |
+
+### Connecting
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| GC1 | Profile → Connect Google Calendar | Google's consent screen asks only for "make secondary calendars and manage their events"; on Allow, back on Profile with "Connected as name@gmail.com" and a "NotifyHub" calendar appears in Google | Decided 2026-10-21 | |
+| GC2 | Any Google account | It needn't match the NotifyHub email or the sign-in method (password, or Google sign-in) | **(proposed)** | |
+| GC3 | Deny on Google's screen, or it fails | Back on Profile with a message; nothing stored | | |
+| GC4 | The tokens | Stored encrypted (like the Slack token); never logged or shown | AGENTS (integration secrets) | |
+| GC5 | Disconnect | Syncing stops, the "NotifyHub" calendar is deleted from Google, the tokens are deleted | **(proposed: delete the calendar)** | |
+| GC6 | Access revoked from Google's side (or the password changed) | Syncing stops; Profile says "Reconnect"; one in-app notification | **(proposed)** | |
+| GC7 | Admin blocks it for the company | Connect is hidden; existing connections stop syncing and their calendars are deleted | **(proposed)** | |
+| GC8 | Deactivated or erased person | Syncing stops; erasing deletes the tokens and (best effort) the calendar | PRD 11.5 | |
+
+### What's synced
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| GC9 | Which entries | Reminders, tasks and events **I created or that are addressed to me**: not everything an admin could open | PRD 14.4 "they receive or created" | |
+| GC10 | Which states | Scheduled (and paused series) and sent; not waiting for approval, rejected, cancelled or deleted | **(proposed)** | |
+| GC11 | How far | From 30 days ago to a year ahead; the first sync fills that range | **(proposed)** | |
+| GC12 | A reminder or task | At its send time, 30 minutes long (as on the NotifyHub calendar); title, description and a link back; no recipient list | **(proposed)** | |
+| GC13 | An event | Its real start and end (or all day), place and meeting link | Decided 2026-10-21 | |
+| GC14 | A repeating one | One recurring entry with its repeat rule, minus skipped and moved dates | | |
+| GC15 | An event I said No to | Removed from my Google calendar; back if I change my answer | **(proposed)** | |
+| GC16 | A change in NotifyHub (edit, drag, cancel, delete, a new reminder to me, joining a department) | My Google calendar reflects it within about a minute; once per change, with retries if Google is down | Decided 2026-10-21 | |
+| GC17 | I edit or delete the entry in Google | Not brought back; the next change in NotifyHub overwrites it (a note in the event's description says so) | **(proposed)** | |
+| GC18 | Event invites | Still sent as now; someone connected may see an event both from the invite (in their main calendar) and in "NotifyHub" | **(proposed: accept the duplicate)** | |
+
+### Before it can go to customers
+
+Google must verify the app for this permission (if Google lists it as
+sensitive), which can take weeks. Until then up to 100 test users added in
+Google Cloud Console can connect: enough for HR. DEPLOYMENT.md gets the steps.
+
+### Open questions for Google Calendar
+
+1. **GC2:** connect any Google account, not only one matching the NotifyHub email?
+2. **GC5 / GC7:** disconnecting (or an admin blocking it) deletes the "NotifyHub" calendar from Google?
+3. **GC10 / GC15:** leave out what's waiting for approval, and events I said No to?
+4. **GC11:** 30 days back, a year ahead?
+5. **GC18:** accept that an invited, connected person may see an event twice (invite + NotifyHub calendar)? The alternative is to stop sending `.ics` files to connected people, which changes slice 2.
+
 ## Open questions found while testing
 
 - ~~**T7a/T7c:** when the copy needs approval, the series still skips that date
