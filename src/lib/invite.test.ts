@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { signToken } from "./crypto";
-import { answerOpen, eventIcs, eventWhen, readRsvp, rrule, rsvpUrl } from "./invite";
+import { answerOpen, dueNotices, eventIcs, eventWhen, readRsvp, rrule, rsvpUrl, startsIn } from "./invite";
 import { unsubscribeToken } from "./unsubscribe";
 
 const base = {
@@ -89,4 +89,31 @@ test("reply links: signed per guest and event; other tokens don't work (RS2)", (
   assert.equal(readRsvp(`${Buffer.from(`${c}:${base.id}:someone-else`).toString("base64url")}.${sig}`), null);
   assert.equal(readRsvp(unsubscribeToken(c, "x@y.test")), null);
   assert.equal(readRsvp(signToken("unsubscribe", `${c}:${base.id}:u1`)), null);
+});
+
+test("starts soon: the smallest due notice per date, never after the start, none for []", () => {
+  const e = { ...base, notifyBefore: [10, 1440] }; // starts 2026-11-04T10:00Z
+  const at = (iso: string) => dueNotices(e, new Date(iso)).map((n) => n.minutes);
+  assert.deepEqual(at("2026-11-03T09:59:00Z"), []); // more than a day before
+  assert.deepEqual(at("2026-11-03T10:00:00Z"), [1440]);
+  assert.deepEqual(at("2026-11-04T09:50:00Z"), [10]); // both due: only the later one
+  assert.deepEqual(at("2026-11-04T10:00:00Z"), []); // started
+  assert.deepEqual(dueNotices({ ...e, notifyBefore: [] }, new Date("2026-11-04T09:55:00Z")), []);
+});
+
+test("starts soon: every date of a series; an all-day date counts from 09:00", () => {
+  const daily = { ...base, notifyBefore: [10], recurrence: { freq: "daily" as const, interval: 1, end: { type: "never" as const } }, anchorLocal: "2026-11-02T14:00" };
+  // 14:00 Dubai = 10:00Z, each day.
+  assert.deepEqual(dueNotices(daily, new Date("2026-11-05T09:52:00Z")).map((n) => n.occursAt.toISOString()), ["2026-11-05T10:00:00.000Z"]);
+  const allDay = { ...base, allDay: true, durationMinutes: 1440, notifyBefore: [10], sendAt: new Date("2026-11-03T20:00:00Z") }; // 4 Nov, Dubai
+  assert.deepEqual(dueNotices(allDay, new Date("2026-11-04T04:49:00Z")), []);
+  assert.deepEqual(dueNotices(allDay, new Date("2026-11-04T04:50:00Z")).map((n) => n.startsAt.toISOString()), ["2026-11-04T05:00:00.000Z"]); // 09:00 Dubai
+});
+
+test("startsIn: minutes, hours, days", () => {
+  const now = new Date("2026-11-04T10:00:00Z");
+  assert.equal(startsIn(new Date("2026-11-04T10:10:00Z"), now), "in 10 minutes");
+  assert.equal(startsIn(new Date("2026-11-04T10:00:20Z"), now), "in 1 minute");
+  assert.equal(startsIn(new Date("2026-11-04T12:00:00Z"), now), "in 2 hours");
+  assert.equal(startsIn(new Date("2026-11-05T10:00:00Z"), now), "in 1 day");
 });

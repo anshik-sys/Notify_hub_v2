@@ -2,13 +2,14 @@ import { type AnyColumn, and, asc, eq, inArray, isNull, lt, lte, or, sql } from 
 import { attachments, companies, companyLogos, deliveries, emailSuppressions, notifications, reminderOccurrences, reminders, reminderTargets, slackInstallations, taskAssignments, user, userRoles } from "@/db/schema";
 import { COMPANY_ADMIN_ROLE_ID } from "@/lib/permissions";
 import { emailFiles } from "@/lib/attachments";
-import { brandFor, renderInviteEmail, renderReminderEmail } from "@/lib/email-render";
-import { eventIcs, eventWhen, rsvpUrl } from "@/lib/invite";
+import { brandFor, renderInviteEmail, renderReminderEmail, renderSoonEmail } from "@/lib/email-render";
+import { dueNotices, eventIcs, eventWhen, noticeStart, rsvpUrl, startsIn } from "@/lib/invite";
+import { eventResponses } from "@/db/schema";
 import { getBlob } from "@/lib/storage";
 import { decrypt } from "@/lib/crypto";
-import { inviteMessage, lookupByEmail, openDm, postMessage, reminderMessage, SlackError, uploadFile } from "@/lib/slack";
+import { inviteMessage, lookupByEmail, openDm, postMessage, reminderMessage, SlackError, soonMessage, uploadFile } from "@/lib/slack";
 import { between, nextAfter } from "@/lib/recurrence";
-import { formatInZone } from "@/lib/time";
+import { formatInZone, toLocalInput } from "@/lib/time";
 import { sendMail } from "@/lib/mail";
 import { addNotifications, planTell, sendTell } from "@/lib/notifications";
 import { resolveRecipients } from "@/lib/recipients";
@@ -276,6 +277,92 @@ export async function dispatchInvites(enqueue: (deliveryIds: string[]) => Promis
   return count;
 }
 
+// --- "Starts soon" notices (PRD 14.3, SN1-SN6) ---------------------------------------
+// Each run: for every scheduled event with notice times, the notice due now
+// for each date (dueNotices), to each guest who hasn't said No, over the
+// event's channels. The partial unique index deliveries_soon_idx makes it
+// once per (date, minutes before, channel, guest). A skipped date, or one
+// replaced by an approved "only this one" copy, gets none; cancelled, deleted
+// and paused events aren't scheduled.
+// ponytail: scans every scheduled series with notice times each run; add a
+// "next notice at" column if that list ever gets long.
+export async function dispatchSoon(enqueue: (deliveryIds: string[]) => Promise<void>, onlyCompany?: string, now = new Date()) {
+  const events = await ownerDb
+    .select()
+    .from(reminders)
+    .where(
+      and(
+        eq(reminders.isEvent, true),
+        // A one-time all-day event is "sent" at midnight; its notices count from 09:00 (SN5).
+        inArray(reminders.status, ["scheduled", "sent"]),
+        isNull(reminders.deletedAt),
+        sql`cardinality(${reminders.notifyBefore}) > 0`,
+        or(
+          sql`${reminders.recurrence} is not null`,
+          sql`${reminders.sendAt} > ${now}::timestamptz - interval '10 hours' and ${reminders.sendAt} <= ${now}::timestamptz + interval '1441 minutes'`,
+        ),
+        notSuspended(reminders.companyId),
+        onlyCompany ? eq(reminders.companyId, onlyCompany) : undefined,
+      ),
+    );
+  let count = 0;
+  for (const r of events) {
+    for (const n of dueNotices(r, now)) {
+      const ids = await ownerDb.transaction(async (tx) => {
+        // SN6: a skipped date, or one an approved copy replaced (as dispatchDue does).
+        const [gone] = await tx
+          .select({ id: reminderOccurrences.id })
+          .from(reminderOccurrences)
+          .where(and(eq(reminderOccurrences.reminderId, r.id), eq(reminderOccurrences.occursAt, n.occursAt), eq(reminderOccurrences.status, "skipped")))
+          .limit(1);
+        const [replaced] = await tx
+          .select({ id: reminders.id })
+          .from(reminders)
+          .where(
+            and(
+              eq(reminders.replacesSeriesId, r.id),
+              eq(reminders.replacesOccursAt, n.occursAt),
+              inArray(reminders.status, ["scheduled", "sending", "sent"]),
+              isNull(reminders.deletedAt),
+            ),
+          )
+          .limit(1);
+        if (gone || replaced) return [];
+        const targets = await tx
+          .select({ kind: reminderTargets.kind, ref: reminderTargets.ref })
+          .from(reminderTargets)
+          .where(eq(reminderTargets.reminderId, r.id));
+        const saidNo = new Set(
+          (
+            await tx
+              .select({ userId: eventResponses.userId })
+              .from(eventResponses)
+              .where(and(eq(eventResponses.reminderId, r.id), eq(eventResponses.answer, "no")))
+          ).map((x) => x.userId),
+        );
+        const guests = (await resolveRecipients(tx, r.companyId, targets)).users.filter((u) => u.id !== r.createdBy && !saidNo.has(u.id));
+        const rows = [
+          ...(r.channels.includes("email") ? guests.map((u) => ({ channel: "email" as const, address: u.email, userId: u.id })) : []),
+          ...(r.channels.includes("slack") && !targets.some((t) => t.kind === "company")
+            ? guests.map((u) => ({ channel: "slack" as const, address: u.id, userId: u.id }))
+            : []),
+        ];
+        if (!rows.length) return [];
+        return (
+          await tx
+            .insert(deliveries)
+            .values(rows.map((x) => ({ ...x, kind: "soon" as const, occursAt: n.occursAt, beforeMinutes: n.minutes, companyId: r.companyId, reminderId: r.id })))
+            .onConflictDoNothing()
+            .returning({ id: deliveries.id })
+        ).map((d) => d.id);
+      });
+      count += ids.length;
+      if (ids.length) await enqueue(ids);
+    }
+  }
+  return count;
+}
+
 const inFlight = sql`('queued','sending')`;
 
 // An occurrence is sent once none of its deliveries is still in flight.
@@ -388,6 +475,30 @@ async function sendInviteEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
   return {};
 }
 
+// What a "starts soon" notice says, for the date it's about.
+function soonText(d: Delivery, e: Reminder, now = new Date()) {
+  const date = { ...e, sendAt: d.occursAt!, recurrence: null };
+  const startsAt = noticeStart(d.occursAt!, e.allDay, e.timeZone);
+  // An all-day notice goes the day before (1 day) or that morning (SN5).
+  const today = toLocalInput(d.occursAt!, e.timeZone).slice(0, 10) === toLocalInput(now, e.timeZone).slice(0, 10);
+  // The notice's own minutes ("in 10 minutes"), or less when it went late.
+  const soonest = new Date(Math.min(startsAt.getTime(), now.getTime() + d.beforeMinutes! * 60_000));
+  const headline = e.allDay ? (today ? "Today" : "Tomorrow") : `Starts ${startsIn(soonest, now)}`;
+  return { headline, when: eventWhen(date) };
+}
+
+async function sendSoonEmail(d: Delivery, r: Loaded, send: typeof sendMail) {
+  const e = r.reminder;
+  const email = renderSoonEmail({
+    ...e,
+    ...soonText(d, e),
+    appUrl: `${process.env.BETTER_AUTH_URL}/reminders/${e.id}`,
+    brand: await brandOf(e.companyId),
+  });
+  await send({ to: d.address, ...email, replyTo: r.creatorEmail });
+  return {};
+}
+
 // A DM (address = internal user id) or a channel post (address = channel id).
 // Someone with no Slack account: posted to the fallback channel with a note.
 async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
@@ -413,7 +524,9 @@ async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
   const msg =
     d.kind === "invite"
       ? inviteMessage({ ...r.reminder, when: eventWhen(r.reminder), eventId: r.reminder.id, appUrl, note })
-      : reminderMessage({
+      : d.kind === "soon"
+        ? soonMessage({ ...r.reminder, ...soonText(d, r.reminder), appUrl, note })
+        : reminderMessage({
           title: r.reminder.title,
           description: r.reminder.description,
           links: r.reminder.links,
@@ -437,7 +550,8 @@ async function sendSlack(d: Delivery, r: Loaded, f?: typeof fetch) {
   let failed = 0;
   let scopeMissing = false;
   let notInChannel = false;
-  for (const file of await filesOf(r.reminder.id)) {
+  // Files go with the message and the invite, not with "starts soon".
+  for (const file of d.kind === "soon" ? [] : await filesOf(r.reminder.id)) {
     try {
       const data = await getBlob(ownerDb, file.id);
       if (data) await uploadFile(token, { channel: posted.channel, threadTs: posted.ts, filename: file.fileName, data }, f);
@@ -500,11 +614,49 @@ async function noticeHeld(companyId: string, reminderId: string, cap: number) {
   await sendTell(tell);
 }
 
+// SN6: a queued "starts soon" notice that no longer applies (the event was
+// cancelled, deleted or paused, the date skipped, or the guest said No since
+// it was queued, e.g. while held by the daily limit). The reason, or null.
+async function noLongerDue(d: { reminderId: string; userId: string | null; occursAt: Date | null }) {
+  const [r] = await ownerDb.select({ status: reminders.status, deletedAt: reminders.deletedAt }).from(reminders).where(eq(reminders.id, d.reminderId));
+  if (!r || r.deletedAt) return "Not sent: the event was deleted.";
+  if (r.status !== "scheduled" && r.status !== "sent") return "Not sent: the event was cancelled or paused.";
+  const [skipped] = await ownerDb
+    .select({ id: reminderOccurrences.id })
+    .from(reminderOccurrences)
+    .where(and(eq(reminderOccurrences.reminderId, d.reminderId), eq(reminderOccurrences.occursAt, d.occursAt!), eq(reminderOccurrences.status, "skipped")));
+  if (skipped) return "Not sent: that date was skipped.";
+  const [no] = d.userId
+    ? await ownerDb
+        .select({ answer: eventResponses.answer })
+        .from(eventResponses)
+        .where(and(eq(eventResponses.reminderId, d.reminderId), eq(eventResponses.userId, d.userId), eq(eventResponses.answer, "no")))
+    : [];
+  return no ? "Not sent: they said No." : null;
+}
+
 export async function deliverOne(deliveryId: string, send: typeof sendMail = sendMail, slackFetch?: typeof fetch) {
   const [pending] = await ownerDb
-    .select({ companyId: deliveries.companyId, reminderId: deliveries.reminderId, channel: deliveries.channel })
+    .select({
+      companyId: deliveries.companyId,
+      reminderId: deliveries.reminderId,
+      channel: deliveries.channel,
+      kind: deliveries.kind,
+      userId: deliveries.userId,
+      occursAt: deliveries.occursAt,
+    })
     .from(deliveries)
     .where(and(eq(deliveries.id, deliveryId), eq(deliveries.status, "queued")));
+  // Checked before the daily limit, so a held notice that stopped applying never waits for room.
+  const dropped = pending?.kind === "soon" ? await noLongerDue(pending) : null;
+  if (dropped) {
+    const [row] = await ownerDb
+      .update(deliveries)
+      .set({ status: "dropped", lastError: dropped })
+      .where(and(eq(deliveries.id, deliveryId), eq(deliveries.status, "queued")))
+      .returning({ id: deliveries.id });
+    return row ? "dropped" : "skipped";
+  }
   if (pending?.channel === "email") {
     const cap = await emailCapReached(pending.companyId);
     if (cap !== null) {
@@ -540,7 +692,9 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
         ? await sendSlack(d, r, slackFetch)
         : d.kind === "invite"
           ? await sendInviteEmail(d, r, send)
-          : await sendEmail(d, r, send);
+          : d.kind === "soon"
+            ? await sendSoonEmail(d, r, send)
+            : await sendEmail(d, r, send);
   } catch (e) {
     const final = e instanceof Permanent || d.attempts >= MAX_ATTEMPTS;
     await ownerDb
@@ -566,15 +720,15 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
 // deliveries failed.
 // Once per occurrence (the dedupe key): in the app, plus email (on by
 // default) or Slack (off) as each person chose.
-async function notifyFailed(d: { companyId: string; reminderId: string; occurrenceId: string | null }) {
+async function notifyFailed(d: { companyId: string; reminderId: string; occurrenceId: string | null; kind: string }) {
   const [r] = await ownerDb.select({ createdBy: reminders.createdBy, title: reminders.title }).from(reminders).where(eq(reminders.id, d.reminderId));
   if (!r) return;
   const people = new Set([r.createdBy, ...(await companyAdmins(d.companyId)).map((a) => a.id)]);
-  const text = d.occurrenceId ? "Some deliveries failed" : "Some invites failed";
+  const text = { reminder: "Some deliveries failed", invite: "Some invites failed", soon: "Some “starts soon” notices failed" }[d.kind] ?? "Some deliveries failed";
   try {
     const fresh = await ownerDb
       .insert(notifications)
-      .values([...people].map((userId) => ({ companyId: d.companyId, userId, kind: "failed" as const, reminderId: d.reminderId, text, dedupeKey: `failed:${d.occurrenceId ?? `invite:${d.reminderId}`}` })))
+      .values([...people].map((userId) => ({ companyId: d.companyId, userId, kind: "failed" as const, reminderId: d.reminderId, text, dedupeKey: `failed:${d.occurrenceId ?? `${d.kind}:${d.reminderId}`}` })))
       .onConflictDoNothing()
       .returning({ userId: notifications.userId });
     const tell = await planTell(ownerDb, d.companyId, fresh.map((f) => f.userId), "failed", {
@@ -595,7 +749,7 @@ export async function sweep() {
     .update(deliveries)
     .set({ status: "failed", lastError: "Outcome unknown: the worker stopped mid-send. Not resent, to avoid a duplicate." })
     .where(and(eq(deliveries.status, "sending"), lt(deliveries.updatedAt, new Date(Date.now() - STUCK_AFTER_MS))))
-    .returning({ companyId: deliveries.companyId, reminderId: deliveries.reminderId, occurrenceId: deliveries.occurrenceId });
+    .returning({ companyId: deliveries.companyId, reminderId: deliveries.reminderId, occurrenceId: deliveries.occurrenceId, kind: deliveries.kind });
   for (const d of stuck) {
     await notifyFailed(d);
     await finish(d);

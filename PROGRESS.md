@@ -2,6 +2,44 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-21 — events slice 3: "starts soon" notices
+
+- **Notices are `deliveries` with `kind = 'soon'`** (migration 0045), keyed by
+  `occurs_at` and `before_minutes` with a partial unique index.
+  - Rejected: creating the date's occurrence early to hang them on.
+    `dispatchDue` reads an existing occurrence as "skipped", so the date
+    would never happen.
+- **Per date, only the nearest due notice goes** (`dueNotices`, pure and
+  tested).
+  - An event created 5 minutes before its start, or a worker back after an
+    outage, sends one "starts in 5 minutes", not a stale "in 1 day" as well.
+  - The longer notices that were passed over are never sent; nothing records
+    them, because "nearest due" always picks the same one.
+- **All-day (SN5):** counts back from 09:00 in the event's zone. A one-time
+  all-day event is already `sent` at midnight, so `dispatchSoon` scans
+  `sent` too, within a 10-hour window.
+- **Who:** guests who haven't said No. The organiser gets none, read
+  literally from SN1 ("each guest"). Worth asking whether they want one too.
+- **Wording:** "Starts in 10 minutes" uses the notice's own minutes, or the
+  real time left when it went late. The first version used only the real
+  time; the spec test caught "in 11 minutes" when sent at 10.6.
+- **SN6 failed in the independent tests:** a notice already queued (e.g.
+  held by the daily limit) still went out after the event was cancelled or
+  the guest said No.
+  - The user decided it's a product bug. `deliverOne` now checks again
+    before sending, before the daily-limit check too.
+  - A notice that no longer applies becomes a new status, `dropped`
+    (migration 0046), shown as "Not sent" with the reason. No failure alert.
+- **Test noise found:** with the user's worker running the new code, it
+  dispatches invites for test companies too. A slice 1 visibility test
+  started failing because the live worker's invite gave alice access. The
+  test now clears deliveries before checking the "invited" rule alone.
+- **Verified:** typecheck, lint, full suite (398 pass, 24 skipped as
+  before), spec SN1-SN6 and RC2 (7/7, three runs).
+  - **Not verified:** a real notice arriving in Mailpit or Slack at the right
+    minute with the live worker. It needs a restart and an event about 15
+    minutes out (DEPLOYMENT checklist).
+
 ## 2026-10-21 — events slice 2: invites and replies
 
 - **Invites are `deliveries` rows** (`kind = 'invite'`, no occurrence,

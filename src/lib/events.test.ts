@@ -83,7 +83,7 @@ test("guests: organiser first as Yes, then everyone with their answer", async ()
 test("email link: the token answers for its guest only", async () => {
   const id = await event();
   const t = token(id, alice);
-  assert.deepEqual(await rsvpTarget(t), { title: "Planning", when: (await rsvpTarget(t))!.when, location: null, answer: null, name: alice });
+  assert.deepEqual(await rsvpTarget(t), { title: "Planning", when: (await rsvpTarget(t))!.when, location: null, answer: null, name: alice, email: `${alice}@${s.domain}` });
   assert.equal(await respondByToken(t, "no"), null);
   assert.equal((await rsvpTarget(t))!.answer, "no");
   assert.match((await respondByToken(`${t}x`, "yes"))!, /isn’t valid/);

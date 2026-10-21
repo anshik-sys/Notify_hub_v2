@@ -7,7 +7,7 @@ import { claimDigests, digestOne } from "./digest";
 import { runRetention } from "./retention";
 import { upcomingVolumeAlerts, volumeAlerts } from "./volume-alert";
 import { escalateOverdue } from "./escalation";
-import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, dispatchInvites, dispatchManual, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
+import { claimFollowUps, claimSnoozes, deliverOne, dispatchDue, dispatchInvites, dispatchManual, dispatchSoon, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
 // Long-running process, deployed separately from the web app.
 // Sends due reminders: immediately when the web app NOTIFYs `reminders_due`,
@@ -52,6 +52,8 @@ function dispatch() {
       if (n) console.log(`dispatched ${n} reminder(s)`);
       const invites = await dispatchInvites(enqueue).catch((e) => (console.error("invite dispatch failed", e), 0));
       if (invites) console.log(`queued ${invites} invite(s)`);
+      const soon = await dispatchSoon(enqueue).catch((e) => (console.error("starts-soon dispatch failed", e), 0));
+      if (soon) console.log(`queued ${soon} starts-soon notice(s)`);
     } while (again);
     running = null;
   })();

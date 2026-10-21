@@ -941,7 +941,10 @@ test("visibility: guests open a scheduled event and assignees a scheduled task b
   const as = async (u: string) => reminderAccess(s.companyId, { ...(await actor(u)), email: `${u}@x.test` }, row);
   assert.equal(await as(alice), "viewer"); // in Ops: a guest, nothing sent yet
   assert.equal(await as(carol), null); // Sales: not a guest
+  // A running worker may already have sent alice her invite, and anything sent
+  // to her also lets her open it; this test is about the "invited" rule alone.
   await s.owner.query("update reminders set status = 'pending_approval' where id = $1", [opsEvent.id]);
+  await s.owner.query("delete from deliveries where reminder_id = $1", [opsEvent.id]);
   assert.equal(await as(alice), null); // waiting for approval: not yet
   await s.owner.query("update reminders set status = 'scheduled', is_event = false, duration_minutes = null, is_task = true, due_after_minutes = 60 where id = $1", [opsEvent.id]);
   assert.equal(await as(alice), "viewer"); // an upcoming task: its assignee too (VS2)

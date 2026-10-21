@@ -500,12 +500,12 @@ Anything not mentioned works as it does for reminders.
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| SN1 | 10 minutes before the start, by default | Each guest who hasn't said No gets "Starts in 10 minutes" with the Join link, over the event's channels | PRD 14.3 | |
-| SN2 | The organiser changes it or adds more (e.g. 1 day and 10 minutes) | Each one sent once per date, in time order | PRD 14.3 | |
-| SN3 | "None" | No notices before | **(proposed)** | |
-| SN4 | Repeating event | Before every date | PRD 14.3 | |
-| SN5 | An all-day event | The notice goes at 09:00 company time that day, minus the chosen time **(proposed)** | | |
-| SN6 | The event was skipped, cancelled or deleted, or the guest said No | Nothing | | |
+| SN1 | 10 minutes before the start, by default | Each guest who hasn't said No gets "Starts in 10 minutes" with the Join link, over the event's channels | PRD 14.3 | PASS (the form ticks 10 minutes by default: a browser check) |
+| SN2 | The organiser changes it or adds more (e.g. 1 day and 10 minutes) | Each one sent once per date, in time order | PRD 14.3 | PASS |
+| SN3 | "None" | No notices before | **(proposed)** | PASS |
+| SN4 | Repeating event | Before every date | PRD 14.3 | PASS |
+| SN5 | An all-day event | The notice goes at 09:00 company time that day, minus the chosen time **(proposed)** | | PASS |
+| SN6 | The event was skipped, cancelled or deleted, or the guest said No | Nothing | | PASS after a fix: a notice already queued is checked again before it goes (first run FAIL, decided a product bug 2026-10-21) |
 
 ### Changes and cancelling
 
@@ -538,7 +538,7 @@ Anything not mentioned works as it does for reminders.
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
 | RC1 | Invites, updates and "starts soon" | Never mutable (like reminders); answers to the organiser are | Decided 2026-10-07 | |
-| RC2 | Daily email limit, suspended company | Invites and notices count and wait like reminder emails | PRD 7.1, 9.2 | |
+| RC2 | Daily email limit, suspended company | Invites and notices count and wait like reminder emails | PRD 7.1, 9.2 | PASS (notices) |
 | RC3 | Erase / export a person | Their answers are in the export and removed on erase | PRD 11.5 | PASS (answers) |
 | RC4 | Audit log | Creating, changing and answering are logged | PRD 9.1 | PASS (answers) |
 

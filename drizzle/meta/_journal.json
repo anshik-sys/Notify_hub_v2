@@ -316,6 +316,20 @@
       "when": 1792558625483,
       "tag": "0044_event_invites",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1792562311308,
+      "tag": "0045_starts_soon",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1792562919452,
+      "tag": "0046_dropped_notices",
+      "breakpoints": true
     }
   ]
 }

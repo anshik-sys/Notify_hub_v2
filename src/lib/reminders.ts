@@ -1420,7 +1420,17 @@ export async function deliveryLog(companyId: string, reminderId: string) {
     const rows = latest ? await select(eq(deliveries.occurrenceId, latest.id)) : [];
     // An event's invites (PRD 14.3): one per guest, not per date.
     const invites = await select(and(eq(deliveries.reminderId, reminderId), eq(deliveries.kind, "invite"))!);
-    return { latest: latest ?? null, rows, invites, history };
+    // "Starts soon" notices for the latest date that had any.
+    const [last] = await tx
+      .select({ at: deliveries.occursAt })
+      .from(deliveries)
+      .where(and(eq(deliveries.reminderId, reminderId), eq(deliveries.kind, "soon")))
+      .orderBy(desc(deliveries.occursAt))
+      .limit(1);
+    const notices = last?.at
+      ? { at: last.at, rows: await select(and(eq(deliveries.reminderId, reminderId), eq(deliveries.kind, "soon"), eq(deliveries.occursAt, last.at))!) }
+      : null;
+    return { latest: latest ?? null, rows, invites, notices, history };
   });
 }
 

@@ -247,6 +247,20 @@ export function inviteMessage(m: {
   return { text: `Invitation: ${m.title} (${m.when})`, blocks };
 }
 
+// PRD 14.3 (SN1): "starts soon", with Join first.
+export function soonMessage(m: { title: string; headline: string; when: string; location: string | null; meetingUrl: string | null; appUrl: string; note?: string }) {
+  const facts = [`*When* ${esc(m.when)}`, m.location && `*Where* ${esc(m.location)}`].filter(Boolean).join("\n");
+  const blocks: unknown[] = [{ type: "header", text: { type: "plain_text", text: `${m.headline}: ${m.title}`.slice(0, 150) } }];
+  if (m.note) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: esc(m.note) }] });
+  blocks.push({ type: "section", text: { type: "mrkdwn", text: facts } });
+  blocks.push({
+    type: "actions",
+    block_id: "soon",
+    elements: [...(m.meetingUrl ? [{ type: "button", text: { type: "plain_text", text: "Join" }, url: m.meetingUrl, action_id: "join", style: "primary" }] : []), openButton(m.appUrl)],
+  });
+  return { text: `${m.headline}: ${m.title}`, blocks };
+}
+
 // After an answer: the buttons stay (it can change), with the answer under them.
 export const withAnswer = (blocks: { type: string; block_id?: string }[], status: string) => [
   ...blocks.filter((b) => b.block_id !== "status"),

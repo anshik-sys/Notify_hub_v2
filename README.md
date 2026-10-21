@@ -416,6 +416,14 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     `notifyIfDue` wakes it for any scheduled event). That's how someone who
     joins a guest department later gets their invite. Approval needs nothing
     special: a waiting event isn't `scheduled`.
+  - **"Starts soon" notices are `deliveries` with `kind = 'soon'`**, keyed by
+    `occurs_at` (the date) and `before_minutes` instead of an occurrence:
+    the occurrence row only exists once the date arrives, and creating it
+    early would make `dispatchDue` treat the date as skipped. Per date only
+    the nearest due notice is sent (`dueNotices`), so a late event or a
+    restarted worker never sends "in 1 day" ten minutes before. All-day
+    dates count back from 09:00 in the event's zone, which is why a one-time
+    all-day event that's already `sent` (at midnight) is still scanned.
   - **Guests are the targets resolved now, minus the organiser**, not a
     stored list. `event_responses` holds only answers, so someone who leaves
     a guest department drops out of the counts and can't answer. The

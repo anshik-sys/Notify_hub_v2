@@ -20,7 +20,7 @@ import styles from "./page.module.css";
 import { listComments } from "@/lib/comments";
 import { listUsers, photoUrls } from "@/lib/users";
 
-const DELIVERY_LABELS = { queued: "Queued", sending: "Sending", sent: "Sent", failed: "Failed" } as const;
+const DELIVERY_LABELS = { queued: "Queued", sending: "Sending", sent: "Sent", failed: "Failed", dropped: "Not sent" } as const;
 // Server-rendered per request, so "now" is the request time.
 const overdue = (dueAt: Date | null) => Boolean(dueAt && dueAt.getTime() < Date.now());
 const OCCURRENCE_NOTE = { missed: "Missed: the sending service was down", skipped: "Skipped" } as const;
@@ -264,6 +264,12 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                   {log.invites.filter((d) => d.status === "queued" || d.status === "sending").length} pending
                 </Hint>
                 {deliveryTable(log.invites, tz)}
+              </Section>
+            )}
+
+            {log?.notices && (
+              <Section title={`“Starts soon” notices: ${formatInZone(log.notices.at, tz)}`}>
+                {deliveryTable(log.notices.rows, tz)}
               </Section>
             )}
 

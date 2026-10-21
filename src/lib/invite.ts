@@ -1,6 +1,6 @@
 import { EVENT_ANSWERS, type EventAnswer } from "@/db/schema";
 import { readToken, signToken } from "./crypto";
-import { describe, type Rule } from "./recurrence";
+import { between, describe, type Rule } from "./recurrence";
 import { formatInZone, toLocalInput, zonedToUtc } from "./time";
 import { isUuid } from "./validate";
 
@@ -159,4 +159,41 @@ export function eventIcs(
     "END:VCALENDAR",
   ];
   return lines.map(fold).join("\r\n") + "\r\n";
+}
+
+// --- "Starts soon" notices (SN1-SN5) ----------------------------------------------
+// For each date of an event, the notice due now: the one with the fewest
+// minutes before whose time has come, while the date hasn't started. Only that
+// one, so a worker that was down (or an event created late) never sends a
+// stale "in 1 day" next to "in 10 minutes"; the bigger ones are passed over.
+// An all-day date counts back from 09:00 that day, in the event's zone (SN5).
+
+const NINE = "T09:00";
+export const noticeStart = (date: Date, allDay: boolean, tz: string) => (allDay ? zonedToUtc(`${toLocalInput(date, tz).slice(0, 10)}${NINE}`, tz)! : date);
+
+export function dueNotices(
+  e: Pick<Event, "sendAt" | "recurrence" | "anchorLocal" | "timeZone" | "allDay"> & { notifyBefore: number[] },
+  now: Date,
+) {
+  if (!e.notifyBefore.length) return []; // SN3: none
+  const longest = Math.max(...e.notifyBefore) * 60_000;
+  // All-day dates start at midnight but count from 09:00, up to 10 hours later.
+  const dates = e.recurrence
+    ? [...between(e.recurrence, e.anchorLocal, e.timeZone, new Date(now.getTime() - 10 * 3_600_000), new Date(now.getTime() + longest + 60_000))]
+    : [e.sendAt];
+  const minutes = [...e.notifyBefore].sort((a, b) => a - b);
+  return dates.flatMap((occursAt) => {
+    const startsAt = noticeStart(occursAt, e.allDay, e.timeZone);
+    if (startsAt <= now) return [];
+    const m = minutes.find((x) => startsAt.getTime() - x * 60_000 <= now.getTime());
+    return m === undefined ? [] : [{ occursAt, minutes: m, startsAt }];
+  });
+}
+
+// "in 10 minutes", "in 2 hours", "tomorrow": from now to the (notice) start.
+export function startsIn(startsAt: Date, now: Date) {
+  const min = Math.max(1, Math.round((startsAt.getTime() - now.getTime()) / 60_000));
+  if (min < 60) return `in ${min} minute${min === 1 ? "" : "s"}`;
+  if (min < 1440) return `in ${Math.round(min / 60)} hour${Math.round(min / 60) === 1 ? "" : "s"}`;
+  return `in ${Math.round(min / 1440)} day${Math.round(min / 1440) === 1 ? "" : "s"}`;
 }

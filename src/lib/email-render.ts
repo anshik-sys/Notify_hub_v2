@@ -134,3 +134,22 @@ export function renderInviteEmail(r: {
   const extra = { heading: r.title, footer: `Sent by ${r.senderName} through NotifyHub.`, footerLinks: [], brand: r.brand };
   return { subject, text, links, ...extra, fromName: `${r.senderName} via NotifyHub` };
 }
+
+// PRD 14.3 (SN1): "starts soon". Join is the button when there's a link.
+export function renderSoonEmail(r: {
+  title: string;
+  senderName: string;
+  headline: string; // "Starts in 10 minutes"
+  when: string;
+  location: string | null;
+  meetingUrl: string | null;
+  appUrl: string;
+  brand?: Brand;
+}) {
+  const subject = `${r.headline}: ${r.title}`;
+  let text = `When: ${r.when}`;
+  if (r.location) text += `\nWhere: ${r.location}`;
+  const links = [{ label: "Open in NotifyHub", url: r.appUrl }, ...(r.meetingUrl ? [{ label: "Join the meeting", url: r.meetingUrl }] : [])];
+  const extra = { heading: `${r.title}: ${r.headline.toLowerCase()}`, footer: `Sent by ${r.senderName} through NotifyHub.`, footerLinks: [], brand: r.brand };
+  return { subject, text, links, ...extra, fromName: `${r.senderName} via NotifyHub` };
+}

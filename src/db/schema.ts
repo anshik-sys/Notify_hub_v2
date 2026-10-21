@@ -415,6 +415,9 @@ export const reminderOccurrences = pgTable(
 // the worker (owner connection); read by the web for the delivery log.
 // kind = invite (PRD 14.3): an event's invite, one per guest for the whole
 // event (no occurrence), unique per (event, channel, address).
+// kind = soon: a "starts soon" notice, one per (event, date, minutes before,
+// channel, address). Sent before the date has an occurrence, so it's keyed
+// by occurs_at and before_minutes instead.
 export const deliveries = pgTable(
   "deliveries",
   {
@@ -426,13 +429,16 @@ export const deliveries = pgTable(
       .notNull()
       .references(() => reminders.id, { onDelete: "cascade" }),
     occurrenceId: uuid().references(() => reminderOccurrences.id, { onDelete: "cascade" }),
-    kind: text().$type<"reminder" | "invite">().notNull().default("reminder"),
+    kind: text().$type<"reminder" | "invite" | "soon">().notNull().default("reminder"),
+    occursAt: ts(),
+    beforeMinutes: integer(),
     channel: text().$type<"email" | "slack">().notNull().default("email"),
     // email: the address. slack: a channel id (C…) or, for a DM, the internal
     // user id (the Slack user id is looked up at send time).
     address: text().notNull(),
     userId: text().references(() => user.id, { onDelete: "set null" }),
-    status: text().$type<"queued" | "sending" | "sent" | "failed">().notNull().default("queued"),
+    // dropped: a "starts soon" notice that no longer applied when its turn came (SN6).
+    status: text().$type<"queued" | "sending" | "sent" | "failed" | "dropped">().notNull().default("queued"),
     attempts: integer().notNull().default(0),
     lastError: text(),
     sentAt: ts(),
@@ -448,7 +454,11 @@ export const deliveries = pgTable(
   (t) => [
     unique().on(t.occurrenceId, t.channel, t.address),
     uniqueIndex("deliveries_invite_idx").on(t.reminderId, t.channel, t.address).where(sql`${t.kind} = 'invite'`),
-    check("deliveries_kind_valid", sql`(${t.kind} = 'reminder') = (${t.occurrenceId} is not null) and ${t.kind} in ('reminder','invite')`),
+    uniqueIndex("deliveries_soon_idx")
+      .on(t.reminderId, t.occursAt, t.beforeMinutes, t.channel, t.address)
+      .where(sql`${t.kind} = 'soon'`),
+    check("deliveries_kind_valid", sql`(${t.kind} = 'reminder') = (${t.occurrenceId} is not null) and ${t.kind} in ('reminder','invite','soon')`),
+    check("deliveries_soon_keyed", sql`(${t.kind} = 'soon') = (${t.occursAt} is not null and ${t.beforeMinutes} is not null)`),
     check("deliveries_channel_valid", sql`${t.channel} in ('email','slack')`),
     index().on(t.reminderId),
     index().on(t.status, t.updatedAt),
@@ -456,7 +466,7 @@ export const deliveries = pgTable(
     index("deliveries_email_sent_idx").on(t.companyId, t.sentAt).where(sql`${t.channel} = 'email'`),
     // "Sent to me" in lists (src/lib/views.ts).
     index().on(t.userId),
-    check("deliveries_status_valid", sql`${t.status} in ('queued','sending','sent','failed')`),
+    check("deliveries_status_valid", sql`${t.status} in ('queued','sending','sent','failed','dropped')`),
     tenantPolicy("company_id"),
   ],
 ).enableRLS();
