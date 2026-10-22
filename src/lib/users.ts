@@ -1,7 +1,9 @@
 import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { cache } from "react";
 import { withTenant } from "@/db";
-import { departmentMembers, departments, invitations, roles, session, user, userPhotos, userRoles } from "@/db/schema";
+import { departmentMembers, departments, googleCalendars, invitations, roles, session, user, userPhotos, userRoles } from "@/db/schema";
+import { decrypt } from "./crypto";
+import { teardown } from "./google";
 import { listMySessions, resetTwoFactor } from "./account";
 import { authDb } from "./auth";
 import { checkImage } from "./company";
@@ -197,6 +199,7 @@ export async function canManagePerson(actor: Actor, companyId: string, userId: s
 export async function erasePerson(actor: Actor, companyId: string, userId: string) {
   if (!can(actor.access, "users.delete")) return "You can't erase people.";
   if (userId === actor.id) return "You can't erase yourself.";
+  let google: { refreshTokenEnc: string; calendarId: string | null } | undefined;
   try {
     await withTenant(companyId, async (tx) => {
       const [target] = await tx.select({ deactivatedAt: user.deactivatedAt, erasedAt: user.erasedAt }).from(user).where(eq(user.id, userId));
@@ -204,12 +207,16 @@ export async function erasePerson(actor: Actor, companyId: string, userId: strin
       if (target.erasedAt) throw new Refused("Already erased.");
       if (!target.deactivatedAt) throw new Refused("Deactivate them first. Erasing can't be undone.");
       await assertCanManage(tx, actor, userId);
+      // erase_person deletes the Google connection; keep what's needed to remove their calendar after (GC8).
+      [google] = await tx.select({ refreshTokenEnc: googleCalendars.refreshTokenEnc, calendarId: googleCalendars.calendarId }).from(googleCalendars).where(eq(googleCalendars.userId, userId));
       await tx.execute(sql`select erase_person(${userId})`);
     }, actor.id); // attributed explicitly: the audit row for erased_at names the admin
   } catch (e) {
     if (e instanceof Refused) return e.message;
     throw e;
   }
+  // Best effort, after the erase is committed.
+  if (google) await teardown({ refreshToken: decrypt(google.refreshTokenEnc), calendarId: google.calendarId }).catch(() => {});
   return null;
 }
 

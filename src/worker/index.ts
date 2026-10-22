@@ -7,6 +7,7 @@ import { claimDigests, digestOne } from "./digest";
 import { runRetention } from "./retention";
 import { upcomingVolumeAlerts, volumeAlerts } from "./volume-alert";
 import { escalateOverdue } from "./escalation";
+import { googleSyncTargets, syncGoogle } from "./google-sync";
 import { claimFollowUps, claimSnoozes, deliverOne, dispatchChanges, dispatchDue, dispatchInvites, dispatchManual, dispatchSoon, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
 // Long-running process, deployed separately from the web app.
@@ -27,6 +28,7 @@ await boss.createQueue("snooze", { notify: true });
 await boss.createQueue("digest", { notify: true });
 await boss.createQueue("retention");
 await boss.createQueue("volume");
+await boss.createQueue("gcal");
 
 const enqueue = async (ids: string[]) => {
   for (const deliveryId of ids)
@@ -77,6 +79,13 @@ await boss.work<{ assignmentId: string }>("snooze", { localConcurrency: 10 }, as
   console.log(`snooze ${job.data.assignmentId}: ${await snoozeOne(job.data.assignmentId)}`);
 });
 
+// Section 13: one Google Calendar sync per person at a time (singletonKey);
+// a failed one is retried, and the next tick tries again anyway.
+await boss.work<{ userId: string }>("gcal", { localConcurrency: 5 }, async ([job]) => {
+  const result = await syncGoogle(job.data.userId);
+  if (result !== "synced") console.log(`google calendar ${job.data.userId}: ${result}`);
+});
+
 await boss.work<{ companyId: string }>("digest", async ([job]) => {
   console.log(`digest ${job.data.companyId}:`, await digestOne(job.data.companyId));
 });
@@ -110,6 +119,8 @@ await boss.work("tick", async () => {
   for (const assignmentId of await claimSnoozes()) await boss.send("snooze", { assignmentId }, { retryLimit: 0 });
   // One digest per company per local day (claimed); no retries, never twice.
   for (const companyId of await claimDigests()) await boss.send("digest", { companyId }, { retryLimit: 0 });
+  for (const userId of await googleSyncTargets().catch((e) => (console.error("google targets", e), [])))
+    await boss.send("gcal", { userId }, { singletonKey: userId, retryLimit: 2, retryDelay: 30, retryBackoff: true });
 });
 
 // LISTEN needs a plain session connection (not a transaction-mode pooler).

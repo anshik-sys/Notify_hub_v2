@@ -38,6 +38,8 @@ export const companies = pgTable(
     escalateAfterDays: integer(),
     // PRD 9.1: everyone must set up 2FA before using the app (requireMember).
     requireTwoFactor: boolean().notNull().default(false),
+    // Section 13: people may connect Google Calendar (admins can block it).
+    googleCalendarEnabled: boolean().notNull().default(true),
     // PRD 9.1: null = "Alerts | <name>".
     defaultSenderName: text(),
     // Who decides out-of-scope sends: everyone with reminders.approve, or
@@ -646,6 +648,51 @@ export const eventResponses = pgTable(
   ],
 ).enableRLS();
 
+// Section 13: a person's Google Calendar connection. One per person; any
+// Google account (GC2). Tokens AES-GCM encrypted (src/lib/crypto.ts), never
+// logged. calendar_id: the "NotifyHub" calendar we made in their account.
+// status revoked = Google refused the refresh token: syncing stops until they reconnect (GC6).
+export const googleCalendars = pgTable(
+  "google_calendars",
+  {
+    userId: text()
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    googleEmail: text().notNull(),
+    refreshTokenEnc: text().notNull(),
+    accessTokenEnc: text(),
+    accessExpiresAt: ts(),
+    calendarId: text(),
+    status: text().$type<"active" | "revoked">().notNull().default("active"),
+    lastSyncedAt: ts(),
+    lastError: text(),
+    createdAt: ts().notNull().defaultNow(),
+  },
+  (t) => [check("google_calendars_status_valid", sql`${t.status} in ('active','revoked')`), tenantPolicy("company_id")],
+).enableRLS();
+
+// What's in a person's "NotifyHub" Google calendar: one row per entry, with a
+// hash of what was sent, so a sync only writes what changed. The Google event
+// id is derived from the reminder id (googleEventId in src/lib/google.ts).
+export const googleCalendarEntries = pgTable(
+  "google_calendar_entries",
+  {
+    userId: text()
+      .notNull()
+      .references(() => googleCalendars.userId, { onDelete: "cascade" }),
+    reminderId: uuid().notNull(),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    hash: text().notNull(),
+    syncedAt: ts().notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.reminderId] }), tenantPolicy("company_id")],
+).enableRLS();
+
 // A person's profile photo (PRD 3.3), one per person; bytes only through
 // src/lib/storage.ts.
 export const userPhotos = pgTable(
@@ -748,7 +795,7 @@ export const notifications = pgTable(
     uniqueIndex().on(t.userId, t.dedupeKey),
     check(
       "notifications_kind_valid",
-      sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed','escalated','rsvp','invite')`,
+      sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed','escalated','rsvp','invite','calendar')`,
     ),
     tenantPolicy("company_id"),
   ],

@@ -18,6 +18,7 @@ import {
   setRequireTwoFactor,
   setRetention,
 } from "@/lib/company";
+import { setGoogleCalendarEnabled } from "@/lib/google-calendar";
 import { can } from "@/lib/permissions";
 import { limits } from "@/lib/rate-limit";
 import { requireMember } from "@/lib/session";
@@ -77,6 +78,14 @@ async function saveTwoFactor(fd: FormData) {
   "use server";
   const { user, companyId } = await admin();
   done(await setRequireTwoFactor(companyId, fd.get("require") === "on", Boolean(user.twoFactorEnabled)));
+}
+
+// Section 13 (GC7): allow or block connecting Google Calendar.
+async function saveGoogle(fd: FormData) {
+  "use server";
+  const { companyId } = await admin();
+  await setGoogleCalendarEnabled(companyId, fd.get("google") === "on");
+  done(null);
 }
 
 async function saveRetention(fd: FormData) {
@@ -190,6 +199,17 @@ export default async function CompanySettings(props: PageProps<"/settings/compan
         <Form action={saveTwoFactor}>
           <Checkbox label="Require two-factor authentication for everyone" name="require" defaultChecked={company.requireTwoFactor} />
           <Hint>People without it are sent to set it up before they can use anything else. People who sign in with Google set it up too.</Hint>
+          <Button>Save</Button>
+        </Form>
+      </Section>
+
+      <Section title="Google Calendar">
+        <Form action={saveGoogle}>
+          <Checkbox label="Let people connect their Google Calendar" name="google" defaultChecked={settings.googleCalendarEnabled} />
+          <Hint>
+            Each person who connects gets a &ldquo;NotifyHub&rdquo; calendar in their Google account with their reminders, tasks and events. Turning this off removes those
+            calendars within a minute.
+          </Hint>
           <Button>Save</Button>
         </Form>
       </Section>

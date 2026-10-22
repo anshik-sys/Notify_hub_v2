@@ -34,6 +34,7 @@ One package, two processes, one Postgres:
 | `src/lib/unsubscribe.ts`, `src/app/unsubscribe/[token]`, `src/app/api/unsubscribe/[token]` | Outside recipients unsubscribing (PRD 7.1): signed link, confirm page, one-click endpoint. |
 | `src/lib/invite.ts`, `src/lib/events.ts`, `src/app/rsvp/`, `src/components/rsvp-dialog.tsx` | Events (PRD 14.3): the `.ics`, reply links and the event's "when" (worker-safe); answering and the guest list (web); the reply pop-up for emailed links (over Home when signed in as that guest, else over a blurred stand-in). |
 | `src/app/(app)/events/` | The Events page (section 12): my events and invitations, Upcoming / Past, answers in the row. For every member, unlike Calendar and Reminders. |
+| `src/lib/google.ts`, `src/lib/google-calendar.ts`, `src/worker/google-sync.ts`, `src/app/api/google/` | Google Calendar (section 13): the Google client (worker-safe), connect / disconnect (web), the sync (worker), the OAuth start and callback. |
 | `src/lib/comments.ts` | Reminder discussion: comments, replies, mentions, notifications. |
 | `src/lib/tasks.ts` | Task completion (`setDone`), progress, my open tasks. |
 | `src/lib/time.ts` | Company-time-zone wall clock ↔ UTC (Intl only, DST-tested). |
@@ -439,6 +440,18 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
       keep the old event until a change is approved).
     - It runs **before** `dispatchInvites`, so a guest added by a change gets
       only the invite.
+  - **Google Calendar sync compares too.** Each minute every connected
+    person gets a `gcal` job. `syncGoogle` works out what their "NotifyHub"
+    calendar should hold, hashes each entry's Google body, and writes only
+    what differs (`google_calendar_entries` holds the hashes).
+    - Event ids are derived from reminder ids (`googleEventId`), so a write
+      is always an update-or-insert, and a deleted entry comes back when
+      written again.
+    - It's separate from "Sign in with Google" on purpose: our own OAuth flow
+      (like Slack's), so connecting a calendar never adds a sign-in method,
+      and any Google account works.
+    - The "what's mine" query is a SQL twin of invitedSql / sentToMe; change
+      them together.
   - **Guests are the targets resolved now, minus the organiser**, not a
     stored list. `event_responses` holds only answers, so someone who leaves
     a guest department drops out of the counts and can't answer. The

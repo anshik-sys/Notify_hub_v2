@@ -2,6 +2,57 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-22 — Connect Google Calendar (spec section 13)
+
+- **Why not the link feed.** PRD 14.4 planned a private ICS link. The user
+  found "paste a link, wait for Google to refresh" too slow and fiddly, and
+  chose a one-click "Connect Google Calendar" that pushes to Google: one way,
+  within a minute.
+  - Two-way sync was offered and not taken: which Google events would become
+    what, conflicts, and broader permissions.
+- **Our own OAuth flow**, like Slack's (`/api/google/install` and
+  `/api/google/oauth`, state cookie), not Better Auth's account linking.
+  Linking would also have made that Google account a way to sign in, and
+  gets awkward when the Google email differs from the NotifyHub one (GC2).
+- **The narrowest scope Google offers:** `calendar.app.created` (our own
+  calendar only), plus `openid` / `email` for "Connected as".
+  - Not checked: whether Google treats that scope as sensitive (needs
+    verification). DEPLOYMENT has the Cloud Console steps; up to 100 test
+    users can connect meanwhile.
+- **Tokens:** encrypted (`encrypt()`), and left out of the audit log by the
+  trigger arguments.
+- **The sync compares, like change notices.** Each tick queues a `gcal` job
+  per connection. `syncGoogle` works out the wanted entries, hashes each
+  Google body, and writes only what differs.
+  - Event ids come from reminder ids, so a write is update-or-insert, and a
+    calendar deleted in Google is made again and refilled.
+  - `invalid_grant` marks the connection revoked, with one in-app
+    "reconnect" notification.
+  - A company that blocks it gets each person's calendar removed on the next
+    run.
+- **Reminders and tasks** are 30 minutes, marked "Reminder:" / "Task:", and
+  don't block time; Google's own pop-ups are off. **Events** have their real
+  times.
+- **GC9 failed in the independent tests:** plain reminders addressed to me
+  sync only once sent, which is the app's rule. The user decided the spec
+  was wrong (an announcement stays private until its moment), and GC9 was
+  reworded. 18/18 now pass.
+- **A race found while testing (fixed in code, not yet confirmed live).** The
+  user's worker was still running pre-slice-4 code. Its invites raced the
+  tests' change detection, so a guest added by an approved change got both
+  the invite and "Updated".
+  - With several workers that can happen in production too.
+  - `dispatchInvites` now takes the same row lock as `dispatchChanges`, and
+    skips an event whose change isn't announced yet.
+  - The UP6/UP7 spec tests still failed while the old worker ran. They need
+    a clean run once it's restarted on current code.
+  - GC18 also failed once inside `dispatchInvites`' insert (no Postgres
+    detail shown), probably the same old-worker race.
+- **Verified:** typecheck, lint, my tests (Google client 7, sync 4), and
+  spec GC1-GC18 (18/18, two runs).
+  - **Not verified:** a real connection to Google (needs the Cloud Console
+    setup), and a clean full run without the old worker.
+
 ## 2026-10-21 — light theme: neutral white, grey and black
 
 - The user asked to go back to a white background and black text.

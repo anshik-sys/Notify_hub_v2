@@ -14,7 +14,7 @@ import { linkDm } from "./slack";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tx = Pick<PgTransaction<any, any, any>, "select" | "insert">;
-export type NotificationKind = "reminder" | "task" | "approval" | "mention" | "comment" | "decided" | "tasks_done" | "failed" | "escalated" | "rsvp" | "invite";
+export type NotificationKind = "reminder" | "task" | "approval" | "mention" | "comment" | "decided" | "tasks_done" | "failed" | "escalated" | "rsvp" | "invite" | "calendar";
 export type NewNotification = typeof notifications.$inferInsert & { kind: NotificationKind };
 
 // The events a person can mute, and on which channels they're sent.
@@ -175,9 +175,10 @@ export async function openNotification(companyId: string, userId: string, id: st
       .update(notifications)
       .set({ readAt: sql`coalesce(${notifications.readAt}, now())` })
       .where(and(eq(notifications.id, id), eq(notifications.userId, userId)))
-      .returning({ reminderId: notifications.reminderId, commentId: notifications.commentId }),
+      .returning({ reminderId: notifications.reminderId, commentId: notifications.commentId, kind: notifications.kind }),
   );
   if (!n) return null;
+  if (n.kind === "calendar") return "/settings/profile#google"; // GC6: reconnect
   if (!n.reminderId) return "/notifications";
   return `/reminders/${n.reminderId}${n.commentId ? `#comment-${n.commentId}` : ""}`;
 }

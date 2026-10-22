@@ -623,29 +623,29 @@ this step.)
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| GC1 | Profile → Connect Google Calendar | Google's consent screen asks only for "make secondary calendars and manage their events"; on Allow, back on Profile with "Connected as name@gmail.com" and a "NotifyHub" calendar appears in Google | Decided 2026-10-21 | |
-| GC2 | Any Google account | It needn't match the NotifyHub email or the sign-in method (password, or Google sign-in) | **(proposed)** | |
-| GC3 | Deny on Google's screen, or it fails | Back on Profile with a message; nothing stored | | |
-| GC4 | The tokens | Stored encrypted (like the Slack token); never logged or shown | AGENTS (integration secrets) | |
-| GC5 | Disconnect | Syncing stops, the "NotifyHub" calendar is deleted from Google, the tokens are deleted | **(proposed: delete the calendar)** | |
-| GC6 | Access revoked from Google's side (or the password changed) | Syncing stops; Profile says "Reconnect"; one in-app notification | **(proposed)** | |
-| GC7 | Admin blocks it for the company | Connect is hidden; existing connections stop syncing and their calendars are deleted | **(proposed)** | |
-| GC8 | Deactivated or erased person | Syncing stops; erasing deletes the tokens and (best effort) the calendar | PRD 11.5 | |
+| GC1 | Profile → Connect Google Calendar | Google's consent screen asks only for "make secondary calendars and manage their events"; on Allow, back on Profile with "Connected as name@gmail.com" and a "NotifyHub" calendar appears in Google | Decided 2026-10-21 | PASS in code (scopes, offline, the calendar made); the Google screen and redirect are a browser check |
+| GC2 | Any Google account | It needn't match the NotifyHub email or the sign-in method (password, or Google sign-in) | **(proposed)** | PASS |
+| GC3 | Deny on Google's screen, or it fails | Back on Profile with a message; nothing stored | | PASS in code; the Deny screen and message are a browser check |
+| GC4 | The tokens | Stored encrypted (like the Slack token); never logged or shown | AGENTS (integration secrets) | PASS |
+| GC5 | Disconnect | Syncing stops, the "NotifyHub" calendar is deleted from Google, the tokens are deleted | **(proposed: delete the calendar)** | PASS |
+| GC6 | Access revoked from Google's side (or the password changed) | Syncing stops; Profile says "Reconnect"; one in-app notification | **(proposed)** | PASS in code; the "Reconnect" text is a browser check |
+| GC7 | Admin blocks it for the company | Connect is hidden; existing connections stop syncing and their calendars are deleted | **(proposed)** | PASS in code; Connect hiding is a browser check |
+| GC8 | Deactivated or erased person | Syncing stops; erasing deletes the tokens and (best effort) the calendar | PRD 11.5 | PASS |
 
 ### What's synced
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| GC9 | Which entries | Reminders, tasks and events **I created or that are addressed to me**: not everything an admin could open | PRD 14.4 "they receive or created" | |
-| GC10 | Which states | Scheduled (and paused series) and sent; not waiting for approval, rejected, cancelled or deleted | **(proposed)** | |
-| GC11 | How far | From 30 days ago to a year ahead; the first sync fills that range | **(proposed)** | |
-| GC12 | A reminder or task | At its send time, 30 minutes long (as on the NotifyHub calendar); title, description and a link back; no recipient list | **(proposed)** | |
-| GC13 | An event | Its real start and end (or all day), place and meeting link | Decided 2026-10-21 | |
-| GC14 | A repeating one | One recurring entry with its repeat rule, minus skipped and moved dates | | |
-| GC15 | An event I said No to | Removed from my Google calendar; back if I change my answer | **(proposed)** | |
-| GC16 | A change in NotifyHub (edit, drag, cancel, delete, a new reminder to me, joining a department) | My Google calendar reflects it within about a minute; once per change, with retries if Google is down | Decided 2026-10-21 | |
-| GC17 | I edit or delete the entry in Google | Not brought back; the next change in NotifyHub overwrites it (a note in the event's description says so) | **(proposed)** | |
-| GC18 | Event invites | Still sent as now; someone connected may see an event both from the invite (in their main calendar) and in "NotifyHub" | **(proposed: accept the duplicate)** | |
+| GC9 | Which entries | Reminders, tasks and events **I created or that are addressed to me**: not everything an admin could open. As in the app, a plain reminder addressed to me appears **once it's sent** (tasks and events addressed to me appear ahead) (reworded 2026-10-22 after the spec test) | PRD 14.4 "they receive or created" | PASS after rewording (first run FAIL: plain reminders to me appear once sent; decided the spec was wrong) |
+| GC10 | Which states | Scheduled (and paused series) and sent; not waiting for approval, rejected, cancelled or deleted | **(proposed)** | PASS |
+| GC11 | How far | From 30 days ago to a year ahead; the first sync fills that range | **(proposed)** | PASS |
+| GC12 | A reminder or task | At its send time, 30 minutes long (as on the NotifyHub calendar); title, description and a link back; no recipient list | **(proposed)** | PASS |
+| GC13 | An event | Its real start and end (or all day), place and meeting link | Decided 2026-10-21 | PASS |
+| GC14 | A repeating one | One recurring entry with its repeat rule, minus skipped and moved dates | | PASS |
+| GC15 | An event I said No to | Removed from my Google calendar; back if I change my answer | **(proposed)** | PASS |
+| GC16 | A change in NotifyHub (edit, drag, cancel, delete, a new reminder to me, joining a department) | My Google calendar reflects it within about a minute; once per change, with retries if Google is down | Decided 2026-10-21 | PASS |
+| GC17 | I edit or delete the entry in Google | Not brought back; the next change in NotifyHub overwrites it (a note in the event's description says so) | **(proposed)** | PASS |
+| GC18 | Event invites | Still sent as now; someone connected may see an event both from the invite (in their main calendar) and in "NotifyHub" | **(proposed: accept the duplicate)** | PASS |
 
 ### Before it can go to customers
 

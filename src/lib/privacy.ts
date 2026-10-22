@@ -52,6 +52,10 @@ export async function exportPerson(companyId: string, userId: string) {
       tx,
       sql`select r.title as event, e.answer, e.updated_at from event_responses e join reminders r on r.id = e.reminder_id where e.user_id = ${userId}`,
     ),
+    // Their Google Calendar connection (section 13): which account, never the tokens.
+    googleCalendar: (
+      await q(tx, sql`select google_email, status, created_at, last_synced_at from google_calendars where user_id = ${userId}`)
+    )[0] ?? null,
     // Their own calendar colours (PRD 14.2).
     reminderColors: await q(tx, sql`select r.title as reminder, c.color from reminder_colors c join reminders r on r.id = c.reminder_id where c.user_id = ${userId}`),
     // The image itself too: it's theirs (PRD 11.5).

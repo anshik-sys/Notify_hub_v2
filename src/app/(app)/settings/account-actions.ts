@@ -11,6 +11,7 @@ import { auth } from "@/lib/auth";
 import { requireMember, requireSignedIn } from "@/lib/session";
 import { str } from "@/lib/validate";
 import { removePhoto, setPhoto } from "@/lib/users";
+import { disconnectGoogle } from "@/lib/google-calendar";
 
 // The signed-in person's own account: no permission beyond being signed in.
 // Security actions only need a session (requireSignedIn): someone the company
@@ -90,6 +91,13 @@ export async function changeEmailAction(fd: FormData) {
     auth.api.changeEmail({ body: { newEmail, callbackURL: `${P}?notice=${encodeURIComponent("Email changed.")}` }, headers: await headers() }),
   );
   notice(P, `Check ${newEmail} for a link. Your email changes once you click it.`);
+}
+
+// Section 13 (GC5): stop syncing and remove the NotifyHub calendar from Google.
+export async function disconnectGoogleAction() {
+  const { user, companyId } = await requireMember();
+  await disconnectGoogle(companyId, user.id);
+  redirect(`/settings/profile?notice=${encodeURIComponent("Google Calendar disconnected.")}#google`);
 }
 
 export async function signOutAction() {

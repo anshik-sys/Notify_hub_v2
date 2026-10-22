@@ -1,0 +1,6 @@
+/* Reconnect and Disconnect side by side. */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

@@ -272,17 +272,25 @@ export function Button({
 }
 
 // Navigation that looks like a button (a link, not a form submit).
+// plain: a full page load with no prefetch, for routes that redirect or change something (e.g. an OAuth start).
 export function LinkButton({
   href,
   variant = "primary",
+  plain,
   children,
 }: {
   href: string;
   variant?: "primary" | "secondary";
+  plain?: boolean;
   children: React.ReactNode;
 }) {
-  return (
-    <Link href={href} className={`${styles.button} ${styles[variant]} ${styles.linkButton}`}>
+  const className = `${styles.button} ${styles[variant]} ${styles.linkButton}`;
+  return plain ? (
+    <a href={href} className={className}>
+      {children}
+    </a>
+  ) : (
+    <Link href={href} className={className}>
       {children}
     </Link>
   );

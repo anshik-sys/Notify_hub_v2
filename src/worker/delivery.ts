@@ -247,8 +247,14 @@ export async function dispatchInvites(enqueue: (deliveryIds: string[]) => Promis
       ),
     );
   let count = 0;
-  for (const r of events) {
+  for (const { id } of events) {
     const ids = await ownerDb.transaction(async (tx) => {
+      // The same row lock as dispatchChanges, and no invites while a change
+      // waits to be announced: otherwise a guest added by that change, invited
+      // by one worker, would also get its "Updated" from another (UP3).
+      const [r] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update", { skipLocked: true });
+      if (!r) return [];
+      if (r.announced && changes(r.announced, announce(r, await exdatesOf(tx, r), 0)).length) return [];
       const targets = await tx
         .select({ kind: reminderTargets.kind, ref: reminderTargets.ref })
         .from(reminderTargets)
@@ -396,7 +402,7 @@ export async function dispatchSoon(enqueue: (deliveryIds: string[]) => Promise<v
 // so they get no new invite; add a re-invite kind if that turns up.
 
 // A series' dates taken out: skipped, or moved by an approved "this one" copy.
-async function exdatesOf(tx: Tx, r: Reminder) {
+export async function exdatesOf(tx: Tx, r: Reminder) {
   if (!r.recurrence) return [];
   const skipped = await tx
     .select({ at: reminderOccurrences.occursAt })

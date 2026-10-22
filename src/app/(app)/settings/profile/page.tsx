@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
-import { Button, Checkbox, Field, FileField, firstParam, Form, Hint, Page, Section, SelectField } from "@/components/form";
+import { Button, Checkbox, Field, FileField, firstParam, Form, Hint, LinkButton, Page, Section, SelectField } from "@/components/form";
 import { List, ListRow } from "@/components/list";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { TIME_ZONES } from "@/lib/time";
@@ -10,7 +10,9 @@ import { visibleRoles } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
 import { getUser, photoUrls } from "@/lib/users";
 import { hasPassword } from "@/lib/account";
-import { changeEmailAction, savePhotoAction, saveProfileAction, signOutAction } from "../account-actions";
+import { changeEmailAction, disconnectGoogleAction, savePhotoAction, saveProfileAction, signOutAction } from "../account-actions";
+import { getGoogleConnection, googleAllowed } from "@/lib/google-calendar";
+import styles from "./page.module.css";
 
 // PRD 3.3: your name and time zone; what you belong to (read-only).
 export default async function Profile(props: PageProps<"/settings/profile">) {
@@ -24,6 +26,7 @@ export default async function Profile(props: PageProps<"/settings/profile">) {
     photoUrls(companyId),
   ]);
   const photo = photos.get(user.id);
+  const [google, googleOn] = await Promise.all([getGoogleConnection(companyId, user.id), googleAllowed(companyId)]);
   const sp = await props.searchParams;
 
   return (
@@ -95,6 +98,43 @@ export default async function Profile(props: PageProps<"/settings/profile">) {
       <Section title="Your roles">
         <Hint>{roles.filter((r) => me?.roleIds.includes(r.id)).map((r) => r.name).join(", ")}</Hint>
       </Section>
+
+      {/* Section 13: one-way sync into a "NotifyHub" calendar in their Google account. */}
+      {(google || googleOn) && (
+        <Section id="google" title="Google Calendar">
+          {google ? (
+            <>
+              <Hint>
+                {google.status === "revoked"
+                  ? `Google stopped letting NotifyHub update ${google.googleEmail}. Reconnect to start again.`
+                  : `Connected as ${google.googleEmail}. Your reminders, tasks and events are in the “NotifyHub” calendar there, updated within a minute.${google.lastSyncedAt ? "" : " The first sync is on its way."}`}
+              </Hint>
+              {google.lastError && google.status === "active" && <Hint>Last sync failed: it will try again shortly.</Hint>}
+              <div className={styles.row}>
+                {google.status === "revoked" && googleOn && (
+                  <LinkButton href="/api/google/install" plain>
+                    Reconnect
+                  </LinkButton>
+                )}
+                <Form action={disconnectGoogleAction}>
+                  <Button variant="secondary">Disconnect</Button>
+                </Form>
+              </div>
+              <Hint>Disconnecting removes the NotifyHub calendar from your Google account. Changes made there aren&rsquo;t brought back to NotifyHub.</Hint>
+            </>
+          ) : (
+            <>
+              <Hint>
+                See your NotifyHub reminders, tasks and events in Google Calendar, in a calendar of their own. NotifyHub only manages that calendar; it never
+                reads your other calendars or events.
+              </Hint>
+              <LinkButton href="/api/google/install" plain>
+                Connect Google Calendar
+              </LinkButton>
+            </>
+          )}
+        </Section>
+      )}
 
       <Section title="Appearance">
         <ThemeSwitcher />

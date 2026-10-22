@@ -137,6 +137,7 @@ export async function companySettings(companyId: string) {
         approvalMode: companies.approvalMode,
         retentionDays: companies.retentionDays,
         dailyEmailLimit: companies.dailyEmailLimit,
+        googleCalendarEnabled: companies.googleCalendarEnabled,
       })
       .from(companies)
       .where(eq(companies.id, companyId)),

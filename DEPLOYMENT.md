@@ -38,6 +38,13 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0049: Google Calendar. `google_calendars` (one connection per
+person, tokens encrypted), `google_calendar_entries` (what's in their
+calendar), `companies.google_calendar_enabled` (default on), the `calendar`
+notification kind, audit triggers that leave the tokens out, and
+`erase_person()` replaced so it deletes the connection. Restart the worker
+(the `gcal` queue).
+
 Migration 0048: change notices. `reminders.announced` (what guests were last
 told), and `deliveries.version` / `detail` with kinds `update`, `cancel`,
 `uninvite`. Restart the worker with it. On its first run it records each
@@ -263,6 +270,21 @@ ids, and makes the earliest user of each existing company its Company Admin.
      lists ngrok domains in `allowedDevOrigins`. Restart `pnpm dev` and
      `pnpm worker` after changing `.env`.
 
+- **Google Calendar** (section 13, the same Google Cloud project and OAuth
+  client as Google sign-in, `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`):
+  1. APIs & Services → Library → enable **Google Calendar API**.
+  2. OAuth consent screen → Data access → add the scope
+     `https://www.googleapis.com/auth/calendar.app.created` (plus `openid`,
+     `email`). Check there whether Google lists it as sensitive: if it does,
+     public use needs Google's verification (it can take weeks).
+  3. Until verified: Audience → **Test users**, add each person (up to 100).
+     They see an "unverified app" warning once.
+  4. Credentials → the OAuth client → Authorised redirect URIs: add
+     `https://<host>/api/google/oauth` (and the ngrok URL for local tests).
+  - `GOOGLE_AUTH_URL`, `GOOGLE_TOKEN_URL`, `GOOGLE_API_URL`,
+    `GOOGLE_REVOKE_URL` are optional overrides, for pointing at a fake;
+    production leaves them unset.
+
 - **AWS SES** (in the region used by `SMTP_URL`):
   - verify the `notifyhub.app` domain identity, and publish its DKIM CNAMEs, SPF and DMARC records in DNS;
   - create SMTP credentials (IAM). These are not the IAM access key itself;
@@ -334,6 +356,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] An event for a department you're in, on Email + Slack: each other member gets "Invitation: …" within seconds (you, the organiser, don't), with `invite.ics`. Opening the `.ics` in Google Calendar, Outlook and Apple Calendar shows the right time, title, place and link. The Slack DM has Yes / Maybe / No; clicking one shows "Your answer" under it.
 - [ ] Click "Maybe" in the email while signed in → your dashboard, blurred, with a pop-up naming the event and Maybe picked → click it → the pop-up closes with "Answer saved: Maybe". Signed out (a private window) → the same pop-up over a blurred page, "Answering as <guest>" → after answering it stays open with "Saved: Maybe". Signed in as someone else → "This invite is for <guest>", no answer buttons. The organiser's event page lists the guest as Maybe with the totals; a guest sees only the totals and their own answer. A repeating event sends one invite, with the repeat in the `.ics`.
 - [ ] Sidebar → Events (also as a member who can't create reminders): your upcoming invitations with Yes / Maybe / No in the row, your own events marked "Organiser"; Past lists ended ones. Home shows "Upcoming events". The bell has "… invited you to …". Reminders → Type → Event lists only events.
+- [ ] Profile → Connect Google Calendar → Google asks only to "make secondary calendars and manage their events" → back on Profile, "Connected as …". Within a minute a "NotifyHub" calendar in Google Calendar has your reminders (30 minutes, "Reminder: …"), tasks and events; renaming one in NotifyHub updates it within a minute; cancelling removes it. Disconnect removes the calendar. Company settings → untick Google Calendar → connected people's NotifyHub calendars disappear within a minute.
 - [ ] Change an event's time (form or drag): each guest gets "Updated: …" with "When: … (was …)" and an `.ics` that moves it in Google Calendar / Outlook (not a second copy). Change only the description: nothing. Take someone off the guest list: "You're no longer invited" and it leaves their calendar. Cancel it: "Cancelled" to everyone. Skip one date of a weekly event: "Not on: <date>". The event page lists these under "Change notices".
 - [ ] An event starting in 15 minutes with "10 minutes before": at about 10 minutes before, each guest who hasn't said No gets "Starts in 10 minutes: …" with Join (email and/or Slack), once; the event page lists them under "Starts soon" notices. A guest who answered No gets nothing.
 - [ ] A reminder to an outside address: the email ends with "Unsubscribe", and Gmail shows its own Unsubscribe next to the sender. Clicking it → the confirm page names the company; confirm → the next reminder to that address isn't sent. A member's copy has no unsubscribe link.
