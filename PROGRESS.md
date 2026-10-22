@@ -2,6 +2,19 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-22 — full spec run on a restarted worker
+
+- One worker running, started 10:17, after the last code change.
+- 238 tests: 212 pass, 25 skipped (browser checks), 1 fail: UP6.
+  - UP7 and GC18, which failed with the old worker, now pass. GC1-GC18 18/18.
+- **UP6 is flaky (1 run in 4), a test race rather than a product bug (likely, not proven).**
+  `createReminder` wakes the live worker, which takes the event's row lock
+  in `dispatchInvites`. The test's own tick then skips the locked row
+  (`skipLocked`, correct in production: the other worker handles it) and
+  reads `deliveries` before the worker commits, so it sees no invites.
+  Before the lock, the test's tick inserted too and always saw rows.
+  - Not proven: it would need a run with the worker stopped.
+
 ## 2026-10-22 — docs checked against the Google Calendar code
 
 - PRD 14.4 still said writing into Google Calendar was not planned, and
