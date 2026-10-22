@@ -2,6 +2,24 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-22 — UP6 flake fixed in the test's tick
+
+- Confirmed the cause logged below, with one correction. The worker's run
+  is two transactions (`dispatchChanges`, then `dispatchInvites`), each
+  taking the row lock. The test's tick skipped the row during the first,
+  and the invites committed ~250ms later in the second.
+- Rejected: polling for invite rows in `invited()`. UP6's "a second run
+  sends nothing more" then failed the same way (6 vs 4, the new series'
+  invites arriving late).
+- Rejected: one lock wait after the tick. It ends between the worker's two
+  transactions, and flaked more (5 in 12 runs).
+- Kept: the tick runs changes + invites twice, waiting on the company's
+  event row locks (`select … for update`) after each pass. Every test in
+  the file gets it, and no assertion changed. The product code is unchanged:
+  skipping a locked row is right with several workers.
+- **Verified** with the live worker running: spec-events-changes 12/12
+  runs; full spec suite 213 pass, 0 fail, 25 skipped; typecheck, lint.
+
 ## 2026-10-22 — full spec run on a restarted worker
 
 - One worker running, started 10:17, after the last code change.

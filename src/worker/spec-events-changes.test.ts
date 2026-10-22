@@ -133,8 +133,13 @@ async function edit(id: string, e: Ev, files: Parameters<typeof updateReminder>[
 
 const tick = async () => {
   const ids: string[] = [];
-  await dispatchChanges(async (x) => void ids.push(...x), s.companyId);
-  await dispatchInvites(async (x) => void ids.push(...x), s.companyId);
+  // Both skip a row the live worker has locked. Wait for its lock after each
+  // pass: twice, since its run is two transactions (changes, then invites).
+  for (let pass = 0; pass < 2; pass++) {
+    await dispatchChanges(async (x) => void ids.push(...x), s.companyId);
+    await dispatchInvites(async (x) => void ids.push(...x), s.companyId);
+    await q("select id from reminders where company_id = $1 and is_event for update", [s.companyId]);
+  }
   return ids;
 };
 type Row = { id: string; reminder_id: string; kind: string; channel: string; user_id: string; address: string; version: number | null; detail: string | null };
