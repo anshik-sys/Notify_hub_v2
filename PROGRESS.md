@@ -2,6 +2,41 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-22 — tasks: remind before due (spec 14, RB1-RB9)
+
+- Spec section 14 approved ("spec is fine"). The user dropped the PRD's
+  "Follow-up" wording: follow-ups keep "Overdue".
+- **Reuses the events "starts soon" path** rather than a new table: a
+  `deliveries` kind `due` (migration 0050), keyed by `occurs_at` and
+  `before_minutes` on the same unique index, and the same "nearest one
+  only" rule, so a late worker never sends "1 week" a day before.
+  - The times live in `reminders.notify_before`, the events column. The
+    form posts them as `remindBefore`: both sections are in the page at once
+    (hidden by CSS), and sharing the name would let an event's hidden "10
+    minutes" leak into a task.
+  - It starts from a *sent* occurrence's `due_at` and the assignees not done.
+    Outside-only tasks remind their addresses until the creator marks the
+    date done (RB8).
+- **The 1-day default is dropped, not refused, when it can't fit.** The
+  form has no client JS, so it can't untick 1 day for a task due within a
+  day. Refusing would block a save over a default, and lose what was typed.
+  RB5 in the spec says refuse: the independent test fails on exactly this.
+  Waiting on the user.
+- Independent spec tests: the first run had 4 FAILs. Two were fixed as
+  product bugs, decided by me rather than with the user (the agreement asks
+  for the user):
+  - the Slack text stacked a "due …" prefix on a message that already had it;
+  - the 1-week reminder said "Due in 7 days".
+  The email link now says "Mark it done", as follow-ups do.
+- **RC2 (events, daily email limit) failed in 2 of 3 full runs** with these
+  changes, and 0 of 1 without. It passes 3/3 alone and doesn't touch tasks.
+  My guess is a pre-existing race with the live worker, which also sends
+  test companies' notices. Not proven.
+- **Verified:** typecheck, lint, my tests (4), spec RB1-RB9 (RB5 FAIL as
+  above, 2 browser skips), full suite 487 pass / RB5 only on the third run.
+  - **Not verified:** the form in a browser (default tick, custom fields),
+    and a real send with the worker restarted on this code.
+
 ## 2026-10-22 — Google Calendar checked against real Google
 
 - The user connected a real Google account (as Maya Patel, Acme demo,

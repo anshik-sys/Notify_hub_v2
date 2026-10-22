@@ -39,6 +39,10 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0050: remind before due (PRD 14.5). `deliveries.kind` gains
+`due`, sharing the "starts soon" unique index and keying check. Restart the
+worker with it.
+
 Migration 0049: Google Calendar. `google_calendars` (one connection per
 person, tokens encrypted), `google_calendar_entries` (what's in their
 calendar), `companies.google_calendar_enabled` (default on), the `calendar`
@@ -360,6 +364,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Sidebar → Events (also as a member who can't create reminders): your upcoming invitations with Yes / Maybe / No in the row, your own events marked "Organiser"; Past lists ended ones. Home shows "Upcoming events". The bell has "… invited you to …". Reminders → Type → Event lists only events.
 - [ ] Profile → Connect Google Calendar → Google asks only to "make secondary calendars and manage their events" → back on Profile, "Connected as …". Within a minute a "NotifyHub" calendar in Google Calendar has your reminders (30 minutes, "Reminder: …"), tasks and events; renaming one in NotifyHub updates it within a minute; cancelling removes it. Disconnect removes the calendar. Company settings → untick Google Calendar → connected people's NotifyHub calendars disappear within a minute.
 - [ ] Change an event's time (form or drag): each guest gets "Updated: …" with "When: … (was …)" and an `.ics` that moves it in Google Calendar / Outlook (not a second copy). Change only the description: nothing. Take someone off the guest list: "You're no longer invited" and it leaves their calendar. Cancel it: "Cancelled" to everyone. Skip one date of a weekly event: "Not on: <date>". The event page lists these under "Change notices".
+- [ ] A task due in about 70 minutes with "1 hour" under Remind before due, to two people: at about 1 hour before, each gets "Due in 1 hour: …" (email and/or a Slack DM with Mark done) and a bell notification; someone who already marked it done gets nothing. The task page shows "Remind before due: 1 hour" and lists them under "Remind before due".
 - [ ] An event starting in 15 minutes with "10 minutes before": at about 10 minutes before, each guest who hasn't said No gets "Starts in 10 minutes: …" with Join (email and/or Slack), once; the event page lists them under "Starts soon" notices. A guest who answered No gets nothing.
 - [ ] A reminder to an outside address: the email ends with "Unsubscribe", and Gmail shows its own Unsubscribe next to the sender. Clicking it → the confirm page names the company; confirm → the next reminder to that address isn't sent. A member's copy has no unsubscribe link.
 - [ ] Daily email limit: on `/platform/companies/<id>` set a test company's limit to 1, send a reminder to two people → one sent, the other shows "Held" in the reminder's log; its admins get one notice (in the app and by email); raise the limit → the held one goes out within a couple of minutes, once. Settings → Unsubscribed lists the address; the reminder marks it "Unsubscribed"; "Subscribe again" on the same link brings delivery back.

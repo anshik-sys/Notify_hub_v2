@@ -686,15 +686,15 @@ chains. Open questions answered 2026-10-22 (see the end of the section).
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| RB1 | Pick one or more: 1 hour, 1 day, 2 days, 1 week before due, or **Custom** (a number of minutes, hours or days) | Saved with the task; the task page lists them. **1 day is ticked by default** when the due time is more than a day after sending; otherwise none | PRD 14.5; user's decision 2026-10-22 (customisable, default 1 day) | |
-| RB2 | The time comes | Each assignee who hasn't marked it done gets "Due in 1 day: <title>" with the due time and Mark done, over the task's channels (email, Slack DM with Mark done) and in the app | PRD 14.5 | |
-| RB3 | Someone already marked it done, or the task was cancelled, deleted or skipped | Nothing for them (checked again just before sending, as for "starts soon") | PRD 14.5 | |
-| RB4 | Several picked (1 week and 1 day) | Each sent once per assignee per date, in time order; a late worker sends only the nearest one still due, never "1 week" a day before | PRD 14.5; as SN2 | |
-| RB5 | A "before" time that falls before the task is sent (due 2 hours after sending, "1 day before"), a custom time of 0, or more than 5 times | Refused in the form: "Remind before due must be less than the time between sending and due" | **(proposed)** | |
-| RB6 | Repeating task | Before the due time of every date | PRD 14.5 | |
-| RB7 | Editing a repeating task (this one / following / all) | The remind-before list carries over unless changed | PRD 14.5 "they survive recurring edits" | |
-| RB8 | A task sent only to outside email addresses | They get it too, until the creator marks the date done (the single "done", section 6) | **(proposed)** | |
-| RB9 | Mute in Preferences | Can't be muted, like the task itself | AGENTS (tasks are never mutable) | |
+| RB1 | Pick one or more: 1 hour, 1 day, 2 days, 1 week before due, or **Custom** (a number of minutes, hours or days) | Saved with the task; the task page lists them. **1 day is ticked by default** when the due time is more than a day after sending; otherwise none | PRD 14.5; user's decision 2026-10-22 (customisable, default 1 day) | PASS (form: presets, Custom, none); the default tick and the task page's list are a browser check |
+| RB2 | The time comes | Each assignee who hasn't marked it done gets "Due in 1 day: <title>" with the due time and Mark done, over the task's channels (email, Slack DM with Mark done) and in the app | PRD 14.5 | PASS after fixes (first run FAIL: the Slack text repeated the due time, and the email link said "Open the task", not Mark done; both fixed as product bugs) |
+| RB3 | Someone already marked it done, or the task was cancelled, deleted or skipped | Nothing for them (checked again just before sending, as for "starts soon") | PRD 14.5 | PASS |
+| RB4 | Several picked (1 week and 1 day) | Each sent once per assignee per date, in time order; a late worker sends only the nearest one still due, never "1 week" a day before | PRD 14.5; as SN2 | PASS after a fix (first run FAIL: the 1-week reminder said "Due in 7 days") |
+| RB5 | A "before" time that falls before the task is sent (due 2 hours after sending, "1 day before"), a custom time of 0, or more than 5 times | Refused in the form: "Remind before due must be less than the time between sending and due" | **(proposed)** | FAIL: a preset that doesn't fit (due 2 hours after sending, "1 day before"; or due exactly 1 day after) is dropped, not refused. Deliberate in code so the 1-day default never blocks a save; **decision needed** |
+| RB6 | Repeating task | Before the due time of every date | PRD 14.5 | PASS |
+| RB7 | Editing a repeating task (this one / following / all) | The remind-before list carries over unless changed | PRD 14.5 "they survive recurring edits" | PASS; the edit form pre-filling the times is a browser check |
+| RB8 | A task sent only to outside email addresses | They get it too, until the creator marks the date done (the single "done", section 6) | **(proposed)** | PASS |
+| RB9 | Mute in Preferences | Can't be muted, like the task itself | AGENTS (tasks are never mutable) | PASS |
 
 ### Cover image
 

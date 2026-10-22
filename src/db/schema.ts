@@ -436,7 +436,8 @@ export const deliveries = pgTable(
       .notNull()
       .references(() => reminders.id, { onDelete: "cascade" }),
     occurrenceId: uuid().references(() => reminderOccurrences.id, { onDelete: "cascade" }),
-    kind: text().$type<"reminder" | "invite" | "soon" | "update" | "cancel" | "uninvite">().notNull().default("reminder"),
+    // due: a task's "remind before due" (PRD 14.5), keyed like soon by the date and minutes.
+    kind: text().$type<"reminder" | "invite" | "soon" | "due" | "update" | "cancel" | "uninvite">().notNull().default("reminder"),
     occursAt: ts(),
     beforeMinutes: integer(),
     version: integer(),
@@ -465,13 +466,13 @@ export const deliveries = pgTable(
     uniqueIndex("deliveries_invite_idx").on(t.reminderId, t.channel, t.address).where(sql`${t.kind} = 'invite'`),
     uniqueIndex("deliveries_soon_idx")
       .on(t.reminderId, t.occursAt, t.beforeMinutes, t.channel, t.address)
-      .where(sql`${t.kind} = 'soon'`),
+      .where(sql`${t.kind} in ('soon','due')`),
     uniqueIndex("deliveries_change_idx")
       .on(t.reminderId, t.kind, t.version, t.channel, t.address)
       .where(sql`${t.kind} in ('update','cancel','uninvite')`),
-    check("deliveries_kind_valid", sql`(${t.kind} = 'reminder') = (${t.occurrenceId} is not null) and ${t.kind} in ('reminder','invite','soon','update','cancel','uninvite')`),
+    check("deliveries_kind_valid", sql`(${t.kind} = 'reminder') = (${t.occurrenceId} is not null) and ${t.kind} in ('reminder','invite','soon','due','update','cancel','uninvite')`),
     check("deliveries_change_versioned", sql`(${t.kind} in ('update','cancel','uninvite')) = (${t.version} is not null)`),
-    check("deliveries_soon_keyed", sql`(${t.kind} = 'soon') = (${t.occursAt} is not null and ${t.beforeMinutes} is not null)`),
+    check("deliveries_soon_keyed", sql`(${t.kind} in ('soon','due')) = (${t.occursAt} is not null and ${t.beforeMinutes} is not null)`),
     check("deliveries_channel_valid", sql`${t.channel} in ('email','slack')`),
     index().on(t.reminderId),
     index().on(t.status, t.updatedAt),

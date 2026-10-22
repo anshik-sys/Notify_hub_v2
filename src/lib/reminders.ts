@@ -78,6 +78,10 @@ export type RawReminder = {
   location?: string;
   meetingUrl?: string;
   notifyBefore?: string[]; // minutes, from NOTIFY_BEFORE
+  // PRD 14.5 tasks: minutes before due, from REMIND_BEFORE, plus one custom time.
+  remindBefore?: string[];
+  remindCustom?: string;
+  remindUnit?: string; // "minutes" | "hours" | "days"
 };
 
 // The New/Edit form's post (reminder-form.tsx) -> RawReminder. The field names
@@ -115,6 +119,9 @@ export function formToRaw(fd: FormData): RawReminder {
     location: str("location"),
     meetingUrl: str("meetingUrl"),
     notifyBefore: all("notifyBefore"),
+    remindBefore: all("remindBefore"),
+    remindCustom: str("remindCustom"),
+    remindUnit: str("remindUnit"),
     dueLocal: str("due"),
     repeat: {
       repeat: str("repeat"),
@@ -260,12 +267,16 @@ export function validateInput(
   // Tasks: due is a wall-clock time after the first send, stored as an offset
   // so each occurrence of a repeating task is due the same time after it's sent.
   let dueAfterMinutes: number | null = null;
+  let remind: Pick<ReminderInput, "notifyBefore"> = {};
   if (raw.isTask && !raw.isEvent) {
     const due = zonedToUtc(raw.dueLocal, timeZone);
     if (!due) return { error: "A task needs a due date and time." };
     dueAfterMinutes = Math.round((due.getTime() - sendAt.getTime()) / 60_000);
     if (dueAfterMinutes < 1) return { error: "The due time must be after it's sent." };
     if (dueAfterMinutes > 365 * 24 * 60) return { error: "The due time must be within a year of sending." };
+    const before = remindBefore(raw, dueAfterMinutes);
+    if ("error" in before) return before;
+    remind = { notifyBefore: before.minutes };
   }
   const tags = parseTags(raw.tags);
   if ("error" in tags) return tags;
@@ -294,6 +305,7 @@ export function validateInput(
       channels,
       targets,
       ...event,
+      ...remind,
       // An all-day event is anchored at midnight on its first day.
       ...(event.allDay ? { anchorLocal: `${raw.sendAtLocal.slice(0, 10)}T00:00` } : {}),
     } satisfies ReminderInput,
@@ -302,6 +314,32 @@ export function validateInput(
 
 // PRD 14.3 "starts soon": the times offered, in minutes before the start.
 export const NOTIFY_BEFORE = [10, 30, 60, 1440];
+
+// PRD 14.5 "remind before due" (RB1): 1 hour, 1 day, 2 days, 1 week, and one
+// custom time. Each must fall after the task is sent (RB5). The form ticks
+// 1 day for a new task; when that alone doesn't fit (due within a day of
+// sending) it's dropped rather than refused, so the default never blocks a save.
+export const REMIND_BEFORE = [60, 1440, 2880, 10080];
+
+const UNIT_MINUTES: Record<string, number> = { minutes: 1, hours: 60, days: 1440 };
+const MAX_REMIND_BEFORE = 5;
+export function remindBefore(raw: Pick<RawReminder, "remindBefore" | "remindCustom" | "remindUnit">, dueAfterMinutes: number): { minutes: number[] } | { error: string } {
+  const picked = (raw.remindBefore ?? []).filter(Boolean).map(Number);
+  if (picked.some((m) => !REMIND_BEFORE.includes(m))) return { error: "Pick when to remind from the list." };
+  const custom = raw.remindCustom?.trim() ?? "";
+  if (custom) {
+    const n = Number(custom);
+    const unit = UNIT_MINUTES[raw.remindUnit ?? ""];
+    if (!Number.isInteger(n) || n < 1 || !unit) return { error: "The custom reminder must be a whole number of minutes, hours or days." };
+    picked.push(n * unit);
+  }
+  const minutes = [...new Set(picked)].sort((a, b) => b - a);
+  if (minutes.length > MAX_REMIND_BEFORE) return { error: `At most ${MAX_REMIND_BEFORE} reminders before due.` };
+  if (!custom && minutes.length === 1 && minutes[0] === 1440 && dueAfterMinutes <= 1440) return { minutes: [] };
+  if (minutes.some((m) => m >= dueAfterMinutes))
+    return { error: "Remind before due must be less than the time between sending and due." };
+  return { minutes };
+}
 
 // "" = the type's default (null); a palette name; anything else = undefined (refused).
 const colorFrom = (raw: string): CalendarColor | null | undefined =>
@@ -1423,15 +1461,15 @@ export async function deliveryLog(companyId: string, reminderId: string) {
     const rows = latest ? await select(eq(deliveries.occurrenceId, latest.id)) : [];
     // An event's invites (PRD 14.3): one per guest, not per date.
     const invites = await select(and(eq(deliveries.reminderId, reminderId), eq(deliveries.kind, "invite"))!);
-    // "Starts soon" notices for the latest date that had any.
+    // "Starts soon" notices (events) or "remind before due" (tasks) for the latest date that had any.
     const [last] = await tx
       .select({ at: deliveries.occursAt })
       .from(deliveries)
-      .where(and(eq(deliveries.reminderId, reminderId), eq(deliveries.kind, "soon")))
+      .where(and(eq(deliveries.reminderId, reminderId), inArray(deliveries.kind, ["soon", "due"])))
       .orderBy(desc(deliveries.occursAt))
       .limit(1);
     const notices = last?.at
-      ? { at: last.at, rows: await select(and(eq(deliveries.reminderId, reminderId), eq(deliveries.kind, "soon"), eq(deliveries.occursAt, last.at))!) }
+      ? { at: last.at, rows: await select(and(eq(deliveries.reminderId, reminderId), inArray(deliveries.kind, ["soon", "due"]), eq(deliveries.occursAt, last.at))!) }
       : null;
     // Change notices (slice 4), newest version first.
     const changed = (await select(and(eq(deliveries.reminderId, reminderId), inArray(deliveries.kind, ["update", "cancel", "uninvite"]))!)).sort(

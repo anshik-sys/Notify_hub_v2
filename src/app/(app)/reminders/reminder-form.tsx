@@ -10,6 +10,42 @@ import { PeoplePicker } from "./people-picker";
 import { ReminderPreview } from "./preview";
 import styles from "./reminder-form.module.css";
 
+// PRD 14.5 (RB1): presets plus one custom time; a new task starts with 1 day.
+const REMIND_PRESETS = [
+  { value: "60", label: "1 hour" },
+  { value: "1440", label: "1 day" },
+  { value: "2880", label: "2 days" },
+  { value: "10080", label: "1 week" },
+];
+function RemindBefore({ minutes }: { minutes: number[] }) {
+  const custom = minutes.find((m) => !REMIND_PRESETS.some((p) => Number(p.value) === m));
+  const unit = custom === undefined ? "hours" : custom % 1440 === 0 ? "days" : custom % 60 === 0 ? "hours" : "minutes";
+  const per = { days: 1440, hours: 60, minutes: 1 }[unit];
+  return (
+    <>
+      <CheckboxGroup
+        legend="Remind before due"
+        name="remindBefore"
+        options={REMIND_PRESETS.map((o) => ({ ...o, checked: minutes.includes(Number(o.value)) }))}
+      />
+      <div className={styles.everyRow}>
+        <Field label="Custom" name="remindCustom" type="number" inputMode="numeric" min={1} max={999} defaultValue={custom === undefined ? "" : custom / per} />
+        <SelectField
+          label="Unit"
+          name="remindUnit"
+          defaultValue={unit}
+          options={[
+            { value: "minutes", label: "minutes before" },
+            { value: "hours", label: "hours before" },
+            { value: "days", label: "days before" },
+          ]}
+        />
+      </div>
+      <Hint>Goes to anyone not done yet. Leave Custom empty if you don’t need it.</Hint>
+    </>
+  );
+}
+
 export type ReminderDefaults = {
   id?: string;
   title: string;
@@ -396,6 +432,7 @@ export function ReminderForm({
           <div className={styles.due}>
             <Field label={`Due (${timeZone})`} name="due" type="datetime-local" defaultValue={defaults.dueLocal} />
             <Hint>Anyone not done by then gets a reminder every day until they are.</Hint>
+            <RemindBefore minutes={defaults.isTask ? (defaults.notifyBefore ?? []) : [1440]} />
           </div>
           {/* PRD 14.3: the start is "When to send" above. */}
           <div className={styles.event}>
@@ -419,7 +456,7 @@ export function ReminderForm({
                 { value: "30", label: "30 minutes" },
                 { value: "60", label: "1 hour" },
                 { value: "1440", label: "1 day" },
-              ].map((o) => ({ ...o, checked: (defaults.notifyBefore ?? [10]).includes(Number(o.value)) }))}
+              ].map((o) => ({ ...o, checked: (defaults.isEvent ? (defaults.notifyBefore ?? []) : [10]).includes(Number(o.value)) }))}
             />
           </div>
         </div>

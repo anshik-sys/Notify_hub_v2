@@ -429,6 +429,14 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     restarted worker never sends "in 1 day" ten minutes before. All-day
     dates count back from 09:00 in the event's zone, which is why a one-time
     all-day event that's already `sent` (at midnight) is still scanned.
+  - **A task's "remind before due" reuses that shape: `kind = 'due'`**, the
+    same `deliveries_soon_idx` (`occurs_at`, `before_minutes`) and the same
+    "nearest one only" rule, but it starts from the *sent* occurrence's
+    `due_at` and goes to `task_assignments` not done yet. The times live in
+    `reminders.notify_before`, the column events use for "starts soon"; the
+    form posts them as `remindBefore` so the hidden event field can't leak in.
+    `deliveries.occurrence_id` stays null for these (the check ties it to
+    `kind = 'reminder'`), so code joining deliveries to occurrences must cope.
   - **Change notices compare, they don't hook.** `reminders.announced` holds
     what guests were last told (time, repeat, place, link, removed dates,
     version). Each run `dispatchChanges` compares every live event with it

@@ -76,3 +76,9 @@ export function offsetLabel(date: Date, tz: string) {
   const name = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "longOffset" }).formatToParts(date).find((p) => p.type === "timeZoneName")?.value;
   return name ?? "GMT";
 }
+
+// "1 week", "2 days", "3 hours", "45 minutes" (remind before due, PRD 14.5).
+export function beforeLabel(m: number) {
+  const [n, unit] = m % 10080 === 0 ? [m / 10080, "week"] : m % 1440 === 0 ? [m / 1440, "day"] : m % 60 === 0 ? [m / 60, "hour"] : [m, "minute"];
+  return `${n} ${unit}${n === 1 ? "" : "s"}`;
+}

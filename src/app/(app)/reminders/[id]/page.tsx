@@ -10,7 +10,7 @@ import { formatSize } from "@/lib/format";
 import { markReadForReminder } from "@/lib/notifications";
 import { requireMember } from "@/lib/session";
 import { myTaskStatus, taskProgress } from "@/lib/tasks";
-import { formatInZone } from "@/lib/time";
+import { beforeLabel, formatInZone } from "@/lib/time";
 import { eventGuests } from "@/lib/events";
 import { ANSWER_LABEL, answerOpen, eventWhen } from "@/lib/invite";
 import { isUuid } from "@/lib/validate";
@@ -149,6 +149,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                   )}
                 </>
               )}
+              {r.isTask && r.notifyBefore.length > 0 && <Hint>Remind before due: {r.notifyBefore.map(beforeLabel).join(", ")}</Hint>}
               {r.recurrence ? (
                 <>
                   <Hint>Repeats: {describe(r.recurrence, r.anchorLocal)}</Hint>
@@ -279,7 +280,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
             )}
 
             {log?.notices && (
-              <Section title={`“Starts soon” notices: ${formatInZone(log.notices.at, tz)}`}>
+              <Section title={`${r.isTask ? "Remind before due" : "“Starts soon” notices"}: ${formatInZone(log.notices.at, tz)}`}>
                 {deliveryTable(log.notices.rows, tz)}
               </Section>
             )}

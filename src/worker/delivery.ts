@@ -8,7 +8,7 @@ import { getBlob } from "@/lib/storage";
 import { decrypt } from "@/lib/crypto";
 import { changeMessage, inviteMessage, lookupByEmail, openDm, postMessage, reminderMessage, SlackError, soonMessage, uploadFile } from "@/lib/slack";
 import { between, firstAtOrAfter, nextAfter } from "@/lib/recurrence";
-import { formatInZone, toLocalInput } from "@/lib/time";
+import { beforeLabel, formatInZone, toLocalInput } from "@/lib/time";
 import { sendMail } from "@/lib/mail";
 import { addNotifications, planTell, sendTell } from "@/lib/notifications";
 import { resolveRecipients } from "@/lib/recipients";
@@ -384,6 +384,125 @@ export async function dispatchSoon(enqueue: (deliveryIds: string[]) => Promise<v
     }
   }
   return count;
+}
+
+// --- Remind before due (PRD 14.5, RB1-RB9) ----------------------------------------------
+// A sent task occurrence still to fall due, with "remind before" times: each
+// assignee not done yet gets the nearest one that's come due (RB4: a late
+// worker never sends "1 week" a day before), over the task's channels, plus
+// one in-app notification. A task sent only outside (no assignees) reminds
+// those addresses until the creator marks it done (RB8). Keyed like "starts
+// soon" (deliveries_soon_idx): once per (date, minutes, channel, address).
+export const remindDue = (dueAt: Date, before: number[], now: Date) =>
+  dueAt > now ? [...before].sort((a, b) => a - b).find((m) => dueAt.getTime() - m * 60_000 <= now.getTime()) : undefined;
+
+export async function dispatchRemindBefore(enqueue: (deliveryIds: string[]) => Promise<void>, onlyCompany?: string, now = new Date()) {
+  const due = await ownerDb
+    .select({ o: reminderOccurrences, r: reminders })
+    .from(reminderOccurrences)
+    .innerJoin(reminders, eq(reminders.id, reminderOccurrences.reminderId))
+    .where(
+      and(
+        eq(reminders.isTask, true),
+        sql`${reminders.status} <> 'cancelled'`,
+        isNull(reminders.deletedAt),
+        sql`cardinality(${reminders.notifyBefore}) > 0`,
+        eq(reminderOccurrences.status, "sent"),
+        sql`${reminderOccurrences.dueAt} > ${now}`,
+        sql`${reminderOccurrences.dueAt} - make_interval(mins => (select max(m) from unnest(${reminders.notifyBefore}) m)) <= ${now}`,
+        notSuspended(reminders.companyId),
+        onlyCompany ? eq(reminders.companyId, onlyCompany) : undefined,
+      ),
+    );
+  let count = 0;
+  for (const { o, r } of due) {
+    const minutes = remindDue(o.dueAt!, r.notifyBefore, now);
+    if (minutes === undefined) continue;
+    const ids = await ownerDb.transaction(async (tx) => {
+      const open = await tx
+        .select({ id: user.id, email: user.email })
+        .from(taskAssignments)
+        .innerJoin(user, eq(user.id, taskAssignments.userId))
+        .where(and(eq(taskAssignments.occurrenceId, o.id), isNull(taskAssignments.doneAt), isNull(user.deactivatedAt)));
+      const assigned = open.length > 0 || (await tx.select({ id: taskAssignments.id }).from(taskAssignments).where(eq(taskAssignments.occurrenceId, o.id)).limit(1)).length > 0;
+      const rows: { channel: "email" | "slack"; address: string; userId: string | null }[] = [
+        ...(r.channels.includes("email") ? open.map((u) => ({ channel: "email" as const, address: u.email.toLowerCase(), userId: u.id })) : []),
+        ...(r.channels.includes("slack") ? open.map((u) => ({ channel: "slack" as const, address: u.id, userId: u.id })) : []),
+      ];
+      // RB8: nobody assigned, so the outside addresses it went to, until it's marked done.
+      if (!assigned && !o.doneAt)
+        rows.push(
+          ...(
+            await tx
+              .select({ address: deliveries.address })
+              .from(deliveries)
+              .where(and(eq(deliveries.occurrenceId, o.id), eq(deliveries.channel, "email"), isNull(deliveries.userId)))
+          ).map((x) => ({ channel: "email" as const, address: x.address, userId: null })),
+        );
+      if (!rows.length) return [];
+      const inserted = await tx
+        .insert(deliveries)
+        .values(rows.map((x) => ({ ...x, kind: "due" as const, occursAt: o.occursAt, beforeMinutes: minutes, companyId: r.companyId, reminderId: r.id })))
+        .onConflictDoNothing()
+        .returning({ id: deliveries.id, userId: deliveries.userId });
+      const people = [...new Set(inserted.flatMap((d) => (d.userId ? [d.userId] : [])))];
+      if (people.length)
+        await tx
+          .insert(notifications)
+          .values(people.map((userId) => ({ companyId: r.companyId, userId, kind: "task" as const, reminderId: r.id, text: `Due ${startsIn(o.dueAt!, now)}`, dedupeKey: `due:${o.id}:${minutes}` })))
+          .onConflictDoNothing();
+      return inserted.map((d) => d.id);
+    });
+    count += ids.length;
+    if (ids.length) await enqueue(ids);
+  }
+  return count;
+}
+
+// RB3: a queued reminder that no longer applies when its turn comes (done,
+// cancelled, deleted). The reason, or null; plus what the send needs.
+async function dueState(d: { reminderId: string; userId: string | null; occursAt: Date | null }) {
+  const [x] = await ownerDb
+    .select({ r: reminders, o: reminderOccurrences })
+    .from(reminderOccurrences)
+    .innerJoin(reminders, eq(reminders.id, reminderOccurrences.reminderId))
+    .where(and(eq(reminderOccurrences.reminderId, d.reminderId), eq(reminderOccurrences.occursAt, d.occursAt!)));
+  if (!x || x.r.deletedAt) return { dropped: "Not sent: the task was deleted." };
+  if (x.r.status === "cancelled") return { dropped: "Not sent: the task was cancelled." };
+  const [a] = d.userId
+    ? await ownerDb
+        .select({ id: taskAssignments.id, doneAt: taskAssignments.doneAt })
+        .from(taskAssignments)
+        .where(and(eq(taskAssignments.occurrenceId, x.o.id), eq(taskAssignments.userId, d.userId)))
+    : [];
+  if (a?.doneAt || (!d.userId && x.o.doneAt)) return { dropped: "Not sent: already marked done." };
+  return { dropped: null, r: x.r, dueAt: x.o.dueAt!, assignmentId: a?.id ?? null };
+}
+
+async function sendDue(d: Delivery, send: typeof sendMail, slackFetch?: typeof fetch) {
+  const s = await dueState(d);
+  if (!s.r) throw new Permanent(s.dropped!);
+  const now = new Date();
+  // The reminder's own time ("in 1 week"), or what's left when it went late.
+  const onTime = s.dueAt.getTime() - now.getTime() >= (d.beforeMinutes! - 1) * 60_000;
+  const headline = `Due ${onTime ? `in ${beforeLabel(d.beforeMinutes!)}` : startsIn(s.dueAt, now)}`;
+  const due = `${formatInZone(s.dueAt, s.r.timeZone)} (${s.r.timeZone})`;
+  if (d.channel === "slack") {
+    if (!s.assignmentId) throw new Permanent("Not an assignee.");
+    const r = await taskDm(s.assignmentId, headline, slackFetch, `${headline}: ${s.r.title} (due ${due})`);
+    if (r !== "sent") throw new Permanent(r === "no-slack" ? "Slack isn't connected." : "No Slack account for this person.");
+    return {};
+  }
+  const [creator] = await ownerDb.select({ email: user.email }).from(user).where(eq(user.id, s.r.createdBy));
+  await send({
+    to: d.address,
+    subject: `${headline}: ${s.r.title}`,
+    text: `This task is due ${due}. Mark it done once it's finished.`,
+    links: [{ label: "Mark it done in NotifyHub", url: `${process.env.BETTER_AUTH_URL}/reminders/${s.r.id}` }],
+    fromName: `${s.r.senderName} via NotifyHub`,
+    replyTo: creator?.email,
+  });
+  return {};
 }
 
 // --- Change and cancel notices (PRD 14.3, UP1-UP7) -------------------------------------
@@ -828,7 +947,7 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
     .from(deliveries)
     .where(and(eq(deliveries.id, deliveryId), eq(deliveries.status, "queued")));
   // Checked before the daily limit, so a held notice that stopped applying never waits for room.
-  const dropped = pending?.kind === "soon" ? await noLongerDue(pending) : null;
+  const dropped = pending?.kind === "soon" ? await noLongerDue(pending) : pending?.kind === "due" ? (await dueState(pending)).dropped : null;
   if (dropped) {
     const [row] = await ownerDb
       .update(deliveries)
@@ -868,7 +987,9 @@ export async function deliverOne(deliveryId: string, send: typeof sendMail = sen
   let result: { slackChannel?: string; slackTs?: string; lastError?: string | null };
   try {
     result =
-      d.channel === "slack"
+      d.kind === "due"
+        ? await sendDue(d, send, slackFetch)
+        : d.channel === "slack"
         ? await sendSlack(d, r, slackFetch)
         : d.kind === "invite"
           ? await sendInviteEmail(d, r, send)
@@ -907,7 +1028,7 @@ async function notifyFailed(d: { companyId: string; reminderId: string; occurren
   if (!r) return;
   const people = new Set([r.createdBy, ...(await companyAdmins(d.companyId)).map((a) => a.id)]);
   const text =
-    { reminder: "Some deliveries failed", invite: "Some invites failed", soon: "Some “starts soon” notices failed" }[d.kind] ?? "Some change notices failed";
+    { reminder: "Some deliveries failed", invite: "Some invites failed", soon: "Some “starts soon” notices failed", due: "Some “due soon” reminders failed" }[d.kind] ?? "Some change notices failed";
   try {
     const fresh = await ownerDb
       .insert(notifications)
@@ -977,7 +1098,7 @@ export async function claimFollowUps(now = new Date(), onlyCompany?: string) {
 // A task DM to one assignee, with the Mark done / Snooze buttons (follow-ups
 // and snoozes). No Slack connection or account: skipped, logged; no
 // fallback-channel noise for these.
-async function taskDm(assignmentId: string, prefix: string, f?: typeof fetch) {
+async function taskDm(assignmentId: string, prefix: string, f?: typeof fetch, text?: string) {
   const [x] = await ownerDb
     .select({ a: taskAssignments, r: reminders, dueAt: reminderOccurrences.dueAt, email: user.email, inst: slackInstallations })
     .from(taskAssignments)
@@ -999,7 +1120,7 @@ async function taskDm(assignmentId: string, prefix: string, f?: typeof fetch) {
     prefix,
     task: { occurrenceId: x.a.occurrenceId, dm: true },
   });
-  await postMessage(token, await openDm(token, slackUser, f), `${prefix}: ${msg.text}`, msg.blocks, f);
+  await postMessage(token, await openDm(token, slackUser, f), text ?? `${prefix}: ${msg.text}`, msg.blocks, f);
   return "sent";
 }
 
