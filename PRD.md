@@ -551,7 +551,7 @@ A third type next to reminders and tasks.
 - **Sub-tasks:** a task can have child tasks, each with its own title, assignee(s), due date and optional cover image. The parent counts as done when all its sub-tasks are done.
 - **Chained (linked) reminders:** a reminder or task B can be set to start **when task A is marked done**. Useful for step-by-step workflows (e.g. onboarding). _Open:_ for A with several assignees, does B start when the first one or the last one marks it done? (Suggested: when all have.)
 - **Cover image** on a task or sub-task, shown as a banner at the top of its page. Images only, same checks as 5.7.
-- **Follow-up wording:** follow-ups for unfinished tasks say "Follow-up" (not "Overdue") in the email subject and the first line of the Slack message.
+- ~~**Follow-up wording:** follow-ups for unfinished tasks say "Follow-up" (not "Overdue") in the email subject and the first line of the Slack message.~~ Dropped 2026-10-22: they keep saying "Overdue".
 
 ### 14.6 Comments and attachments
 - **Comment edit window:** authors can edit a comment for **24 hours** after posting. After that it is read-only; deleting stays allowed.

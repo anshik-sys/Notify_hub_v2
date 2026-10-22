@@ -663,7 +663,7 @@ Google Cloud Console can connect: enough for HR. DEPLOYMENT.md gets the steps.
 
 ## 14. Tasks: remind before due, sub-tasks, chains, cover image (v2, PRD 14.5)
 
-Five additions to tasks. Today a task has a due time (`due_after_minutes`
+Four additions to tasks (the fifth in PRD 14.5, "Follow-up" wording, was dropped 2026-10-22: follow-ups keep saying "Overdue"). Today a task has a due time (`due_after_minutes`
 after it's sent), each assignee marks it done, and anyone not done gets a
 daily follow-up from the company's follow-up time ("Overdue: …") until they
 are. All of that stays; these build on it.
@@ -671,8 +671,8 @@ are. All of that stays; these build on it.
 Rules marked **(proposed)** are mine; confirm or change them before building.
 Anything not mentioned works as it does for tasks today.
 
-Suggested build order, smallest first: follow-up wording, remind before due,
-cover image, sub-tasks, chains.
+Build order, smallest first: remind before due, cover image, sub-tasks,
+chains. Open questions answered 2026-10-22 (see the end of the section).
 
 | Function | What it does |
 |---|---|
@@ -681,25 +681,16 @@ cover image, sub-tasks, chains.
 | Task input: cover image | One image per task or sub-task, checked like attachments, shown as a banner on its page. |
 | Task input: sub-tasks | Child tasks inside a task, each with its own title, assignees, due time and cover image. |
 | Reminder / task input: "Start when … is done" | Holds this reminder or task until another task is done, then sends it. |
-| Follow-up wording | "Follow-up:" instead of "Overdue:" in what the assignee gets. |
-
-### Follow-up wording
-
-| ID | Scenario | Expected | Source | Status |
-|---|---|---|---|---|
-| FU1 | The daily follow-up email for an unfinished task | Subject "Follow-up: <title>"; the body still says when it was due | PRD 14.5 | |
-| FU2 | The daily follow-up Slack DM | First line starts "Follow-up:", still with Mark done / Snooze | PRD 14.5 | |
-| FU3 | What managers get when an assignee is N days late (escalation, section 5), the digest's "Overdue tasks", Reports, the Tasks page | Unchanged: still "Overdue". Only what the assignee is sent changes | **(proposed)** | |
 
 ### Remind before due
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| RB1 | Pick one or more: 1 hour, 1 day, 2 days, 1 week before due | Saved with the task; the task page lists them. None by default | PRD 14.5; **(proposed: these four times)** | |
+| RB1 | Pick one or more: 1 hour, 1 day, 2 days, 1 week before due, or **Custom** (a number of minutes, hours or days) | Saved with the task; the task page lists them. **1 day is ticked by default** when the due time is more than a day after sending; otherwise none | PRD 14.5; user's decision 2026-10-22 (customisable, default 1 day) | |
 | RB2 | The time comes | Each assignee who hasn't marked it done gets "Due in 1 day: <title>" with the due time and Mark done, over the task's channels (email, Slack DM with Mark done) and in the app | PRD 14.5 | |
 | RB3 | Someone already marked it done, or the task was cancelled, deleted or skipped | Nothing for them (checked again just before sending, as for "starts soon") | PRD 14.5 | |
 | RB4 | Several picked (1 week and 1 day) | Each sent once per assignee per date, in time order; a late worker sends only the nearest one still due, never "1 week" a day before | PRD 14.5; as SN2 | |
-| RB5 | A "before" time that falls before the task is sent (due 2 hours after sending, "1 day before") | Refused in the form: "Remind before due must be less than the time between sending and due" | **(proposed)** | |
+| RB5 | A "before" time that falls before the task is sent (due 2 hours after sending, "1 day before"), a custom time of 0, or more than 5 times | Refused in the form: "Remind before due must be less than the time between sending and due" | **(proposed)** | |
 | RB6 | Repeating task | Before the due time of every date | PRD 14.5 | |
 | RB7 | Editing a repeating task (this one / following / all) | The remind-before list carries over unless changed | PRD 14.5 "they survive recurring edits" | |
 | RB8 | A task sent only to outside email addresses | They get it too, until the creator marks the date done (the single "done", section 6) | **(proposed)** | |
@@ -713,7 +704,7 @@ cover image, sub-tasks, chains.
 | CV2 | Its page | Shown as a banner across the top | PRD 14.5 | |
 | CV3 | Who sees it | Whoever can open the task; the image's link checks that too (no public URL) | PRD 5.7 | |
 | CV4 | Replace or remove it | The old file is deleted | | |
-| CV5 | Emails, Slack, calendar, Google | No image: only the task page shows it | **(proposed)** | |
+| CV5 | Emails, Slack, calendar, Google | No image: only the task page shows it | User's decision 2026-10-22 | |
 | CV6 | Only on tasks and sub-tasks | Reminders and events have no cover option | PRD 14.5 | |
 
 ### Sub-tasks
@@ -721,15 +712,15 @@ cover image, sub-tasks, chains.
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
 | ST1 | Add sub-tasks to a task (e.g. Onboarding → "Laptop", "Accounts", "Intro call") | Each has its own title, assignees, due time and optional cover image; they're created, edited and saved with the parent | PRD 14.5 | |
-| ST2 | Sending | Each sub-task goes out at the parent's send time, to its own assignees, as a task ("Task: Laptop (Onboarding)") | **(proposed)** | |
-| ST3 | Sub-task due time | Its own; must be after the parent is sent and no later than the parent's due time | **(proposed)** | |
-| ST4 | Done | A sub-task is done when all its assignees mark it done (as tasks today). The parent has no Mark done of its own: it's done when every sub-task is done | PRD 14.5 | |
+| ST2 | Sending | Each sub-task goes out at the parent's send time, to its own assignees, as a task ("Task: Laptop (Onboarding)"). Each has its **own due time** (ST3). A sub-task that should only start after another is done uses a chain (CH12) | User's decision 2026-10-22 | |
+| ST3 | Sub-task due time | Its own; must be after the parent is sent and no later than the parent's due time | User's decision 2026-10-22 | |
+| ST4 | Done | A sub-task is done when all its assignees mark it done (as tasks today). The parent has no Mark done of its own: it's done only when every sub-task is done | PRD 14.5; confirmed 2026-10-22 | |
 | ST5 | The parent's page | Lists its sub-tasks with "2 of 3 done" and each one's people; a sub-task's page links back to the parent | **(proposed)** | |
 | ST6 | Follow-ups and remind before due | Per sub-task, to its own assignees who aren't done | **(proposed)** | |
 | ST7 | The creator is told | Once, when the last sub-task is done ("Everyone has marked it done"), not per sub-task | **(proposed)**; as tasks today | |
 | ST8 | Approval | Parent and sub-tasks are approved together: if any sub-task's assignees are out of the creator's scope, the whole task needs approval and nothing is sent until it's approved | PRD 5.9 | |
 | ST9 | Who sees what | Each assignee sees their sub-task and the parent's title and progress; the creator and those who oversee it see all | **(proposed)** | |
-| ST10 | Only one level, only one-time tasks | A sub-task can't have sub-tasks; a repeating task can't have sub-tasks | **(proposed)** | |
+| ST10 | Only one level, only one-time tasks | A sub-task can't have sub-tasks; a repeating task can't have sub-tasks | User's decision 2026-10-22 | |
 | ST11 | Cancel or delete the parent | Its sub-tasks go with it (no more follow-ups) | | |
 | ST12 | Calendar, Tasks page, Google | Sub-tasks show like tasks, titled "Laptop (Onboarding)"; the parent shows once | **(proposed)** | |
 
@@ -739,12 +730,12 @@ cover image, sub-tasks, chains.
 |---|---|---|---|---|
 | CH1 | Create a reminder or task B with "Start when <task A> is done" instead of a send time | Saved as "Waiting for <A>"; nothing is sent | PRD 14.5 | |
 | CH2 | A is done | B is sent at once (B's due time counts from then, e.g. "due 2 days after it starts") | PRD 14.5 | |
-| CH3 | A has several assignees | B starts when **all** of them are done (A is done) | PRD 14.5 open question, suggested answer | |
+| CH3 | A has several assignees | B starts when **all** of them are done (A is done) | PRD 14.5; user's decision 2026-10-22 | |
 | CH4 | A was sent only outside (no assignees) | B starts when the creator marks A done (the single "done") | | |
 | CH5 | Someone un-marks A after B started | B stays sent | **(proposed)** | |
 | CH6 | Steps in a row: A → B → C | Each starts when the one before is done | PRD 14.5 "step-by-step workflows" | |
 | CH7 | Which tasks A can be | Only one-time tasks I can see, not yet done, not cancelled; B can't start itself or form a loop | **(proposed)** | |
-| CH8 | A is cancelled or deleted | B is cancelled too, and B's creator is told in the app | **(proposed)** | |
+| CH8 | A is cancelled or deleted | B is cancelled too, and B's creator is told in the app | User's decision 2026-10-22 | |
 | CH9 | Approval | B is approved (if it needs it) when it's created, not when it starts. If B is still waiting for approval when A is done, it's sent once approved | PRD 5.9 | |
 | CH10 | B's page and the list | "Starts when <A> is done" with a link to A; A's page says "Then: <B>" | **(proposed)** | |
 | CH11 | B in the calendar and Google before it starts | Not shown (it has no date yet) | **(proposed)** | |
@@ -756,15 +747,15 @@ Templates for chains (an "onboarding" workflow to reuse), repeating chains,
 sub-tasks of sub-tasks, a chain that waits for several tasks, and cover
 images on reminders or events.
 
-### Open questions for tasks
+### Open questions for tasks (answered 2026-10-22)
 
-1. **FU3:** only what the assignee gets says "Follow-up"; managers' escalation, digest and Reports keep "Overdue"?
-2. **RB1:** remind-before options 1 hour, 1 day, 2 days, 1 week?
-3. **CV1 / CV5:** 5 MB limit, and the image only on the task's page (not in emails)?
-4. **ST3 / ST10:** sub-task due no later than the parent's; one level only; not on repeating tasks?
-5. **ST2:** sub-tasks are sent at the parent's send time (not each at its own time)?
-6. **CH3:** B starts when everyone has done A?
-7. **CH8:** cancelling A cancels B (rather than leaving B waiting for ever, or sending it)?
+1. Follow-up wording: **keep "Overdue"** everywhere; the PRD 14.5 wording change is dropped.
+2. **RB1:** presets plus Custom; 1 day ticked by default when it fits.
+3. **CV5:** the cover image only on the task's page. (CV1's 5 MB limit not discussed: still proposed.)
+4. **ST3 / ST10:** as proposed.
+5. **ST2 / ST4:** each sub-task has its own due time and is sent with the parent; the parent is done only when all sub-tasks are.
+6. **CH3:** B starts when everyone has done A.
+7. **CH8:** cancelling A cancels B.
 
 ## Open questions found while testing
 
