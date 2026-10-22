@@ -544,7 +544,7 @@ A third type next to reminders and tasks.
 - **One-way feed.** Each person has a private calendar link (iCal/ICS) to add to Google Calendar, Outlook or Apple Calendar. It shows the reminders, tasks and events they receive or created. It is read-only; changes are made in NotifyHub.
 - Each person can reset their link (the old one stops working). Admins can turn feeds off for the company.
 - The feed holds reminder content, so the link is a secret: it's long and random, and it never shows content the person couldn't see in the app.
-- Not planned: signing in with Google, writing directly into Google Calendar, or two-way sync.
+- Not planned: two-way sync. (Writing directly into Google Calendar was not planned either, until the 2026-10-21 change above.)
 
 ### 14.5 Tasks: remind before, sub-tasks and chains
 - **Remind before due:** a task can have one or more "X minutes / hours / days before due" reminders. Each goes to the assignees who haven't marked it done yet. They survive recurring edits.
@@ -572,7 +572,7 @@ A third type next to reminders and tasks.
 
 ### 14.9 Order
 1. Calendar UI: views, navigation, quick create, peek card, drag, duplicate, colours, recurring "this / following / all" (14.1, 14.2).
-2. Events and RSVP (14.3), then the calendar feed (14.4).
+2. Events and RSVP (14.3), then Connect Google Calendar (14.4, replacing the feed).
 3. Tasks: remind before, sub-tasks, chains, cover image, follow-up wording (14.5).
 4. Comments and attachments (14.6), then browser push (14.7).
 

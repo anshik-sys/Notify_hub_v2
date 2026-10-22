@@ -20,12 +20,13 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 | `AUTH_DATABASE_URL` | web, at import of `src/lib/auth.ts` (build and runtime) | Role `notifyhub_auth`. |
 | `BETTER_AUTH_SECRET` | web (Better Auth) | Signs cookies. 32+ random bytes: `openssl rand -hex 32`. Rotating it signs everyone out. |
 | `BETTER_AUTH_URL` | web (Better Auth) | Public origin, e.g. `https://app.notifyhub.app`. Requests from any other origin get `INVALID_ORIGIN`. |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | web (Better Auth) | Optional. Google sign-in is hidden unless both are set. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | web (Better Auth, `/api/google/*`), worker (`src/lib/google.ts`, token refresh) | Optional. Google sign-in and Connect Google Calendar are hidden unless both are set. |
+| `GOOGLE_AUTH_URL`, `GOOGLE_TOKEN_URL`, `GOOGLE_API_URL`, `GOOGLE_REVOKE_URL` | web, worker (`src/lib/google.ts`) | **Tests and fakes only.** Leave unset in production. |
 
 | `SMTP_URL` | web, at import of `src/lib/mail.ts` | Prod: `smtps://<SES SMTP user>:<SES SMTP password>@email-smtp.<region>.amazonaws.com:465`. URL-encode the password. Dev: `smtp://localhost:1025` (Mailpit). |
 | `MAIL_FROM` | web (`src/lib/mail.ts`) | `NotifyHub <notifications@notifyhub.app>`. The domain must be verified in SES. |
 
-| `ENCRYPTION_KEY` | web and worker (`src/lib/crypto.ts`) | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts Slack tokens. **Changing it makes stored tokens unreadable**: companies must reconnect Slack. Processes refuse to start without it. |
+| `ENCRYPTION_KEY` | web and worker (`src/lib/crypto.ts`) | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts Slack and Google Calendar tokens. **Changing it makes stored tokens unreadable**: companies must reconnect Slack, and people their Google Calendar. Processes refuse to start without it. |
 | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` | web (`/api/slack/oauth`) | From the Slack app's Basic Information page. |
 | `SLACK_SIGNING_SECRET` | web (interactions, phase B) | From Basic Information. |
 | `SLACK_API_URL`, `SLACK_AUTHORIZE_URL` | web, worker | **Dev only** (point at `pnpm fake-slack`). Leave unset in production. |
@@ -303,6 +304,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - No bounce or complaint handling (SES → SNS). Bounced addresses aren't suppressed (PRD 7.1).
 - A failed verification email is only logged. The user gets a new link by signing in again.
 - Google sign-in can't be used to accept an invite (password only).
+- Google Calendar: never connected to real Google yet (only fakes), and whether Google treats `calendar.app.created` as sensitive (needing verification) is unchecked.
 - Reminder form errors redirect back with the message, and **what was typed is lost** (no client JS). Native `required` catches the common case.
 - Tests need Mailpit running: `createInvitation` sends real mail.
 - **SAML SSO (PRD 3.1) isn't built.** It's deferred until a customer needs it (decided

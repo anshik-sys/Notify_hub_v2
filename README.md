@@ -418,6 +418,9 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
     `notifyIfDue` wakes it for any scheduled event). That's how someone who
     joins a guest department later gets their invite. Approval needs nothing
     special: a waiting event isn't `scheduled`.
+    - It takes the same row lock as `dispatchChanges` and skips an event
+      whose change isn't announced yet, so with several workers a guest
+      added by a change never gets both the invite and "Updated".
   - **"Starts soon" notices are `deliveries` with `kind = 'soon'`**, keyed by
     `occurs_at` (the date) and `before_minutes` instead of an occurrence:
     the occurrence row only exists once the date arrives, and creating it

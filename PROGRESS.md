@@ -2,6 +2,17 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-22 — docs checked against the Google Calendar code
+
+- PRD 14.4 still said writing into Google Calendar was not planned, and
+  14.9 still ordered "the calendar feed". Both now point at the change.
+- DEPLOYMENT listed the Google client vars as Better Auth only. The worker
+  reads them too (token refresh), and `GOOGLE_*_URL` were missing from the
+  env table. `ENCRYPTION_KEY` now says it also covers Google tokens.
+- Known gaps: Google Calendar not yet tried against real Google.
+- README: the new invite lock was only in the log; added under `dispatchInvites`.
+- Docs only; nothing run.
+
 ## 2026-10-22 — Connect Google Calendar (spec section 13)
 
 - **Why not the link feed.** PRD 14.4 planned a private ICS link. The user
