@@ -2,6 +2,20 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-22 — Google Calendar checked against real Google
+
+- The user connected a real Google account (as Maya Patel, Acme demo,
+  through ngrok) and went through the browser checklist: what's synced,
+  changes within a minute, edits in Google, company off / Disconnect, and
+  access removed from Google's side. All passed.
+- Six seeded events (one-time, weekly, all day, Maya as a guest) matched
+  between NotifyHub and Google.
+- A "wrong time" report turned out to be the company time zone: Acme was
+  on UTC, Google shows the viewer's zone (IST), so a 04:30 UTC standup read
+  4:30 AM in NotifyHub and 10:00 AM in Google. The user set the company to
+  Asia/Calcutta. No code change; a per-person time zone isn't in the PRD.
+- Still open: whether Google lists `calendar.app.created` as sensitive.
+
 ## 2026-10-22 — UP6 flake fixed in the test's tick
 
 - Confirmed the cause logged below, with one correction. The worker's run

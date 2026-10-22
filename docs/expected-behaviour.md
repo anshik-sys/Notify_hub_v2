@@ -623,13 +623,13 @@ this step.)
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| GC1 | Profile → Connect Google Calendar | Google's consent screen asks only for "make secondary calendars and manage their events"; on Allow, back on Profile with "Connected as name@gmail.com" and a "NotifyHub" calendar appears in Google | Decided 2026-10-21 | PASS in code (scopes, offline, the calendar made); the Google screen and redirect are a browser check |
+| GC1 | Profile → Connect Google Calendar | Google's consent screen asks only for "make secondary calendars and manage their events"; on Allow, back on Profile with "Connected as name@gmail.com" and a "NotifyHub" calendar appears in Google | Decided 2026-10-21 | PASS (code); Browser (2026-10-22, real Google: consent screen, Connected as, NotifyHub calendar) |
 | GC2 | Any Google account | It needn't match the NotifyHub email or the sign-in method (password, or Google sign-in) | **(proposed)** | PASS |
 | GC3 | Deny on Google's screen, or it fails | Back on Profile with a message; nothing stored | | PASS in code; the Deny screen and message are a browser check |
 | GC4 | The tokens | Stored encrypted (like the Slack token); never logged or shown | AGENTS (integration secrets) | PASS |
 | GC5 | Disconnect | Syncing stops, the "NotifyHub" calendar is deleted from Google, the tokens are deleted | **(proposed: delete the calendar)** | PASS |
-| GC6 | Access revoked from Google's side (or the password changed) | Syncing stops; Profile says "Reconnect"; one in-app notification | **(proposed)** | PASS in code; the "Reconnect" text is a browser check |
-| GC7 | Admin blocks it for the company | Connect is hidden; existing connections stop syncing and their calendars are deleted | **(proposed)** | PASS in code; Connect hiding is a browser check |
+| GC6 | Access revoked from Google's side (or the password changed) | Syncing stops; Profile says "Reconnect"; one in-app notification | **(proposed)** | PASS (code); Browser (2026-10-22, real Google: access removed, Reconnect shown) |
+| GC7 | Admin blocks it for the company | Connect is hidden; existing connections stop syncing and their calendars are deleted | **(proposed)** | PASS (code); Browser (2026-10-22, real Google: calendar removed, Connect hidden) |
 | GC8 | Deactivated or erased person | Syncing stops; erasing deletes the tokens and (best effort) the calendar | PRD 11.5 | PASS |
 
 ### What's synced

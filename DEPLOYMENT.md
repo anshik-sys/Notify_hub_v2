@@ -304,7 +304,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - No bounce or complaint handling (SES → SNS). Bounced addresses aren't suppressed (PRD 7.1).
 - A failed verification email is only logged. The user gets a new link by signing in again.
 - Google sign-in can't be used to accept an invite (password only).
-- Google Calendar: never connected to real Google yet (only fakes), and whether Google treats `calendar.app.created` as sensitive (needing verification) is unchecked.
+- Google Calendar: tested against real Google on 2026-10-22 (one test user, local through ngrok). Whether Google treats `calendar.app.created` as sensitive (needing verification before public use) is unchecked.
 - Reminder form errors redirect back with the message, and **what was typed is lost** (no client JS). Native `required` catches the common case.
 - Tests need Mailpit running: `createInvitation` sends real mail.
 - **SAML SSO (PRD 3.1) isn't built.** It's deferred until a customer needs it (decided
