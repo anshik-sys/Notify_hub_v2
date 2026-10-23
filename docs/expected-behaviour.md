@@ -823,6 +823,55 @@ Rules marked **(proposed)** are mine; confirm or change them before building.
 Previews of files in the browser, editing a file in place, and files on Slack
 replies.
 
+## 16. Browser push notifications (v2, PRD 14.7)
+
+Today every event a person should hear about is a row in the notification
+centre (the bell), plus email or Slack for the events in Preferences. Push
+adds a third way out: a desktop notification from the browser, even when
+NotifyHub isn't open. Works in Chrome, Edge, Firefox and Safari (macOS 13+)
+on desktop.
+
+Rules marked **(proposed)** are mine; confirm or change them before building.
+
+| Function | What it does |
+|---|---|
+| Turn on push (Preferences) | Asks the browser's permission and saves this browser's push subscription for you. Per browser: a laptop and a desktop are two. |
+| Push sender (worker) | Sends each new notification-centre item to every browser you turned push on in, unless you muted that event for push. |
+| Clicking a push | Opens the item: the reminder, task, event, or the comment on its page. |
+| Turn off push | Forgets this browser; or the browser itself tells us it's gone and we forget it. |
+
+### Turning it on and off
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| PU1 | Preferences, "Push notifications in this browser: Turn on" | The browser asks for permission; once allowed, this browser is saved for you and the page says it's on | PRD 14.7 (opt-in per person) || PASS (saving, one row per browser); the permission prompt is a browser check |
+| PU2 | The person blocks the browser's permission | Nothing saved; the page explains how to allow it in the browser's site settings | || PASS (nothing saved); the page wording is a browser check |
+| PU3 | Turn off in this browser | That browser is forgotten; other browsers of yours keep getting pushes | **(proposed: per browser)** || PASS |
+| PU4 | Nobody has turned it on | Nothing is pushed to anyone; nobody is asked for permission unprompted | PRD 14.7 || PASS (nothing sent); no unprompted prompt is a browser check |
+| PU5 | A browser's subscription has expired or was revoked (the push service answers "gone") | It's forgotten at once; no retries | **(proposed)** || PASS |
+| PU6 | The person is deactivated, or erased (privacy) | Their browsers are forgotten; "Download my data" lists them (browser and date, not the keys) | AGENTS (personal data) || PASS |
+
+### What is pushed
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| PU7 | Anything new in your notification centre (a reminder or task sent to you, an invite, "due soon", a mention, a comment, an approval to give, a decision, a failure, …) | Pushed once to each of your browsers with push on, within about a minute | PRD 14.7; **(proposed: everything the bell shows)** || PASS; "within a minute" is the worker tick (read, not timed) |
+| PU8 | Muting | Preferences gets a Push column next to Email and Slack for the same events; a muted event isn't pushed. Push starts **on** for every event once you turn push on (you asked for it). Reminders, tasks and invites can't be muted, as today | PRD 14.7 "same mute preferences"; **(proposed: on by default)** || PASS; the Push column's layout is a browser check |
+| PU9 | What a push says | Title: the reminder or task's title; body: the notification's line ("Alice mentioned you: …"), at most ~120 characters. No attachments, no description | **(proposed)** || PASS |
+| PU10 | Clicking it | Opens NotifyHub at the item (the comment's anchor for a mention or comment), in an open NotifyHub tab if there is one; signed out, it goes through sign-in first | PRD 14.7 || PASS (URLs); tab reuse read in public/sw.js, clicking is a browser check |
+| PU11 | Pushing an old backlog | When push is first turned on, or the worker was down, nothing older than 1 hour is pushed | **(proposed)** || PASS |
+| PU12 | A push fails (the push service is down) | Tried again a few times; never shown twice | **(proposed)** || PASS: a retry resends to every browser of that person with the same tag, so the browser replaces rather than shows twice |
+| PU13 | Reading the item in NotifyHub | Unchanged: a push doesn't mark anything read; clicking it opens the page, which reads it as today | || PASS; opening the page from a push is a browser check |
+| PU14 | Another company | Never: pushes only go to your own browsers, for your own company's items | Tenancy || PASS |
+
+### Questions for the user before building
+
+1. **A dependency:** pushes are encrypted (RFC 8291) and signed (VAPID, RFC 8292). I'd add the small, widely used `web-push` package rather than hand-write the crypto. OK?
+2. **The CSP:** the push handler is a service worker (`/sw.js`). I'd add `worker-src 'self'` (only our own file may run as a worker; today no worker is allowed explicitly). It tightens as much as it opens, but AGENTS says to ask before touching the CSP. OK?
+3. **Privacy:** the push text (title and the notification line) passes through Google's, Apple's or Mozilla's push service, encrypted end to end so they can't read it. Is the title acceptable, or should pushes say only "You have a new notification in NotifyHub"?
+
+Deploy needs three new settings (VAPID public key, private key, contact email); they go in DEPLOYMENT.md.
+
 ## Open questions found while testing
 
 - ~~**T7a/T7c:** when the copy needs approval, the series still skips that date

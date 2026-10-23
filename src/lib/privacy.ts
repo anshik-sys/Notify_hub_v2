@@ -5,7 +5,7 @@ import { authDb } from "./auth";
 
 // PRD 11.5: everything NotifyHub holds about one person, as JSON. Tenant data
 // through withTenant (RLS), sessions through authDb (device and times only,
-// never tokens). Keep in step with erase_person (latest: migration 0044): a new
+// never tokens). Keep in step with erase_person (latest: migration 0055): a new
 // table with personal data belongs in both.
 
 
@@ -56,6 +56,8 @@ export async function exportPerson(companyId: string, userId: string) {
     googleCalendar: (
       await q(tx, sql`select google_email, status, created_at, last_synced_at from google_calendars where user_id = ${userId}`)
     )[0] ?? null,
+    // Browsers they turned push on in (PRD 14.7): which and when, never the keys or push URL.
+    pushBrowsers: await q(tx, sql`select label, created_at from push_subscriptions where user_id = ${userId} order by created_at`),
     // Their own calendar colours (PRD 14.2).
     reminderColors: await q(tx, sql`select r.title as reminder, c.color from reminder_colors c join reminders r on r.id = c.reminder_id where c.user_id = ${userId}`),
     // The image itself too: it's theirs (PRD 11.5).

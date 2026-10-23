@@ -818,17 +818,45 @@ export const notifications = pgTable(
     dedupeKey: text(),
     createdAt: ts().notNull().defaultNow(),
     readAt: ts(),
+    // PRD 14.7: claimed by the worker's push sender; push_attempts counts retries.
+    pushedAt: ts(),
+    pushAttempts: integer().notNull().default(0),
   },
   (t) => [
     index().on(t.userId, t.createdAt.desc()),
     index("notifications_unread_idx").on(t.userId).where(isNull(t.readAt)),
     uniqueIndex().on(t.userId, t.dedupeKey),
+    // The push sender's scan (PRD 14.7): only what it hasn't claimed yet.
+    index("notifications_unpushed_idx").on(t.createdAt).where(sql`${t.pushedAt} is null`),
     check(
       "notifications_kind_valid",
       sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed','escalated','rsvp','invite','calendar','chain')`,
     ),
     tenantPolicy("company_id"),
   ],
+).enableRLS();
+
+// PRD 14.7: one per browser a person turned push on in. endpoint is the
+// browser vendor's push URL (checked against known push services: the worker
+// posts to it); p256dh and auth are the browser's keys for encrypting to it.
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    endpoint: text().notNull().unique(),
+    p256dh: text().notNull(),
+    auth: text().notNull(),
+    // "Chrome on macOS", for Download my data.
+    label: text().notNull(),
+    createdAt: ts().notNull().defaultNow(),
+  },
+  (t) => [index().on(t.userId), tenantPolicy("company_id")],
 ).enableRLS();
 
 // Opt-outs: a row turns one event off on one channel. No row = on.

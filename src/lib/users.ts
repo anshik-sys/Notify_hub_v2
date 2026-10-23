@@ -1,7 +1,7 @@
 import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { cache } from "react";
 import { withTenant } from "@/db";
-import { departmentMembers, departments, googleCalendars, invitations, roles, session, user, userPhotos, userRoles } from "@/db/schema";
+import { departmentMembers, departments, googleCalendars, invitations, pushSubscriptions, roles, session, user, userPhotos, userRoles } from "@/db/schema";
 import { decrypt } from "./crypto";
 import { teardown } from "./google";
 import { listMySessions, resetTwoFactor } from "./account";
@@ -232,6 +232,8 @@ export async function setActive(actor: Actor, companyId: string, userId: string,
         .where(eq(user.id, userId))
         .returning({ id: user.id });
       if (updated.length === 0) throw new Refused("User not found.");
+      // PU6: someone who leaves gets no more pushes; reactivated, they turn it on again.
+      if (!active) await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
       await assertAdminRemains(tx);
     });
   } catch (e) {

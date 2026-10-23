@@ -56,6 +56,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Sub-tasks are `reminders` rows with `parent_id`. Anything new that changes a reminder's status or send time refuses a sub-task (`notSubTask`) and carries the change to its sub-tasks (`toSubTasks`); the parent itself sends nothing.
 - A reminder waiting for a task (chains) has `send_at = WAITING_AT` (`src/lib/tasks.ts`). Anything new that shows `send_at` checks `isWaiting` first; anything new that marks a task done calls `startAfter`.
 - An event's invites are `deliveries` with `kind = 'invite'` and no occurrence. Anything new that joins deliveries to occurrences must handle `occurrence_id` null.
+- Browser push (PRD 14.7) is sent only by the worker (`src/worker/push.ts`) from new `notifications` rows: a new event that writes a notification is pushed with no extra code. A push endpoint is only accepted from the known push services (`checkSubscription`); never relax that, the worker POSTs to it.
 - Mail goes through `sendMail()` in `src/lib/mail.ts`, one recipient per call. Dev mail lands in Mailpit (http://localhost:8025).
 - Do not "simplify" the three DB roles, the transaction-local `set_config`, or the `nullif` in the policy. See README.
 - `pnpm typecheck` runs `next typegen` first; plain `tsc` fails on `LayoutProps`.

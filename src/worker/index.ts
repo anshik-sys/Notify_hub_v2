@@ -8,6 +8,7 @@ import { runRetention } from "./retention";
 import { upcomingVolumeAlerts, volumeAlerts } from "./volume-alert";
 import { escalateOverdue } from "./escalation";
 import { googleSyncTargets, syncGoogle } from "./google-sync";
+import { dispatchPush } from "./push";
 import { claimFollowUps, claimSnoozes, deliverOne, dispatchChanges, dispatchDue, dispatchInvites, dispatchManual, dispatchRemindBefore, dispatchSoon, followUpOne, MAX_ATTEMPTS, snoozeOne, sweep } from "./delivery";
 
 // Long-running process, deployed separately from the web app.
@@ -61,6 +62,9 @@ function dispatch() {
       if (soon) console.log(`queued ${soon} starts-soon notice(s)`);
       const remind = await dispatchRemindBefore(enqueue).catch((e) => (console.error("remind-before dispatch failed", e), 0));
       if (remind) console.log(`queued ${remind} due-soon reminder(s)`);
+      // Last: what the runs above just put in people's notification centres (PRD 14.7).
+      const pushed = await dispatchPush().catch((e) => (console.error("push dispatch failed", e), 0));
+      if (pushed) console.log(`sent ${pushed} push notification(s)`);
     } while (again);
     running = null;
   })();

@@ -7,7 +7,8 @@ import { NextRequest, NextResponse } from "next/server";
 // the nonce is meant to be blocked.
 // - style-src-attr 'unsafe-inline': style="" attributes (report bars), not <style>;
 // - frame-src 'self': the email preview's sandboxed srcdoc iframe;
-// - form-action: Google sign-in and Slack connect redirect out from a form post.
+// - form-action: Google sign-in and Slack connect redirect out from a form post;
+// - worker-src 'self': only our own /sw.js may run as a worker (browser push, PRD 14.7).
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const dev = process.env.NODE_ENV === "development";
@@ -21,6 +22,7 @@ export function proxy(request: NextRequest) {
     "font-src 'self'",
     `connect-src 'self'${dev ? " ws:" : ""}`,
     "frame-src 'self'",
+    "worker-src 'self'",
     "form-action 'self' https://accounts.google.com https://slack.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",

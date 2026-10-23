@@ -30,6 +30,7 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` | web (`/api/slack/oauth`) | From the Slack app's Basic Information page. |
 | `SLACK_SIGNING_SECRET` | web (interactions, phase B) | From Basic Information. |
 | `SLACK_API_URL`, `SLACK_AUTHORIZE_URL` | web, worker | **Dev only** (point at `pnpm fake-slack`). Leave unset in production. |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | web (Preferences: the public key), worker (`src/worker/push.ts`, signs pushes) | Optional; browser push (PRD 14.7) is off without all three. Make the pair once with `npx web-push generate-vapid-keys`; the subject is `mailto:` a contact address (the push services use it if something's wrong). **Changing the pair stops push for everyone** until they turn it on again in each browser. Same values in web and worker. |
 
 `next build` imports the auth module, so the build environment needs the DB URLs set too (they need not be reachable).
 
@@ -357,6 +358,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Audit log: rename a department → it appears with your name and "name: old → new"; Export CSV downloads it; a member gets 404. `delete from audit_log` as the app role → permission denied.
 - [ ] Reports: Deliveries shows today's sends per channel with a success rate; Task completion and Overdue match what people see under My tasks; Export CSV downloads the same numbers; a member gets 404.
 - [ ] `curl -I https://<app>/sign-in` shows Content-Security-Policy (with a nonce), Strict-Transport-Security, X-Frame-Options DENY, X-Robots-Tag noindex. The browser console shows no CSP errors on the main pages, the reminder form preview and Settings → Security (QR).
+- [ ] Notifications → Preferences → "Turn on in this browser" (Chrome, then Safari): the browser asks; allow it. Mention that person in a comment from another account → a desktop notification within a minute with the reminder's title; clicking it opens the comment. Untick "Browser push" for mentions → the next mention shows in the bell only. "Turn off in this browser" → no more pushes there.
 - [ ] 6 wrong passwords for one account → "Too many attempts". `/api/health` → 200; stop the worker → 503 within 3 minutes.
 - [ ] Company settings: a sender name shows in new emails' From. Named approvers: only they get approval emails, and an admin who isn't named can't decide.
 - [ ] Team → Import CSV with the template: invites arrive, and the accepted person lands in the right department and role. A file with a bad row imports nothing and lists the problems.

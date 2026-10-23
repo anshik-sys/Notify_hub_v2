@@ -2,6 +2,57 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-23 — browser push (spec 16, PU1-PU14)
+
+- The user approved the spec and said yes to all three questions:
+  - the `web-push` dependency (RFC 8291 encryption and VAPID signing; not hand-written crypto);
+  - `worker-src 'self'` in the CSP;
+  - the reminder's title in the push text.
+- **Push mirrors the notification centre:** the worker claims every new
+  `notifications` row (`pushed_at`, one UPDATE … RETURNING, so two workers
+  never both send one) and pushes the fresh ones (under an hour old, PU11) to
+  that person's browsers. Rejected: hooking every place that writes a
+  notification (six writers across web and worker). With the sweep, a new
+  event is pushed with no extra code.
+  - The migration backfills `pushed_at` so nothing already in the bell is
+    pushed. A partial index keeps the scan to unclaimed rows.
+- **Retries without double display:** a failed send releases the row (up to 3
+  tries) and resends to all of that person's browsers. The service worker
+  shows it with `tag` = the notification id, so a repeat replaces the earlier
+  one instead of showing twice (PU12). 404/410 from the push service forgets
+  that browser (PU5).
+- **Security:** the worker POSTs to whatever endpoint a browser hands us, so
+  `checkSubscription` accepts only https URLs on the known push services
+  (Google, Apple, Mozilla, Microsoft). Otherwise a member could aim our
+  server at internal URLs (SSRF). Keys and endpoint are left out of the audit
+  log and of "Download my data" (only browser and date are kept, PU6).
+  Deactivating deletes the person's browsers; `erase_person` (now migration
+  0055) does too.
+- **Mutes:** every Preferences event got a `push` channel, starting on
+  (PU8). Reminders, tasks, invites and chain notices have no Preferences
+  row, so they always push. "Approved" and "rejected" share one notification
+  kind; the sender tells them apart by the text. "Held" is told apart by its
+  dedupe key. Both are small hacks, kept to avoid a kind change.
+- The spec test N1 (section 9) listed the Preferences channels. Its table now
+  includes push, as section 16 says; nothing else in it changed.
+- Push is off unless the three VAPID settings are set (DEPLOYMENT.md). Locally
+  that also keeps the live worker from claiming test rows.
+- Independent spec tests (fresh agent, `spec-push.test.ts`): PU1-PU14 all
+  pass first time, 7 browser skips. Its notes:
+  - A retry resends to a browser that already got the push. It's replaced by
+    tag, not shown twice; that's how PU12 reads.
+  - The local `BETTER_AUTH_URL` still has a trailing slash, so links come out
+    as `//reminders/…`. That's in the environment, not the code; check the
+    deployed value.
+- **Verified:** typecheck, lint, my tests (5), spec PU1-PU14, and the full
+  suite (662 pass, 2 fail). Both failures are UP5. The live worker was
+  started at 16:03, before the "Cancelled once" fix, so it still races the
+  tests with the old code. `changes.test.ts` passes alone 3 out of 3.
+  Restart the worker.
+  - **Not verified:** a real push in a real browser (permission prompt, the
+    service worker showing it, clicking it). That needs VAPID keys in `.env`
+    and the user's browser.
+
 ## 2026-10-23 — comments and attachments: edit windows, files on comments, more types (spec 15)
 
 - Spec approved as written ("spec is fine"), including AW3: after 24 hours a

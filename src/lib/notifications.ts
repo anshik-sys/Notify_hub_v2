@@ -22,18 +22,19 @@ export type NewNotification = typeof notifications.$inferInsert & { kind: Notifi
 // so adding one never starts mailing everyone. Choices are stored only where
 // they differ from the default (notification_mutes.enabled).
 export const MUTABLE = [
-  { event: "approval", label: "A reminder needs my approval", channels: ["email", "slack"], off: [] },
-  { event: "approved", label: "My reminder was approved", channels: ["email", "slack"], off: ["email", "slack"] },
-  { event: "decided", label: "My reminder was rejected", channels: ["email", "slack"], off: [] },
-  { event: "mention", label: "Someone mentioned me in a comment", channels: ["email", "slack"], off: [] },
-  { event: "comment", label: "Someone commented on my reminder", channels: ["email", "slack"], off: ["email", "slack"] },
-  { event: "tasks_done", label: "Everyone finished my task", channels: ["email", "slack"], off: ["email", "slack"] },
-  { event: "failed", label: "Some deliveries failed", channels: ["email", "slack"], off: ["slack"] },
-  { event: "held", label: "My company reached its daily email limit", channels: ["email"], off: [] },
-  { event: "escalated", label: "Someone in my department is late on a task", channels: ["email", "slack"], off: [] },
-  { event: "rsvp", label: "A guest answered my event", channels: ["email", "slack"], off: ["email", "slack"] },
+  { event: "approval", label: "A reminder needs my approval", channels: ["email", "slack", "push"], off: [] },
+  { event: "approved", label: "My reminder was approved", channels: ["email", "slack", "push"], off: ["email", "slack"] },
+  { event: "decided", label: "My reminder was rejected", channels: ["email", "slack", "push"], off: [] },
+  { event: "mention", label: "Someone mentioned me in a comment", channels: ["email", "slack", "push"], off: [] },
+  { event: "comment", label: "Someone commented on my reminder", channels: ["email", "slack", "push"], off: ["email", "slack"] },
+  { event: "tasks_done", label: "Everyone finished my task", channels: ["email", "slack", "push"], off: ["email", "slack"] },
+  { event: "failed", label: "Some deliveries failed", channels: ["email", "slack", "push"], off: ["slack"] },
+  { event: "held", label: "My company reached its daily email limit", channels: ["email", "push"], off: [] },
+  { event: "escalated", label: "Someone in my department is late on a task", channels: ["email", "slack", "push"], off: [] },
+  { event: "rsvp", label: "A guest answered my event", channels: ["email", "slack", "push"], off: ["email", "slack"] },
 ] as const satisfies readonly { event: string; label: string; channels: readonly Channel[]; off: readonly Channel[] }[];
-type Channel = "email" | "slack";
+// push (PRD 14.7) starts on: people turn it on per browser, so they asked for it (PU8).
+type Channel = "email" | "slack" | "push";
 export type MutableEvent = (typeof MUTABLE)[number]["event"];
 const CHANNEL_KEYS = new Set<string>(MUTABLE.flatMap((m) => m.channels.map((c) => `${m.event}:${c}`)));
 const startsOn = (event: string, channel: string) => !MUTABLE.find((m) => m.event === event)?.off.some((c) => c === channel);

@@ -1,9 +1,11 @@
 import { Button, CheckboxGroup, Form, Hint, Page, Section, firstParam } from "@/components/form";
 import { getMutes, MUTABLE } from "@/lib/notifications";
+import { vapidPublicKey } from "@/lib/push";
 import { requireMember } from "@/lib/session";
+import { PushToggle } from "./push-toggle";
 import { savePreferencesAction } from "../actions";
 
-const CHANNEL_LABEL = { email: "Email", slack: "Slack DM" } as const;
+const CHANNEL_LABEL = { email: "Email", slack: "Slack DM", push: "Browser push" } as const;
 
 export default async function NotificationPreferences(props: PageProps<"/notifications/preferences">) {
   const { user, companyId } = await requireMember();
@@ -12,6 +14,10 @@ export default async function NotificationPreferences(props: PageProps<"/notific
 
   return (
     <Page title="Notification preferences" back={{ href: "/notifications", label: "Notifications" }} notice={notice}>
+      {/* PRD 14.7: per browser, so outside the saved preferences below. */}
+      <Section title="Push notifications in this browser">
+        {vapidPublicKey() ? <PushToggle vapidKey={vapidPublicKey()!} /> : <Hint>Push isn’t set up on this server yet.</Hint>}
+      </Section>
       <Form action={savePreferencesAction}>
         <Hint>
           Everything always shows in Notifications. Choose where else you hear about it. Reminders and tasks sent to you

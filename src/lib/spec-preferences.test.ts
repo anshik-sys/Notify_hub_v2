@@ -59,19 +59,19 @@ const mailpitAtLeast = async (to: string, n: number, ms = 4000) => {
 };
 
 // --- The spec's table, matched to MUTABLE by label -------------------------------------
-type Spec = { key: string; re: RegExp; channels: ("email" | "slack")[]; off: ("email" | "slack")[] };
+type Spec = { key: string; re: RegExp; channels: ("email" | "slack" | "push")[]; off: ("email" | "slack" | "push")[] };
 const SPEC: Spec[] = [
-  { key: "needs approval", re: /need.*approv|approv.*(need|request|wait|pending)/i, channels: ["email", "slack"], off: [] },
-  { key: "approved", re: /\bapproved\b/i, channels: ["email", "slack"], off: ["email", "slack"] },
-  { key: "rejected", re: /\brejected\b/i, channels: ["email", "slack"], off: [] },
-  { key: "mentioned", re: /mention/i, channels: ["email", "slack"], off: [] },
-  { key: "commented", re: /commented/i, channels: ["email", "slack"], off: ["email", "slack"] },
-  { key: "tasks done", re: /finished|everyone.*done|all.*done|completed/i, channels: ["email", "slack"], off: ["email", "slack"] },
-  { key: "failed", re: /fail/i, channels: ["email", "slack"], off: ["slack"] },
-  { key: "limit", re: /limit/i, channels: ["email"], off: [] },
-  { key: "late", re: /\blate\b|overdue/i, channels: ["email", "slack"], off: [] },
-  // Added with events (section 11, RS7).
-  { key: "answered", re: /answered/i, channels: ["email", "slack"], off: ["email", "slack"] },
+  { key: "needs approval", re: /need.*approv|approv.*(need|request|wait|pending)/i, channels: ["email", "slack", "push"], off: [] },
+  { key: "approved", re: /\bapproved\b/i, channels: ["email", "slack", "push"], off: ["email", "slack"] },
+  { key: "rejected", re: /\brejected\b/i, channels: ["email", "slack", "push"], off: [] },
+  { key: "mentioned", re: /mention/i, channels: ["email", "slack", "push"], off: [] },
+  { key: "commented", re: /commented/i, channels: ["email", "slack", "push"], off: ["email", "slack"] },
+  { key: "tasks done", re: /finished|everyone.*done|all.*done|completed/i, channels: ["email", "slack", "push"], off: ["email", "slack"] },
+  { key: "failed", re: /fail/i, channels: ["email", "slack", "push"], off: ["slack"] },
+  { key: "limit", re: /limit/i, channels: ["email", "push"], off: [] },
+  { key: "late", re: /\blate\b|overdue/i, channels: ["email", "slack", "push"], off: [] },
+  // Added with events (section 11, RS7). Push on every event, starting on: section 16, PU8.
+  { key: "answered", re: /answered/i, channels: ["email", "slack", "push"], off: ["email", "slack"] },
 ];
 const listed = () => MUTABLE.map((m) => `${m.event} "${m.label}" [${m.channels}] off [${m.off}]`).join("; ");
 const ev = (key: Spec["key"]) => {
