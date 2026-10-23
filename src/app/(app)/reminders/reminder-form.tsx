@@ -4,6 +4,7 @@ import { ACCEPT, MAX_FILES_PER_SAVE } from "@/lib/attachments";
 import { formatSize } from "@/lib/format";
 import type { Brand } from "@/lib/email-render";
 import type { RepeatFields } from "@/lib/recurrence";
+import { SUB_TASK_ROWS } from "@/lib/reminders";
 import { saveReminder } from "./actions";
 import type { DepartmentChoice, Person } from "./form-data";
 import { PeoplePicker } from "./people-picker";
@@ -46,6 +47,54 @@ function RemindBefore({ minutes }: { minutes: number[] }) {
   );
 }
 
+// PRD 14.5 (ST1). No assignees picked: the task's own recipients get it.
+type SubTaskDefaults = { id: string; title: string; dueLocal: string; userIds: string[]; cover: string | null };
+function SubTaskRow({ index, sub, people, timeZone }: { index: number; sub?: SubTaskDefaults; people: Person[]; timeZone: string }) {
+  const name = (field: string) => `sub.${index}.${field}`;
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.blockTitle}>Sub-task {index + 1}</h3>
+      {sub && <input type="hidden" name={name("id")} value={sub.id} />}
+      <div className={styles.linkRow}>
+        <Field label="Title" name={name("title")} maxLength={200} defaultValue={sub?.title} />
+        <Field label={`Due (${timeZone})`} name={name("due")} type="datetime-local" defaultValue={sub?.dueLocal} />
+      </div>
+      {people.length > 0 && <PeoplePicker people={people} initial={sub?.userIds ?? []} name={name("users")} label="Assignees (none: the task’s recipients)" />}
+      <FileField label={sub?.cover ? "Replace its cover image" : "Cover image"} name={name("cover")} accept=".png,.jpg,.jpeg,.gif,.webp" />
+      {sub?.cover && <Checkbox label="Remove its cover image" name={name("removeCover")} />}
+    </div>
+  );
+}
+
+function SubTasks({ subs, people, timeZone }: { subs: SubTaskDefaults[]; people: Person[]; timeZone: string }) {
+  // The saved ones and one empty row; the rest folded below.
+  const shown = Math.min(SUB_TASK_ROWS, subs.length + 1);
+  return (
+    <details className={styles.more} open={subs.length > 0}>
+      <summary className={styles.summary}>Sub-tasks</summary>
+      <div className={styles.moreRows}>
+        <Hint>
+          Each goes out with the task, to its own people, and is due by the task’s due time. The task is done when every sub-task is.
+          Only for tasks that don’t repeat. Clear a title to remove that sub-task.
+        </Hint>
+        {Array.from({ length: shown }, (_, i) => (
+          <SubTaskRow key={i} index={i} sub={subs[i]} people={people} timeZone={timeZone} />
+        ))}
+        {shown < SUB_TASK_ROWS && (
+          <details className={styles.more}>
+            <summary className={styles.summary}>More sub-tasks</summary>
+            <div className={styles.moreRows}>
+              {Array.from({ length: SUB_TASK_ROWS - shown }, (_, i) => (
+                <SubTaskRow key={shown + i} index={shown + i} people={people} timeZone={timeZone} />
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
+    </details>
+  );
+}
+
 export type ReminderDefaults = {
   id?: string;
   title: string;
@@ -70,6 +119,7 @@ export type ReminderDefaults = {
   location?: string;
   meetingUrl?: string;
   notifyBefore?: number[];
+  subTasks?: SubTaskDefaults[];
   channels: string[];
   slackChannelIds: string[];
   tags: string;
@@ -210,6 +260,8 @@ export function ReminderForm({
   const others = departments.filter((d) => !d.mine);
   // Teammates already show as ticks above, so the people picker only pre-fills the rest.
   const teammates = new Set(mine.flatMap((d) => d.members.map((m) => m.id)));
+  // Sub-task assignees: the directory, or (without it) everyone in a department.
+  const assignable = people.length ? people : [...new Map(departments.flatMap((d) => d.members).map((m) => [m.id, m])).values()];
 
   // Your own departments are covered by "My departments"; one already shared
   // by id (an older reminder) stays listed so saving an edit keeps it.
@@ -440,6 +492,7 @@ export function ReminderForm({
             <FileField label={cover ? "Replace the cover image" : "Cover image"} name="cover" accept=".png,.jpg,.jpeg,.gif,.webp" />
             <Hint>Shown across the top of the task’s page. PNG, JPEG, GIF or WebP, up to 5 MB.</Hint>
             {cover && <Checkbox label="Remove the cover image" name="removeCover" />}
+            <SubTasks subs={defaults.subTasks ?? []} people={assignable} timeZone={timeZone} />
           </div>
           {/* PRD 14.3: the start is "When to send" above. */}
           <div className={styles.event}>

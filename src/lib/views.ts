@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, lt, or, sql, type SQL } from 
 import { withTenant } from "@/db";
 import { type CalendarColor, type EventAnswer, REMINDER_STATUSES, reminderOccurrences, reminderShares, reminders, taskAssignments, user, type ReminderStatus } from "@/db/schema";
 import { type Access, can } from "./permissions";
+import { recipientLabels } from "./recipients";
 import { between, describe, type Rule } from "./recurrence";
 import { invitedSql, sharedWithSql } from "./reminders";
 import { toLocalInput, zonedToUtc } from "./time";
@@ -307,18 +308,7 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
     theirs: range.person ? sql<boolean>`${reminders.createdBy} = ${range.person} or ${addressedTo(range.person)}` : sql<boolean>`false`,
     // overseeWhere's twin as a column: full access (sees recipients, may change with reminders.edit).
     full: seesAll(viewer) ? sql<boolean>`true` : sql<boolean>`${mineOrManaged(viewer)}`,
-    recipients: sql<string | null>`(select string_agg(case t.kind
-        when 'company' then 'Everyone in the company'
-        when 'department' then coalesce(d.name, 'Deleted department') || ' (department)'
-        when 'group' then coalesce(g.name, 'Deleted') || ' (group)'
-        when 'user' then coalesce(u.name, 'Removed person')
-        when 'slack_channel' then '#' || coalesce(t.label, t.ref) || ' (Slack)'
-        else t.ref end, ', ' order by t.kind, t.ref)
-      from reminder_targets t
-      left join departments d on t.kind = 'department' and d.id::text = t.ref
-      left join groups g on t.kind = 'group' and g.id::text = t.ref
-      left join "user" u on t.kind = 'user' and u.id = t.ref
-      where t.reminder_id = "reminders"."id")`, // qualified: d, g and u have an id too
+    recipients: recipientLabels,
     createdBy: reminders.createdBy,
     isEvent: reminders.isEvent,
     durationMinutes: reminders.durationMinutes,

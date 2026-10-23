@@ -9,7 +9,7 @@ import { coverUrl, deliveryLog, getReminder, isDelayed, listAttachments, mayDeci
 import { formatSize } from "@/lib/format";
 import { markReadForReminder } from "@/lib/notifications";
 import { requireMember } from "@/lib/session";
-import { myTaskStatus, taskProgress } from "@/lib/tasks";
+import { myTaskStatus, subTasks, taskProgress } from "@/lib/tasks";
 import { beforeLabel, formatInZone } from "@/lib/time";
 import { eventGuests } from "@/lib/events";
 import { ANSWER_LABEL, answerOpen, eventWhen } from "@/lib/invite";
@@ -66,6 +66,10 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   // PRD 14.3: answers, once guests can see it (not while waiting for approval).
   const guests = r.isEvent && ["scheduled", "paused", "sent"].includes(r.status) ? await eventGuests(companyId, r) : null;
   const myAnswer = guests?.list.find((g) => g.id === user.id && !g.organiser);
+  // PRD 14.5: a task's sub-tasks (ST5), or a sub-task's task and how far it is (ST9).
+  const parent = r.parentId ? await getReminder(companyId, r.parentId) : null;
+  const subs = r.isTask ? await subTasks(companyId, parent?.id ?? r.id) : [];
+  const parentOpen = parent ? Boolean(await reminderAccess(companyId, { id: user.id, email: user.email, access }, parent)) : false;
   const [files, thread, people, photos, cover] = await Promise.all([
     listAttachments(companyId, r.id),
     listComments(companyId, r.id),
@@ -84,10 +88,14 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   const tz = r.timeZone;
   // Same rule as mayChange in src/lib/reminders.ts: "full" already means they can see it in full.
   const owner = user.id === r.createdBy;
-  const mayDelete = owner || (can(access, "reminders.edit") && seeAs === "full");
+  // A sub-task changes, and is approved, only with its task.
+  const mayMark = owner || (can(access, "reminders.edit") && seeAs === "full");
+  const mayDelete = !parent && mayMark;
+  const hasSubs = !parent && subs.length > 0;
   const mayChange = editable && mayDelete;
-  const mayDecide = r.status === "pending_approval" && (await canDecide(companyId, { id: user.id, access }));
+  const mayDecide = !parent && r.status === "pending_approval" && (await canDecide(companyId, { id: user.id, access }));
   const maySendNow =
+    !parent &&
     (r.status === "scheduled" || (r.recurrence && r.status === "paused")) &&
     (owner || (can(access, "reminders.send_now") && seeAs === "full"));
 
@@ -188,6 +196,52 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                 </List>
               )}
             </Section>
+
+            {parent && (
+              <Section title="Part of a task">
+                <Hint>
+                  {parentOpen ? <Link href={`/reminders/${parent.id}`}>{parent.title}</Link> : parent.title}: {subs.filter((x) => x.done).length} of{" "}
+                  {subs.length} sub-tasks done
+                </Hint>
+              </Section>
+            )}
+
+            {hasSubs && (
+              <Section title={`Sub-tasks: ${subs.filter((x) => x.done).length} of ${subs.length} done`}>
+                <Hint>The task is done when every sub-task is.</Hint>
+                {seeAs === "full" && (
+                  <Table
+                    columns={["Sub-task", "People", "Due", "Status"]}
+                    rows={subs.map((x) => {
+                      const due = new Date(x.sendAt.getTime() + (x.dueAfterMinutes ?? 0) * 60_000);
+                      return {
+                        key: x.id,
+                        cells: [
+                          <Link key="t" href={`/reminders/${x.id}`}>
+                            {x.title}
+                          </Link>,
+                          x.people ?? "—",
+                          formatInZone(due, tz),
+                          x.done ? (
+                            <Badge key="s" tone="success">
+                              Done
+                            </Badge>
+                          ) : x.status !== "sent" && x.status !== "sending" ? (
+                            <Badge key="s">{statusLabel({ ...x, recurrence: null })}</Badge>
+                          ) : overdue(due) ? (
+                            <Badge key="s" tone="danger">
+                              Overdue
+                            </Badge>
+                          ) : (
+                            <Badge key="s">Not done</Badge>
+                          ),
+                        ],
+                      };
+                    })}
+                  />
+                )}
+              </Section>
+            )}
 
             {progress && progress.total > 0 && log?.latest && (
               <Section title={`Task: ${progress.done} of ${progress.total} done`}>
@@ -356,7 +410,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
             )}
 
             {/* PRD 5.8: nobody in the company is assigned (sent only outside, or an announcement): one shared done. */}
-            {mayDelete && log?.latest && (!r.isTask || progress?.total === 0) && (
+            {mayMark && log?.latest && (!r.isTask || progress?.total === 0) && !hasSubs && (
               <Section title={r.isTask ? "Task" : "Complete"}>
                 <Hint>
                   {log.latest.doneAt

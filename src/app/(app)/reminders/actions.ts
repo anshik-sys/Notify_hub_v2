@@ -68,7 +68,10 @@ export async function saveReminder(fd: FormData) {
   // CSS), so it only counts for a task; saving anything else drops the cover.
   const coverUpload = parsed.input.isTask ? fd.get("cover") : null;
   const coverFile = coverUpload instanceof File && coverUpload.size > 0 ? coverUpload : null;
-  if (uploads.length || coverFile) {
+  const subTasks = parsed.input.subTasks ?? [];
+  if (subTasks.some((t) => (t.id && !isUuid(t.id)) || t.userIds.some((u) => !u || u.length > 64))) notFound();
+  const subCovers = subTasks.map((t) => fd.get(`sub.${t.row}.cover`)).filter((f): f is File => f instanceof File && f.size > 0);
+  if (uploads.length || coverFile || subCovers.length) {
     const limited = await limits([[`upload:user:${user.id}`, 30, 3600]]);
     if (limited) redirect(errorUrl(back, limited));
   }
@@ -84,6 +87,15 @@ export async function saveReminder(fd: FormData) {
     const checked = checkCover(coverFile.name, new Uint8Array(await coverFile.arrayBuffer()));
     if ("error" in checked) redirect(errorUrl(back, checked.error));
     cover = checked.image;
+  }
+  // Each sub-task's cover, checked like the task's (CV1).
+  for (const t of subTasks) {
+    const f = fd.get(`sub.${t.row}.cover`);
+    if (f instanceof File && f.size > 0) {
+      const checked = checkCover(f.name, new Uint8Array(await f.arrayBuffer()));
+      if ("error" in checked) redirect(errorUrl(back, checked.error));
+      t.cover = checked.image;
+    } else if (fd.get(`sub.${t.row}.removeCover`)) t.cover = null;
   }
   const removeAttachmentIds = all(fd, "removeAttachments");
   if (!removeAttachmentIds.every(isUuid)) notFound();

@@ -11,6 +11,7 @@ import { copyCover, deleteCover, getBlob, getCover, putBlob, putCover } from "./
 import { resolveRecipients, type Target, type Tx } from "./recipients";
 import { type Access, can, COMPANY_ADMIN_ROLE_ID, loadAccess } from "./permissions";
 import { firstAtOrAfter, nextAfter, type RepeatFields, type Rule, ruleFromForm, shiftSeries, splitRule } from "./recurrence";
+import { syncParent } from "./tasks";
 import { toLocalInput, zonedToUtc } from "./time";
 
 export type { Target };
@@ -38,7 +39,13 @@ export type ReminderInput = {
   location?: string | null;
   meetingUrl?: string | null;
   notifyBefore?: number[];
+  // PRD 14.5 sub-tasks of a one-time task. Left out = unchanged on an update;
+  // [] removes them.
+  subTasks?: SubTask[];
 };
+// userIds empty = the task's own recipients. row = its row in the form (covers
+// are matched by it); cover as in saveCover.
+export type SubTask = { id: string | null; row: number; title: string; dueAfterMinutes: number; userIds: string[]; cover?: CheckedFile | null };
 export type Share = { kind: "mine" | "department" | "group" | "company"; ref: string | null };
 type Actor = { id: string; access: Access };
 
@@ -83,7 +90,11 @@ export type RawReminder = {
   remindBefore?: string[];
   remindCustom?: string;
   remindUnit?: string; // "minutes" | "hours" | "days"
+  // PRD 14.5: one per filled-in row of the form (SUB_TASK_ROWS).
+  subTasks?: { id: string; title: string; dueLocal: string; userIds: string[] }[];
 };
+
+export const SUB_TASK_ROWS = 10;
 
 // The New/Edit form's post (reminder-form.tsx) -> RawReminder. The field names
 // here must match the form's; reminder-form.test.ts checks that they do.
@@ -124,6 +135,12 @@ export function formToRaw(fd: FormData): RawReminder {
     remindCustom: str("remindCustom"),
     remindUnit: str("remindUnit"),
     dueLocal: str("due"),
+    subTasks: Array.from({ length: SUB_TASK_ROWS }, (_, i) => ({
+      id: str(`sub.${i}.id`),
+      title: str(`sub.${i}.title`),
+      dueLocal: str(`sub.${i}.due`),
+      userIds: all(`sub.${i}.users`),
+    })),
     repeat: {
       repeat: str("repeat"),
       every: str("every"),
@@ -279,6 +296,21 @@ export function validateInput(
     if ("error" in before) return before;
     remind = { notifyBefore: before.minutes };
   }
+  // PRD 14.5 sub-tasks (ST1, ST3, ST10). Anything but a task drops them, like the cover.
+  const subTasks: SubTask[] = [];
+  for (const [row, s] of (raw.subTasks ?? []).entries()) {
+    // A row without a title isn't one (clearing it removes the sub-task).
+    const subTitle = s.title.trim();
+    if (!raw.isTask || raw.isEvent || !subTitle) continue;
+    if (subTitle.length > 200) return { error: "A sub-task’s title must be at most 200 characters." };
+    if (recurrence) return { error: "A repeating task can’t have sub-tasks." };
+    const due = zonedToUtc(s.dueLocal, timeZone);
+    if (!due) return { error: `Sub-task “${subTitle}” needs a due date and time.` };
+    const minutes = Math.round((due.getTime() - sendAt.getTime()) / 60_000);
+    if (minutes < 1 || minutes > dueAfterMinutes!)
+      return { error: `Sub-task “${subTitle}” must be due after the task is sent and no later than the task.` };
+    subTasks.push({ id: s.id || null, row, title: subTitle, dueAfterMinutes: minutes, userIds: [...new Set(s.userIds)] });
+  }
   const tags = parseTags(raw.tags);
   if ("error" in tags) return tags;
   // The whole company covers every narrower share.
@@ -307,6 +339,7 @@ export function validateInput(
       targets,
       ...event,
       ...remind,
+      subTasks,
       // An all-day event is anchored at midnight on its first day.
       ...(event.allDay ? { anchorLocal: `${raw.sendAtLocal.slice(0, 10)}T00:00` } : {}),
     } satisfies ReminderInput,
@@ -499,6 +532,74 @@ async function checked(tx: Tx, companyId: string, actor: Actor, input: ReminderI
   return outOfScope(tx, companyId, actor, input.targets, resolved);
 }
 
+// A sub-task as a reminder of its own: the task's content, channels, sharing
+// and send time; its own title ("Laptop (Onboarding)", ST2), people (or the
+// task's recipients), due time and the remind-before times that fit (ST6).
+const subTaskInput = (task: ReminderInput, s: SubTask): ReminderInput => ({
+  ...task,
+  title: `${s.title} (${task.title})`,
+  targets: s.userIds.length ? s.userIds.map((ref) => ({ kind: "user" as const, ref })) : task.targets,
+  dueAfterMinutes: s.dueAfterMinutes,
+  notifyBefore: (task.notifyBefore ?? []).filter((m) => m < s.dueAfterMinutes),
+  subTasks: undefined,
+});
+const withSubTasks = (input: ReminderInput) => [input, ...(input.subTasks ?? []).map((s) => subTaskInput(input, s))];
+
+// ST8: the task and its sub-tasks are approved together, so any of them out
+// of scope means the whole task waits.
+async function checkedAll(tx: Tx, companyId: string, actor: Actor, input: ReminderInput) {
+  const out: string[] = [];
+  for (const one of withSubTasks(input)) out.push(...(await checked(tx, companyId, actor, one)));
+  return [...new Set(out)];
+}
+
+// The reminders row's own columns, and what's saved in other tables.
+const split = <T extends ReminderInput>({ targets, shares, subTasks, ...fields }: T) => ({ targets, shares, subTasks, fields });
+
+// Sub-tasks change only through their task's form (ST1).
+function notSubTask(r: { parentId: string | null }) {
+  if (r.parentId) throw new Refused("This is a sub-task: change it from its task.");
+}
+
+// What happens to a task happens to its sub-tasks (ST8, ST11): approval,
+// cancelling, deleting, a new send time.
+const toSubTasks = (tx: Tx, parentId: string, set: Partial<typeof reminders.$inferInsert>) =>
+  tx.update(reminders).set(set).where(and(eq(reminders.parentId, parentId), isNull(reminders.deletedAt)));
+
+// ST1: saved with the task, as one-time tasks of their own. Only an unsent
+// task can be edited, so a sub-task removed here never went out.
+async function saveSubTasks(
+  tx: Tx,
+  companyId: string,
+  actorId: string,
+  parentId: string,
+  input: ReminderInput,
+  set: Pick<typeof reminders.$inferInsert, "createdBy" | "status" | "decidedBy" | "decidedAt">,
+) {
+  if (!input.subTasks) return;
+  const kept = input.subTasks.flatMap((x) => (x.id ? [x.id] : []));
+  await tx.delete(reminders).where(and(eq(reminders.parentId, parentId), kept.length ? notInArray(reminders.id, kept) : undefined));
+  for (const x of input.subTasks) {
+    const child = { ...subTaskInput(input, x), ...set, parentId };
+    if (!x.id) {
+      // Listed in form order (createdAt), new ones after those already saved.
+      await insertReminder(tx, companyId, actorId, { ...child, createdAt: new Date(Date.now() + x.row) }, [], x.cover);
+      continue;
+    }
+    const { targets, shares, fields } = split(child);
+    const [row] = await tx
+      .update(reminders)
+      .set({ ...fields, rejectionReason: null })
+      .where(and(eq(reminders.id, x.id), eq(reminders.parentId, parentId)))
+      .returning({ id: reminders.id });
+    if (!row) throw new Refused("A sub-task changed meanwhile. Reload the page and try again.");
+    await tx.delete(reminderTargets).where(eq(reminderTargets.reminderId, x.id));
+    await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: x.id!, companyId })));
+    await saveShares(tx, companyId, x.id, actorId, shares);
+    await saveCover(tx, companyId, x.id, true, x.cover);
+  }
+}
+
 async function saveAttachments(tx: Tx, companyId: string, reminderId: string, by: string, files: CheckedFile[], remove: string[]) {
   if (remove.length)
     await tx.delete(attachments).where(and(eq(attachments.reminderId, reminderId), inArray(attachments.id, remove)));
@@ -580,9 +681,10 @@ async function refusals<T>(fn: () => Promise<T>): Promise<T | { error: string }>
 export async function createReminder(actor: Actor, companyId: string, input: ReminderInput, files: CheckedFile[] = [], cover?: CheckedFile | null) {
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
-      const out = await checked(tx, companyId, actor, input);
+      const out = await checkedAll(tx, companyId, actor, input);
       const status: ReminderStatus = out.length ? "pending_approval" : "scheduled";
       const id = await insertReminder(tx, companyId, actor.id, { ...input, createdBy: actor.id, status }, files, cover);
+      await saveSubTasks(tx, companyId, actor.id, id, input, { createdBy: actor.id, status });
       return { id, approvers: status === "pending_approval" ? await approversToTell(tx, companyId, id) : [] };
     }),
   );
@@ -597,11 +699,12 @@ async function insertReminder(
   tx: Tx,
   companyId: string,
   actorId: string,
-  input: ReminderInput & Pick<typeof reminders.$inferInsert, "createdBy" | "status" | "decidedBy" | "decidedAt" | "replacesSeriesId" | "replacesOccursAt">,
+  input: ReminderInput &
+    Pick<typeof reminders.$inferInsert, "createdBy" | "status" | "decidedBy" | "decidedAt" | "replacesSeriesId" | "replacesOccursAt" | "parentId" | "createdAt">,
   files: CheckedFile[],
   cover?: CheckedFile | null,
 ) {
-  const { targets, shares, ...fields } = input;
+  const { targets, shares, fields } = split(input);
   let id = "";
   for (let attempt = 0; !id; attempt++) {
     const [row] = await tx
@@ -649,20 +752,25 @@ export async function updateReminder(
     withTenant(companyId, async (tx) => {
       const [current] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update");
       if (!current || !(await mayChange(companyId, actor, current.createdBy))) throw new Refused("Reminder not found.");
+      notSubTask(current);
       if (!EDITABLE.includes(current.status)) throw new Refused("This reminder can no longer be edited.");
 
       // The scope check runs as the creator (it's their send) and, when someone
       // else edits, as the editor too: the stricter wins. Otherwise an editor
       // without approve could widen an approver's reminder unchecked.
       const creator = { id: current.createdBy, access: await loadAccess(companyId, current.createdBy) };
-      const out = await checked(tx, companyId, creator, input);
-      if (actor.id !== creator.id) out.push(...(await checked(tx, companyId, actor, input)));
-      const oldTargets = await tx.select().from(reminderTargets).where(eq(reminderTargets.reminderId, id));
+      const out = await checkedAll(tx, companyId, creator, input);
+      if (actor.id !== creator.id) out.push(...(await checkedAll(tx, companyId, actor, input)));
+      // The task's and its sub-tasks' (ST8).
+      const oldTargets = await tx
+        .select()
+        .from(reminderTargets)
+        .where(or(eq(reminderTargets.reminderId, id), sql`${reminderTargets.reminderId} in (select id from reminders where parent_id = ${id})`));
       // An approval covers the recipients it saw. Same or fewer targets keeps it;
       // anything new needs approving again (PRD 5.9).
       const approved = current.status === "scheduled" && current.decidedBy !== null;
       const oldKeys = new Set(oldTargets.map(targetKey));
-      const narrowed = input.targets.every((t) => oldKeys.has(targetKey(t)));
+      const narrowed = withSubTasks(input).every((one) => one.targets.every((t) => oldKeys.has(targetKey(t))));
       // A paused series stays paused through an edit (unless it now needs approval).
       const status: ReminderStatus =
         out.length && !(approved && narrowed) ? "pending_approval" : current.status === "paused" ? "paused" : "scheduled";
@@ -677,22 +785,23 @@ export async function updateReminder(
         const next = firstAtOrAfter(input.recurrence, current.anchorLocal, current.timeZone, current.sendAt);
         if (next) input = { ...input, anchorLocal: current.anchorLocal, timeZone: current.timeZone, sendAt: next };
       }
-      const { targets, shares, ...fields } = input;
+      const { targets, shares, fields } = split(input);
+      const decided =
+        status === "pending_approval"
+          ? { decidedBy: null, decidedAt: null }
+          : approvesIt
+            ? { decidedBy: actor.id, decidedAt: new Date() }
+            : { decidedBy: current.decidedBy, decidedAt: current.decidedAt };
       await tx
         .update(reminders)
-        .set({
-          ...fields,
-          status,
-          rejectionReason: null,
-          ...(status === "pending_approval" ? { decidedBy: null, decidedAt: null } : {}),
-          ...(approvesIt ? { decidedBy: actor.id, decidedAt: new Date() } : {}),
-        })
+        .set({ ...fields, status, rejectionReason: null, ...decided })
         .where(eq(reminders.id, id));
       await tx.delete(reminderTargets).where(eq(reminderTargets.reminderId, id));
       await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
       await saveShares(tx, companyId, id, actor.id, shares);
       await saveAttachments(tx, companyId, id, actor.id, files, removeAttachmentIds);
       await saveCover(tx, companyId, id, input.isTask, cover);
+      await saveSubTasks(tx, companyId, actor.id, id, input, { createdBy: current.createdBy, status, ...decided });
       await notifyIfDue(tx, status, input.sendAt, "isEvent" in input && input.isEvent);
       return {
         approvers: status === "pending_approval" ? await approversToTell(tx, companyId, id) : [],
@@ -978,10 +1087,12 @@ export async function moveEntry(actor: Actor, companyId: string, id: string, occ
     withTenant(companyId, async (tx) => {
       const [r] = await tx.select().from(reminders).where(and(eq(reminders.id, id), isNull(reminders.deletedAt))).for("update");
       if (!r) throw new Refused("Reminder not found.");
+      notSubTask(r);
       const local = (d: Date) => toLocalInput(d, r.timeZone);
       if (!r.recurrence) {
         if (r.status !== "scheduled" && r.status !== "pending_approval") throw new Refused("This reminder can no longer be moved.");
         await tx.update(reminders).set({ sendAt: newAt, anchorLocal: local(newAt) }).where(eq(reminders.id, id));
+        await toSubTasks(tx, id, { sendAt: newAt, anchorLocal: local(newAt) });
         await notifyIfDue(tx, r.status, newAt);
         return { id };
       }
@@ -1106,7 +1217,7 @@ export async function recheckGroupReminders(companyId: string, groupId: string, 
   if (!addedUserIds.length) return 0;
   const flipped = await withTenant(companyId, async (tx) => {
     const affected = await tx
-      .select({ id: reminders.id, title: reminders.title, createdBy: reminders.createdBy })
+      .select({ id: reminders.id, title: reminders.title, createdBy: reminders.createdBy, parentId: reminders.parentId })
       .from(reminders)
       .innerJoin(reminderTargets, eq(reminderTargets.reminderId, reminders.id))
       .where(and(eq(reminderTargets.kind, "group"), eq(reminderTargets.ref, groupId), inArray(reminders.status, ["scheduled", "paused"])))
@@ -1119,8 +1230,14 @@ export async function recheckGroupReminders(companyId: string, groupId: string, 
       const creator = { id: r.createdBy, access: await loadAccess(companyId, r.createdBy) };
       const reasons = await outOfScope(tx, companyId, creator, targets, await resolveRecipients(tx, companyId, targets));
       if (!reasons.some((x) => addedEmails.has(x))) continue;
-      await tx.update(reminders).set({ status: "pending_approval", decidedBy: null, decidedAt: null }).where(eq(reminders.id, r.id));
-      out.push({ ...r, approvers: await approversToTell(tx, companyId, r.id) });
+      // A sub-task goes back with its whole task (ST8); the approvers review the task.
+      const top = r.parentId ?? r.id;
+      if (out.some((o) => o.id === top)) continue;
+      await tx
+        .update(reminders)
+        .set({ status: "pending_approval", decidedBy: null, decidedAt: null })
+        .where(and(or(eq(reminders.id, top), eq(reminders.parentId, top)), inArray(reminders.status, ["scheduled", "paused"])));
+      out.push({ id: top, title: r.title, approvers: await approversToTell(tx, companyId, top) });
     }
     return out;
   });
@@ -1133,8 +1250,10 @@ export async function cancelReminder(actor: Actor, companyId: string, id: string
     withTenant(companyId, async (tx) => {
       const [current] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update");
       if (!current || !(await mayChange(companyId, actor, current.createdBy))) throw new Refused("Reminder not found.");
+      notSubTask(current);
       if (!EDITABLE.includes(current.status)) throw new Refused("This reminder can no longer be cancelled.");
       await tx.update(reminders).set({ status: "cancelled" }).where(eq(reminders.id, id));
+      await toSubTasks(tx, id, { status: "cancelled" });
       return null;
     }),
   );
@@ -1154,15 +1273,18 @@ export async function deleteReminder(actor: Actor, companyId: string, id: string
         .where(and(eq(reminders.id, id), isNull(reminders.deletedAt)))
         .for("update");
       if (!current || !(await mayChange(companyId, actor, current.createdBy))) throw new Refused("Reminder not found.");
+      notSubTask(current);
+      // With its sub-tasks (ST11).
+      const family = [id, ...(await tx.select({ id: reminders.id }).from(reminders).where(eq(reminders.parentId, id))).map((k) => k.id)];
       const [busy] = await tx
         .select({ id: deliveries.id })
         .from(deliveries)
-        .where(and(eq(deliveries.reminderId, id), inArray(deliveries.status, ["queued", "sending"])))
+        .where(and(inArray(deliveries.reminderId, family), inArray(deliveries.status, ["queued", "sending"])))
         .limit(1);
       if (busy) throw new Refused("It's being sent right now. Try again once it's done.");
-      await tx.update(reminders).set({ status: "cancelled", deletedAt: new Date() }).where(eq(reminders.id, id));
-      await tx.update(taskAssignments).set({ snoozedUntil: null }).where(eq(taskAssignments.reminderId, id));
-      await tx.delete(notifications).where(eq(notifications.reminderId, id));
+      await tx.update(reminders).set({ status: "cancelled", deletedAt: new Date() }).where(and(inArray(reminders.id, family), isNull(reminders.deletedAt)));
+      await tx.update(taskAssignments).set({ snoozedUntil: null }).where(inArray(taskAssignments.reminderId, family));
+      await tx.delete(notifications).where(inArray(notifications.reminderId, family));
       return null;
     }),
   );
@@ -1176,7 +1298,7 @@ export async function setOccurrenceDone(actor: Actor, companyId: string, occurre
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
       const [o] = await tx
-        .select({ status: reminderOccurrences.status, createdBy: reminders.createdBy })
+        .select({ status: reminderOccurrences.status, createdBy: reminders.createdBy, reminderId: reminders.id, parentId: reminders.parentId })
         .from(reminderOccurrences)
         .innerJoin(reminders, eq(reminders.id, reminderOccurrences.reminderId))
         .where(and(eq(reminderOccurrences.id, occurrenceId), isNull(reminders.deletedAt)))
@@ -1185,11 +1307,15 @@ export async function setOccurrenceDone(actor: Actor, companyId: string, occurre
       if (o.status !== "sent" && o.status !== "sending") throw new Refused("It hasn't been sent yet.");
       const [assigned] = await tx.select({ id: taskAssignments.id }).from(taskAssignments).where(eq(taskAssignments.occurrenceId, occurrenceId)).limit(1);
       if (assigned) throw new Refused("Each assignee marks this one done themselves.");
+      const [sub] = await tx.select({ id: reminders.id }).from(reminders).where(and(eq(reminders.parentId, o.reminderId), isNull(reminders.deletedAt))).limit(1);
+      if (sub) throw new Refused("It’s done once all its sub-tasks are."); // ST4
       await tx.update(reminderOccurrences).set({ doneAt: done ? new Date() : null }).where(eq(reminderOccurrences.id, occurrenceId));
-      return null;
+      return o.parentId ? syncParent(tx, companyId, o.parentId) : null;
     }),
   );
-  return result && "error" in result ? result.error : null;
+  if (result && "error" in result) return result.error;
+  if (result) await sendTell(result);
+  return null;
 }
 
 // Checks reminders.approve and, in named mode, that the actor is named.
@@ -1202,16 +1328,11 @@ export async function decideReminder(actor: Actor, companyId: string, id: string
     withTenant(companyId, async (tx) => {
       const [current] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update");
       if (!current) throw new Refused("Reminder not found.");
+      notSubTask(current);
       if (current.status !== "pending_approval") throw new Refused("This reminder isn't waiting for approval.");
-      await tx
-        .update(reminders)
-        .set({
-          status: approve ? "scheduled" : "rejected",
-          decidedBy: actor.id,
-          decidedAt: new Date(),
-          rejectionReason: approve ? null : reason,
-        })
-        .where(eq(reminders.id, id));
+      const set = { status: approve ? ("scheduled" as const) : ("rejected" as const), decidedBy: actor.id, decidedAt: new Date(), rejectionReason: approve ? null : reason };
+      await tx.update(reminders).set(set).where(eq(reminders.id, id));
+      await toSubTasks(tx, id, set);
       if (approve) await notifyIfDue(tx, "scheduled", current.sendAt, current.isEvent);
       return { tell: await tellDecision(tx, companyId, actor.id, current, approve, reason) };
     }),
@@ -1422,7 +1543,7 @@ export function listPendingApprovals(companyId: string) {
       .select({ id: reminders.id, title: reminders.title, sendAt: reminders.sendAt, creatorName: user.name })
       .from(reminders)
       .innerJoin(user, eq(user.id, reminders.createdBy))
-      .where(eq(reminders.status, "pending_approval"))
+      .where(and(eq(reminders.status, "pending_approval"), isNull(reminders.parentId)))
       .orderBy(reminders.sendAt),
   );
 }

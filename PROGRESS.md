@@ -2,6 +2,58 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-23 — tasks: sub-tasks (spec 14, ST1-ST12)
+
+- The user confirmed the proposed rules (ST5-7, ST9, ST12).
+- **A sub-task is a `reminders` row with `parent_id`** (migration 0052), not a
+  table of its own. It is a normal one-time task, so sending, Mark done,
+  follow-ups, remind-before, escalation, Slack buttons, the calendar, the
+  Tasks page and Google all work for it unchanged. The rejected alternative was
+  a `sub_tasks` table, which would have needed its own copy of every one of
+  those paths.
+- The cost of that choice is keeping parent and children in step. The parent's
+  form saves them (matched by a hidden id per row). Approval, cancel, delete,
+  move and Send now cascade from the parent (`toSubTasks`). Changing a sub-task
+  directly is refused ("change it from its task"), and its page hides those
+  buttons.
+- **Decided while building, recorded in the spec (worth a look):**
+  - The parent sends nothing itself. The worker records its occurrence as sent
+    with no deliveries.
+  - The parent's "Who" is the default for any sub-task with no assignees picked.
+    This gives that required step a meaning instead of refusing it.
+  - Clearing a sub-task's title removes it.
+  - Sub-tasks copy the parent's content, channels, sharing and tags. They also
+    take its remind-before times, minus any that don't fit before the sub-task's
+    own due time.
+  - Someone who can only view the parent sees the "x of y done" count, not the
+    list.
+- **Parent done (ST4/ST7):** stored as the single "done" (`done_at`) on the
+  parent's only occurrence, recomputed by `syncParent` on every Mark done and
+  undo of a sub-task. The creator is told once (same dedupe key as tasks).
+- The title is stored as "Laptop (Onboarding)", so every email, Slack message,
+  calendar entry and list shows it without extra joins. The edit form strips
+  the suffix. Renaming the parent rewrites the children because every save
+  rewrites them.
+- Ordering of rows: `created_at` = now + the form row's index. It's a small
+  hack, chosen over adding a position column.
+- `recipientLabels` (the calendar's recipients SQL) moved to
+  `src/lib/recipients.ts` so tasks.ts can use it without an import cycle
+  through views.ts.
+- **Not handled:**
+  - Duplicating a parent copies it without its sub-tasks.
+  - The calendar peek card still offers drag on a sub-task. The move is
+    refused with a message.
+- Independent spec tests (fresh agent, `spec-sub-tasks.test.ts`): ST1-ST12
+  all pass the first time, 2 browser skips. The agent's reading of ST11: a sent
+  task can't be cancelled (only deleted), as before, so "no more follow-ups"
+  is tested through delete.
+- **Verified:** typecheck, lint, my tests (6), spec ST1-ST12, and the full
+  suite (574 pass, 0 fail, 32 skipped). The form field-name test had to
+  learn the `sub.<row>.<field>` names. This time RC2 didn't flake.
+  - **Not verified:** anything in a browser: the form rows, the people picker
+    per row, the task page's sub-task table, and a sub-task's "Part of a task"
+    line.
+
 ## 2026-10-23 — tasks: cover image (spec 14, CV1-CV6)
 
 - 5 MB confirmed by the user. A new table `reminder_covers` (migration 0051),

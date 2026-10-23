@@ -58,8 +58,12 @@ async function createOccurrence(tx: Tx, r: Reminder, occursAt: Date) {
   if (!occ) return null;
   // An event's date coming round sends nothing itself (its invites and
   // "starts soon" notices are separate, PRD 14.3): it's recorded as happened,
-  // so the calendar shows it as past and a series moves on.
-  if (r.isEvent) {
+  // so the calendar shows it as past and a series moves on. Nor does a task
+  // with sub-tasks (PRD 14.5): they go to their own people.
+  const [sub] = r.isTask
+    ? await tx.select({ id: reminders.id }).from(reminders).where(and(eq(reminders.parentId, r.id), isNull(reminders.deletedAt))).limit(1)
+    : [];
+  if (r.isEvent || sub) {
     await tx.update(reminderOccurrences).set({ status: "sent" }).where(eq(reminderOccurrences.id, occ.id));
     return [];
   }

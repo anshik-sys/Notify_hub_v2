@@ -68,7 +68,12 @@ test("every field the server reads exists in the form (catches a renamed field)"
     .join("\n");
   const inForm = new Set([...form.matchAll(/name="([A-Za-z]+)"/g)].map((m) => m[1]));
   assert.ok(read.size > 20, "formToRaw reads the form's fields");
-  assert.deepEqual([...read].filter((k) => !inForm.has(k)), [], "fields the server reads but the form never sends");
+  // Sub-task rows post sub.<row>.<field>; the form names them with name("<field>").
+  const sent = (k: string) => {
+    const sub = /^sub\.\d+\.(\w+)$/.exec(k);
+    return sub ? form.includes(`name("${sub[1]}")`) : inForm.has(k);
+  };
+  assert.deepEqual([...read].filter((k) => !sent(k)), [], "fields the server reads but the form never sends");
 });
 
 test("a task to my department: saved with its due time, targets, tags and link", async () => {

@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { attachments, reminders } from "@/db/schema";
 import { emailFiles } from "./attachments";
@@ -33,8 +33,10 @@ export async function sendNow(actor: Actor, companyId: string, id: string) {
             ? "It's waiting for approval; it can be sent once approved."
             : "Only a scheduled reminder can be sent now.",
       };
+    if (r.parentId) return { error: "This is a sub-task: it's sent with its task." };
     if (r.recurrence) await tx.update(reminders).set({ sendNowAt: new Date() }).where(eq(reminders.id, id));
-    else await tx.update(reminders).set({ sendAt: new Date() }).where(eq(reminders.id, id));
+    // A task's sub-tasks go with it (PRD 14.5).
+    else await tx.update(reminders).set({ sendAt: new Date() }).where(or(eq(reminders.id, id), and(eq(reminders.parentId, id), isNull(reminders.deletedAt))));
     await tx.execute(sql`select pg_notify('reminders_due', '')`); // delivered on commit
     return { mode: r.recurrence ? ("extra" as const) : ("rescheduled" as const) };
   });

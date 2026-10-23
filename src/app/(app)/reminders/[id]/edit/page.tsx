@@ -1,10 +1,11 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Button, firstParam, Page } from "@/components/form";
 import { coverUrl, getReminder, listAttachments, mayChange } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { companyBrand, senderDefault } from "@/lib/company";
 import { brandFor } from "@/lib/email-render";
 import { formatInZone, toLocalInput } from "@/lib/time";
+import { subTasks } from "@/lib/tasks";
 import { isUuid } from "@/lib/validate";
 import { fieldsFromRule, firstAtOrAfter } from "@/lib/recurrence";
 import { channelChoices } from "@/lib/slack-installations";
@@ -23,12 +24,17 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
   // Same rule as updateReminder, and not yet sent.
   if (!r || !(await mayChange(companyId, { id: user.id, access }, r.createdBy))) notFound();
   if (!["pending_approval", "rejected", "scheduled", "paused"].includes(r.status)) notFound();
-  const [choices, slackChannels, files, cover] = await Promise.all([
+  // A sub-task is edited with its task (PRD 14.5).
+  if (r.parentId) redirect(`/reminders/${r.parentId}/edit`);
+  const [choices, slackChannels, files, cover, subs] = await Promise.all([
     recipientChoices(companyId, user.id, access),
     channelChoices(companyId),
     listAttachments(companyId, r.id),
     r.isTask ? coverUrl(companyId, r.id) : null,
+    r.isTask ? subTasks(companyId, r.id) : [],
   ]);
+  const subCovers = await Promise.all(subs.map((x) => coverUrl(companyId, x.id)));
+  const keys = (ts: { kind: string; ref: string | null }[]) => ts.map((t) => `${t.kind}:${t.ref}`).sort().join();
   const sp = await props.searchParams;
   const error = firstParam(sp.error);
   // From the calendar's "Edit → This one": that upcoming date of the series.
@@ -89,6 +95,14 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           location: r.location ?? "",
           meetingUrl: r.meetingUrl ?? "",
           notifyBefore: r.notifyBefore,
+          // Saved as "Laptop (Onboarding)"; assignees that are the task's own recipients show as none picked.
+          subTasks: subs.map((x, i) => ({
+            id: x.id,
+            title: x.title.endsWith(` (${r.title})`) ? x.title.slice(0, -r.title.length - 3) : x.title,
+            dueLocal: toLocalInput(dueFrom(x.sendAt, x.dueAfterMinutes ?? 0), r.timeZone),
+            userIds: keys(x.targets) === keys(r.targets) ? [] : x.targets.flatMap((t) => (t.kind === "user" ? [t.ref!] : [])),
+            cover: subCovers[i],
+          })),
         }}
       />
     </Page>

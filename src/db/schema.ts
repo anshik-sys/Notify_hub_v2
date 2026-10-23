@@ -342,6 +342,9 @@ export const reminders = pgTable(
     // replaces. The series skips that date once the copy is approved.
     replacesSeriesId: uuid().references((): AnyPgColumn => reminders.id, { onDelete: "set null" }),
     replacesOccursAt: ts(),
+    // PRD 14.5 sub-task: a one-time task saved and sent with its parent task,
+    // which itself sends nothing and is done when all of these are.
+    parentId: uuid().references((): AnyPgColumn => reminders.id, { onDelete: "cascade" }),
     createdAt: ts().notNull().defaultNow(),
     updatedAt: ts()
       .notNull()
@@ -352,6 +355,7 @@ export const reminders = pgTable(
     index().on(t.status, t.sendAt),
     index("reminders_send_now_idx").on(t.sendNowAt).where(sql`${t.sendNowAt} is not null`),
     index("reminders_tags_idx").using("gin", t.tags),
+    index("reminders_parent_idx").on(t.parentId).where(sql`${t.parentId} is not null`),
     check("reminders_task_due", sql`not ${t.isTask} or ${t.dueAfterMinutes} > 0`),
     check("reminders_event_kind", sql`not (${t.isTask} and ${t.isEvent})`),
     check("reminders_event_length", sql`not ${t.isEvent} or ${t.durationMinutes} > 0`),

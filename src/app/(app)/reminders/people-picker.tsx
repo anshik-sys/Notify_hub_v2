@@ -7,7 +7,8 @@ import { useId, useMemo, useState } from "react";
 import type { Person } from "./form-data";
 import styles from "./people-picker.module.css";
 
-export function PeoplePicker({ people, initial }: { people: Person[]; initial: string[] }) {
+// name: the field each chosen person is submitted as (sub-tasks use their own).
+export function PeoplePicker({ people, initial, name = "users", label = "Search people by name or email" }: { people: Person[]; initial: string[]; name?: string; label?: string }) {
   const id = useId();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -45,7 +46,7 @@ export function PeoplePicker({ people, initial }: { people: Person[]; initial: s
   return (
     <div className={styles.picker}>
       <label htmlFor={`${id}-input`} className={styles.label}>
-        Search people by name or email
+        {label}
       </label>
       <input
         id={`${id}-input`}
@@ -106,7 +107,7 @@ export function PeoplePicker({ people, initial }: { people: Person[]; initial: s
               <button type="button" className={styles.remove} aria-label={`Remove ${p.name}`} onClick={() => toggle(p.id)}>
                 ×
               </button>
-              <input type="hidden" name="users" value={p.id} />
+              <input type="hidden" name={name} value={p.id} />
             </li>
           ))}
         </ul>

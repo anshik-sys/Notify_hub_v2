@@ -17,6 +17,21 @@ export type Target = {
   label?: string | null;
 };
 
+// A reminder's recipients as one line of names, in a query on reminders
+// (the calendar's peek card, a task's sub-tasks).
+export const recipientLabels = sql<string | null>`(select string_agg(case t.kind
+    when 'company' then 'Everyone in the company'
+    when 'department' then coalesce(d.name, 'Deleted department') || ' (department)'
+    when 'group' then coalesce(g.name, 'Deleted') || ' (group)'
+    when 'user' then coalesce(u.name, 'Removed person')
+    when 'slack_channel' then '#' || coalesce(t.label, t.ref) || ' (Slack)'
+    else t.ref end, ', ' order by t.kind, t.ref)
+  from reminder_targets t
+  left join departments d on t.kind = 'department' and d.id::text = t.ref
+  left join groups g on t.kind = 'group' and g.id::text = t.ref
+  left join "user" u on t.kind = 'user' and u.id = t.ref
+  where t.reminder_id = "reminders"."id")`; // qualified: d, g and u have an id too
+
 // Targets -> who actually gets it, as of now. Used for the scope check and at
 // send time. Filters by companyId explicitly as well: the worker's connection
 // bypasses RLS.

@@ -711,18 +711,18 @@ chains. Open questions answered 2026-10-22 (see the end of the section).
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| ST1 | Add sub-tasks to a task (e.g. Onboarding → "Laptop", "Accounts", "Intro call") | Each has its own title, assignees, due time and optional cover image; they're created, edited and saved with the parent | PRD 14.5 | |
-| ST2 | Sending | Each sub-task goes out at the parent's send time, to its own assignees, as a task ("Task: Laptop (Onboarding)"). Each has its **own due time** (ST3). A sub-task that should only start after another is done uses a chain (CH12) | User's decision 2026-10-22 | |
-| ST3 | Sub-task due time | Its own; must be after the parent is sent and no later than the parent's due time | User's decision 2026-10-22 | |
-| ST4 | Done | A sub-task is done when all its assignees mark it done (as tasks today). The parent has no Mark done of its own: it's done only when every sub-task is done | PRD 14.5; confirmed 2026-10-22 | |
-| ST5 | The parent's page | Lists its sub-tasks with "2 of 3 done" and each one's people; a sub-task's page links back to the parent | **(proposed)** | |
-| ST6 | Follow-ups and remind before due | Per sub-task, to its own assignees who aren't done | **(proposed)** | |
-| ST7 | The creator is told | Once, when the last sub-task is done ("Everyone has marked it done"), not per sub-task | **(proposed)**; as tasks today | |
-| ST8 | Approval | Parent and sub-tasks are approved together: if any sub-task's assignees are out of the creator's scope, the whole task needs approval and nothing is sent until it's approved | PRD 5.9 | |
-| ST9 | Who sees what | Each assignee sees their sub-task and the parent's title and progress; the creator and those who oversee it see all | **(proposed)** | |
-| ST10 | Only one level, only one-time tasks | A sub-task can't have sub-tasks; a repeating task can't have sub-tasks | User's decision 2026-10-22 | |
-| ST11 | Cancel or delete the parent | Its sub-tasks go with it (no more follow-ups) | | |
-| ST12 | Calendar, Tasks page, Google | Sub-tasks show like tasks, titled "Laptop (Onboarding)"; the parent shows once | **(proposed)** | |
+| ST1 | Add sub-tasks to a task (e.g. Onboarding → "Laptop", "Accounts", "Intro call") | Each has its own title, assignees, due time and optional cover image; they're created, edited and saved with the parent. A sub-task with no assignees picked goes to the task's own recipients. Clearing a sub-task's title in the edit form removes it. A sub-task can't be edited, moved, cancelled, deleted, sent now or approved on its own: only through its task | PRD 14.5; defaults, removal and "only through its task" decided while building 2026-10-23 || PASS |
+| ST2 | Sending | Each sub-task goes out at the parent's send time (also after a move or Send now of the parent), to its own assignees, as a task ("Task: Laptop (Onboarding)"). Each has its **own due time** (ST3). The parent itself sends nothing to anyone. A sub-task that should only start after another is done uses a chain (CH12) | User's decision 2026-10-22; "parent sends nothing" decided while building 2026-10-23 || PASS |
+| ST3 | Sub-task due time | Its own; must be after the parent is sent and no later than the parent's due time | User's decision 2026-10-22 || PASS |
+| ST4 | Done | A sub-task is done when all its assignees mark it done (as tasks today), or, sent only outside, when the creator marks it done. The parent has no Mark done of its own: it's done only when every sub-task is done, and stops being done if someone un-marks one | PRD 14.5; confirmed 2026-10-22 || PASS |
+| ST5 | The parent's page | Lists its sub-tasks with "2 of 3 done" and each one's people; a sub-task's page links back to the parent | Confirmed 2026-10-23 || PASS (library); the page wording and the link back are a browser check |
+| ST6 | Follow-ups and remind before due | Per sub-task, to its own assignees who aren't done. Each sub-task uses the task's remind-before times that fall after it's sent (a 2-hour sub-task drops "1 day") | Confirmed 2026-10-23; the times decided while building || PASS |
+| ST7 | The creator is told | Once, when the last sub-task is done ("Everyone has marked it done"), not per sub-task | Confirmed 2026-10-23; as tasks today || PASS |
+| ST8 | Approval | Parent and sub-tasks are approved together: if any sub-task's assignees are out of the creator's scope, the whole task needs approval and nothing is sent until it's approved | PRD 5.9 || PASS |
+| ST9 | Who sees what | Each assignee sees their sub-task and the parent's title and progress ("2 of 3 sub-tasks done"); the creator and those who oversee it see all. Someone who can only view the parent (its own recipients) sees the count, not the list | Confirmed 2026-10-23 || PASS (access rules); what each page shows is a browser check |
+| ST10 | Only one level, only one-time tasks | A sub-task can't have sub-tasks; a repeating task can't have sub-tasks | User's decision 2026-10-22 || PASS |
+| ST11 | Cancel or delete the parent | Its sub-tasks go with it (no more follow-ups) | || PASS (cancel before sending, delete after); a sent task can't be cancelled, only deleted, as today |
+| ST12 | Calendar, Tasks page, Google | Sub-tasks show like tasks, titled "Laptop (Onboarding)"; the parent shows once | Confirmed 2026-10-23 || PASS |
 
 ### Chains: start when a task is done
 
