@@ -681,7 +681,7 @@ const filesOf = (reminderId: string) =>
   ownerDb
     .select({ id: attachments.id, fileName: attachments.fileName, contentType: attachments.contentType, size: attachments.size })
     .from(attachments)
-    .where(eq(attachments.reminderId, reminderId))
+    .where(and(eq(attachments.reminderId, reminderId), isNull(attachments.commentId))) // not comment files (PRD 14.6)
     .orderBy(attachments.createdAt);
 
 async function brandOf(companyId: string) {

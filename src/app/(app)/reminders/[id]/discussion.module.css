@@ -70,6 +70,22 @@
   overflow-wrap: anywhere;
 }
 
+/* A comment's files (PRD 14.6). */
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+
+.size {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
 .mention {
   padding: 0 4px;
   border-radius: 4px;

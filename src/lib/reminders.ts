@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { aliasedTable, and, desc, eq, gte, inArray, isNull, notInArray, or, type SQL, sql } from "drizzle-orm";
 import { withTenant } from "@/db";
 import { attachments, companies, companyApprovers, deliveries, departmentMembers, emailSuppressions, departments, groupMembers, groups, notifications, reminderOccurrences, reminderShares, reminders, reminderTargets, roles, reminderColors, taskAssignments, user, userRoles, CALENDAR_COLORS, type CalendarColor, type ReminderStatus } from "@/db/schema";
-import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
+import { type CheckedFile, MAX_FILES_PER_REMINDER, mayRemoveFile } from "./attachments";
 import { sendMail } from "./mail";
 import { addNotifications, mutedFor, planTell, sendTell } from "./notifications";
 import { dmLink } from "./slack-installations";
@@ -660,14 +660,30 @@ async function saveSubTasks(
   }
 }
 
+// The reminder's own files; files on its comments are listed with them (PRD 14.6, CA6).
+const ownFiles = (reminderId: string) => and(eq(attachments.reminderId, reminderId), isNull(attachments.commentId));
+
+// AW1-AW4: only your own files, within 24 hours of uploading.
+async function assertRemovable(tx: Tx, reminderId: string, ids: string[], actorId: string) {
+  if (!ids.length) return;
+  // AW6: an uploader who has left is locked out at once (inner join on an active user).
+  const rows = await tx
+    .select({ uploadedBy: attachments.uploadedBy, createdAt: attachments.createdAt })
+    .from(attachments)
+    .innerJoin(user, and(eq(user.id, attachments.uploadedBy), isNull(user.deactivatedAt)))
+    .where(and(ownFiles(reminderId), inArray(attachments.id, ids)));
+  if (rows.length !== new Set(ids).size || rows.some((f) => !mayRemoveFile(f, actorId)))
+    throw new Refused("You can only remove files you uploaded, for 24 hours after uploading.");
+}
+
 async function saveAttachments(tx: Tx, companyId: string, reminderId: string, by: string, files: CheckedFile[], remove: string[]) {
-  if (remove.length)
-    await tx.delete(attachments).where(and(eq(attachments.reminderId, reminderId), inArray(attachments.id, remove)));
+  await assertRemovable(tx, reminderId, remove, by);
+  if (remove.length) await tx.delete(attachments).where(and(ownFiles(reminderId), inArray(attachments.id, remove)));
   if (!files.length) return;
   const [{ n }] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(attachments)
-    .where(eq(attachments.reminderId, reminderId));
+    .where(ownFiles(reminderId));
   if (n + files.length > MAX_FILES_PER_REMINDER) throw new Refused(`A reminder can have at most ${MAX_FILES_PER_REMINDER} attachments.`);
   for (const f of files) {
     const [row] = await tx
@@ -679,7 +695,7 @@ async function saveAttachments(tx: Tx, companyId: string, reminderId: string, by
         contentType: f.contentType,
         size: f.size,
         sha256: f.sha256,
-        uploadedBy: by,
+        uploadedBy: f.uploadedBy !== undefined ? f.uploadedBy : by,
         // clock_timestamp, not now(): files saved together keep their upload
         // order (now() is the same for the whole transaction).
         createdAt: sql`clock_timestamp()`,
@@ -692,9 +708,16 @@ async function saveAttachments(tx: Tx, companyId: string, reminderId: string, by
 export function listAttachments(companyId: string, reminderId: string) {
   return withTenant(companyId, (tx) =>
     tx
-      .select({ id: attachments.id, fileName: attachments.fileName, size: attachments.size, contentType: attachments.contentType })
+      .select({
+        id: attachments.id,
+        fileName: attachments.fileName,
+        size: attachments.size,
+        contentType: attachments.contentType,
+        uploadedBy: attachments.uploadedBy,
+        createdAt: attachments.createdAt,
+      })
       .from(attachments)
-      .where(eq(attachments.reminderId, reminderId))
+      .where(ownFiles(reminderId))
       .orderBy(attachments.createdAt),
   );
 }
@@ -921,13 +944,9 @@ export async function detachOccurrence(
       const passOn = moveOnly || (series.decidedBy !== null && input.targets.every((t) => oldKeys.has(targetKey(t))));
       const status: ReminderStatus = out.length && !passOn ? "pending_approval" : "scheduled";
 
-      const kept = await tx
-        .select()
-        .from(attachments)
-        .where(and(eq(attachments.reminderId, id), removeAttachmentIds.length ? notInArray(attachments.id, removeAttachmentIds) : undefined))
-        .orderBy(attachments.createdAt);
-      const copies: CheckedFile[] = [];
-      for (const a of kept) copies.push({ fileName: a.fileName, contentType: a.contentType, size: a.size, sha256: a.sha256, data: (await getBlob(tx, a.id))! });
+      // Leaving a file off the copy is removing it (AW1-AW4).
+      await assertRemovable(tx, id, removeAttachmentIds, actor.id);
+      const kept = (await filesOf(tx, id)).filter((f) => !removeAttachmentIds.includes(f.id));
 
       const newId = await insertReminder(
         tx,
@@ -941,7 +960,7 @@ export async function detachOccurrence(
           replacesOccursAt: at,
           ...(status === "scheduled" && passOn ? { decidedBy: series.decidedBy, decidedAt: series.decidedAt } : {}),
         },
-        [...copies, ...files],
+        [...kept, ...files],
         cover,
       );
       await copyColors(tx, id, newId);
@@ -1113,10 +1132,11 @@ async function inputFromRow(tx: Tx, r: typeof reminders.$inferSelect): Promise<R
   };
 }
 
+// A reminder's own files with their bytes, for a copy; each keeps its uploader (AW5).
 async function filesOf(tx: Tx, reminderId: string) {
-  const files: CheckedFile[] = [];
-  for (const a of await tx.select().from(attachments).where(eq(attachments.reminderId, reminderId)).orderBy(attachments.createdAt))
-    files.push({ fileName: a.fileName, contentType: a.contentType, size: a.size, sha256: a.sha256, data: (await getBlob(tx, a.id))! });
+  const files: (CheckedFile & { id: string })[] = [];
+  for (const a of await tx.select().from(attachments).where(ownFiles(reminderId)).orderBy(attachments.createdAt))
+    files.push({ id: a.id, fileName: a.fileName, contentType: a.contentType, size: a.size, sha256: a.sha256, uploadedBy: a.uploadedBy, data: (await getBlob(tx, a.id))! });
   return files;
 }
 

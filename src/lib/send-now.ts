@@ -66,7 +66,7 @@ export async function sendTest(
       tx
         .select({ id: attachments.id, fileName: attachments.fileName, contentType: attachments.contentType, size: attachments.size })
         .from(attachments)
-        .where(eq(attachments.reminderId, r.id))
+        .where(and(eq(attachments.reminderId, r.id), isNull(attachments.commentId)))
         .orderBy(attachments.createdAt),
     );
     const { attached, tooBig } = await emailFiles(files, (fid) => withTenant(companyId, (tx) => getBlob(tx, fid)));

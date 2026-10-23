@@ -6,6 +6,7 @@ import { companyBrand, senderDefault } from "@/lib/company";
 import { brandFor } from "@/lib/email-render";
 import { formatInZone, toLocalInput } from "@/lib/time";
 import { isWaiting, subTasks } from "@/lib/tasks";
+import { mayRemoveFile } from "@/lib/attachments";
 import { chainChoices } from "@/lib/views";
 import { isUuid } from "@/lib/validate";
 import { fieldsFromRule, firstAtOrAfter } from "@/lib/recurrence";
@@ -56,7 +57,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
         brand={brandFor("", companyId, company.name, (await companyBrand(companyId)).logoVersion)}
         {...choices}
         slackChannels={slackChannels}
-        attachments={files}
+        attachments={files.map((f) => ({ ...f, removable: mayRemoveFile(f, user.id) }))}
         chainTasks={chainTasks}
         cover={cover}
         timeZone={company.timeZone}

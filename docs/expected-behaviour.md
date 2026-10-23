@@ -757,6 +757,72 @@ images on reminders or events.
 6. **CH3:** B starts when everyone has done A.
 7. **CH8:** cancelling A cancels B.
 
+## 15. Comments and attachments: edit windows, files on comments, more types (v2, PRD 14.6)
+
+Today a comment's author can edit it at any time, and anyone who may edit a
+reminder can remove any of its files while the reminder can still be edited.
+Comments have no files. Files are PDF, Office, CSV/TXT, PNG/JPG/GIF/WEBP and
+ZIP, checked by their bytes (PRD 5.7).
+
+Rules marked **(proposed)** are mine; confirm or change them before building.
+
+| Function | What it does |
+|---|---|
+| Comment edit window | The author can edit a comment for 24 hours after posting; then it's read-only. Deleting stays allowed. |
+| Attachment edit window | Whoever uploaded a file can remove or replace it for 24 hours after uploading; then it's locked. |
+| Files on comments | A comment or reply can carry files, checked like a reminder's. Mentioned people get them with their mention email. |
+| More file types | Pages, Numbers, Keynote, ODT, ODS, ODP, RTF, JSON, each checked by its bytes. |
+
+### Comment edit window
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| CE1 | The author edits their comment within 24 hours of posting | Saved, marked "edited"; newly mentioned people are told (as today) | PRD 14.6 || PASS |
+| CE2 | The author tries after 24 hours | Refused: "Comments can be edited for 24 hours after posting." The Edit button is gone | PRD 14.6 || PASS; the Edit button being gone is a browser check (the flag it uses passes) |
+| CE3 | The 24 hours | Count from posting, not from the last edit (an edit doesn't restart them) | **(proposed)** || PASS |
+| CE4 | Deleting after 24 hours | Still allowed: the author, or anyone with "Delete any comment" | PRD 14.6 || PASS |
+| CE5 | Comments posted before this change | Same rule: older than 24 hours means read-only | **(proposed)** || PASS |
+
+### Attachment edit window
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| AW1 | The uploader removes their file within 24 hours (the reminder's edit form, or the comment's edit) | Removed | PRD 14.6 || PASS |
+| AW2 | "Replace" | Remove it and add the new file in the same save; there's no separate Replace button. The new file starts its own 24 hours | **(proposed)** || PASS |
+| AW3 | After 24 hours | Locked for everyone: the edit form lists it without the remove tick, and a forged request is refused. Deleting the whole reminder or comment still removes it | PRD 14.6; **(proposed: locked for the creator and admins too)** || PASS; the form without the remove tick is a browser check |
+| AW4 | Someone else, within the 24 hours (e.g. a manager editing the reminder) | Can't remove another person's file; they can add their own | PRD 14.6 "whoever uploaded"; **(proposed)** || PASS |
+| AW5 | A copy ("only this one", "this and following", Duplicate) | Copied files keep their uploader; the 24 hours restart on the copy | **(proposed)** || PASS |
+| AW6 | The uploader has left the company | Their files are locked at once | **(proposed)** || PASS after a fix (first run FAIL: the library still let a deactivated uploader remove their file; product bug, fixed) |
+
+### Files on comments
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| CA1 | Add files to a comment or reply | Same types, 10 MB each and content checks as reminder files; up to 5 per comment; uploads rate-limited like the reminder form's | PRD 14.6; **(proposed: 5)** || PASS; the upload rate limit is in the server action, not tested |
+| CA2 | The thread | The files are listed under the comment for everyone who can see the reminder; downloading checks that too (no public link) | PRD 14.6 || PASS |
+| CA3 | Someone is mentioned | Their mention email carries the files, in order, while the total stays within 20 MB; the rest are named in the email as "open it in NotifyHub". The Slack DM has the link only | PRD 14.6; **(proposed: Slack link only)** || PASS |
+| CA4 | The creator's "new comment" notice, and people not mentioned | No files: they see them in the thread | PRD 14.6 || PASS |
+| CA5 | A comment is deleted | Its files are no longer listed or downloadable | **(proposed)** || PASS |
+| CA6 | The reminder itself | Comment files don't go out with the reminder and don't count toward its 20 files | **(proposed)** || PASS |
+| CA7 | A comment with only files, no text | Allowed | **(proposed)** || PASS |
+
+### More file types
+
+| ID | Scenario | Expected | Source | Status |
+|---|---|---|---|---|
+| FT1 | .pages, .numbers, .key | Accepted when the bytes are an Apple iWork file (a zip holding Index/Document.iwa, saved by iWork 2013 or later) | PRD 14.6; **(proposed: older iWork '09 files refused)** || PASS |
+| FT2 | .odt, .ods, .odp | Accepted when the bytes are an OpenDocument zip whose type matches the extension (an .ods that's really a text document is refused) | PRD 14.6 || PASS |
+| FT3 | .rtf | Accepted when it starts with {\rtf | PRD 14.6 || PASS |
+| FT4 | .json | Accepted when it's UTF-8 text that parses as JSON | PRD 14.6 || PASS |
+| FT5 | A renamed file (a .docx called .odt, a zip called .pages, plain text called .json) | Refused: "the file's content doesn't match its extension" | PRD 5.7 || PASS |
+| FT6 | Downloading one | Always downloads (never opens in the browser), with its real type | PRD 5.7 || PASS (stored type); the download header is an HTTP check, read in the route |
+| FT7 | The pickers and the "allowed types" message | List the new types | || PASS (lists); how the pickers read is a browser check |
+
+### Not in this step
+
+Previews of files in the browser, editing a file in place, and files on Slack
+replies.
+
 ## Open questions found while testing
 
 - ~~**T7a/T7c:** when the copy needs approval, the series still skips that date

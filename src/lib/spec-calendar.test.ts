@@ -118,7 +118,8 @@ const range = async (who: string, from: string, to: string, opts: { tz?: string;
   return r;
 };
 type Range = NonNullable<Awaited<ReturnType<typeof calendarRange>>>;
-const flat = (r: Range) => [...r.days.entries()].flatMap(([day, es]) => es.map((e) => ({ day, e })));
+// By date: the map's own order depends on which reminders were added first.
+const flat = (r: Range) => [...r.days.entries()].sort(([a], [b]) => a.localeCompare(b)).flatMap(([day, es]) => es.map((e) => ({ day, e })));
 const of = (r: Range, id: string) => flat(r).filter((x) => x.e.reminderId === id);
 // [local day, ISO time, state] for one reminder's entries.
 const shape = (r: Range, id: string) => of(r, id).map(({ day, e }) => [day, e.at.toISOString(), e.state]);

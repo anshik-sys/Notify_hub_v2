@@ -585,9 +585,12 @@ export const attachments = pgTable(
     size: integer().notNull(),
     sha256: text().notNull(),
     uploadedBy: text().references(() => user.id, { onDelete: "set null" }),
+    // PRD 14.6: a file on a comment (still under the comment's reminder, for
+    // access and cleanup). Null = the reminder's own, sent with it.
+    commentId: uuid().references((): AnyPgColumn => comments.id, { onDelete: "cascade" }),
     createdAt: ts().notNull().defaultNow(),
   },
-  (t) => [index().on(t.reminderId), tenantPolicy("company_id")],
+  (t) => [index().on(t.reminderId), index("attachments_comment_idx").on(t.commentId).where(sql`${t.commentId} is not null`), tenantPolicy("company_id")],
 ).enableRLS();
 
 // PRD 4/7.1: the company's logo, shown in the app and in emails. Served

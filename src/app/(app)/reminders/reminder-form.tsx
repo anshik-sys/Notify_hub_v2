@@ -1,6 +1,6 @@
 import { Button, Checkbox, CheckboxGroup, Field, FileField, Hint, RadioGroup, Section, SelectField, StepsForm, TextArea } from "@/components/form";
 import { Icon } from "@/components/icon";
-import { ACCEPT, MAX_FILES_PER_SAVE } from "@/lib/attachments";
+import { ACCEPT, FILE_TYPES, MAX_FILES_PER_SAVE } from "@/lib/attachments";
 import { formatSize } from "@/lib/format";
 import type { Brand } from "@/lib/email-render";
 import type { RepeatFields } from "@/lib/recurrence";
@@ -250,8 +250,8 @@ export function ReminderForm({
   defaultSender: string;
   /** The company's public Slack channels; null when Slack isn't connected. */
   slackChannels: { id: string; name: string }[] | null;
-  /** Edit: files already on the reminder. */
-  attachments?: { id: string; fileName: string; size: number }[];
+  /** Edit: files already on the reminder; removable = the viewer's own, within 24 hours (PRD 14.6). */
+  attachments?: { id: string; fileName: string; size: number; removable: boolean }[];
   /** Edit: the task's cover image URL, if it has one. */
   cover?: string | null;
   /** The company's name and logo, for the email preview's header. */
@@ -587,15 +587,21 @@ export function ReminderForm({
 
           <div className={styles.block}>
             <h3 className={styles.blockTitle}>Attachments</h3>
-            {attachments.length > 0 && (
+            {attachments.some((a) => a.removable) && (
               <CheckboxGroup
                 legend="Attached (tick to remove)"
                 name="removeAttachments"
-                options={attachments.map((a) => ({ value: a.id, label: `${a.fileName} (${formatSize(a.size)})` }))}
+                options={attachments.filter((a) => a.removable).map((a) => ({ value: a.id, label: `${a.fileName} (${formatSize(a.size)})` }))}
               />
             )}
+            {attachments.some((a) => !a.removable) && (
+              <Hint>
+                Attached: {attachments.filter((a) => !a.removable).map((a) => `${a.fileName} (${formatSize(a.size)})`).join(", ")}. Only whoever uploaded a file can
+                remove it, for 24 hours.
+              </Hint>
+            )}
             <FileField label="Add files" name="files" multiple accept={ACCEPT} />
-            <Hint>PDF, Office, CSV/TXT, images or ZIP. 10 MB each, up to {MAX_FILES_PER_SAVE} at a time.</Hint>
+            <Hint>{FILE_TYPES}. 10 MB each, up to {MAX_FILES_PER_SAVE} at a time.</Hint>
           </div>
 
           <div className={styles.block}>

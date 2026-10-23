@@ -9,7 +9,14 @@ export const MAX_FILES_PER_SAVE = 5;
 export const MAX_FILES_PER_REMINDER = 20;
 export const EMAIL_ATTACHMENT_BUDGET = 20 * 1024 * 1024;
 
-type Kind = "pdf" | "png" | "jpeg" | "gif" | "webp" | "zip" | "docx" | "xlsx" | "pptx" | "ole" | "text";
+// PRD 14.6: comments and files can be changed for 24 hours. A file only by
+// whoever uploaded it (AW4); after that it's locked for everyone (AW3).
+export const EDIT_WINDOW_MS = 24 * 3_600_000;
+export const inEditWindow = (at: Date, now = Date.now()) => now - at.getTime() < EDIT_WINDOW_MS;
+export const mayRemoveFile = (f: { uploadedBy: string | null; createdAt: Date }, userId: string, now = Date.now()) =>
+  f.uploadedBy === userId && inEditWindow(f.createdAt, now);
+
+type Kind = "pdf" | "png" | "jpeg" | "gif" | "webp" | "zip" | "docx" | "xlsx" | "pptx" | "ole" | "text" | "iwork" | "odt" | "ods" | "odp";
 
 // Extension -> the kind its content must be, and the type we serve it as.
 const ALLOWED: Record<string, { kind: Kind; contentType: string }> = {
@@ -28,7 +35,18 @@ const ALLOWED: Record<string, { kind: Kind; contentType: string }> = {
   ppt: { kind: "ole", contentType: "application/vnd.ms-powerpoint" },
   txt: { kind: "text", contentType: "text/plain; charset=utf-8" },
   csv: { kind: "text", contentType: "text/csv; charset=utf-8" },
+  // PRD 14.6 (FT1-FT4). RTF and JSON are text with a further check in checkFile.
+  pages: { kind: "iwork", contentType: "application/vnd.apple.pages" },
+  numbers: { kind: "iwork", contentType: "application/vnd.apple.numbers" },
+  key: { kind: "iwork", contentType: "application/vnd.apple.keynote" },
+  odt: { kind: "odt", contentType: "application/vnd.oasis.opendocument.text" },
+  ods: { kind: "ods", contentType: "application/vnd.oasis.opendocument.spreadsheet" },
+  odp: { kind: "odp", contentType: "application/vnd.oasis.opendocument.presentation" },
+  rtf: { kind: "text", contentType: "application/rtf" },
+  json: { kind: "text", contentType: "application/json" },
 };
+// For the pickers' hints (FT7).
+export const FILE_TYPES = "PDF, Office, OpenDocument, Pages/Numbers/Keynote, CSV/TXT/RTF/JSON, images or ZIP";
 export const ACCEPT = Object.keys(ALLOWED)
   .map((e) => `.${e}`)
   .join(",");
@@ -48,6 +66,13 @@ export function sniff(b: Uint8Array): Kind | null {
   if (has(b, [0x50, 0x4b, 0x03, 0x04])) {
     // Office Open XML is a zip with [Content_Types].xml; entry names are plain
     // text in the zip headers, so a byte scan is enough (no unzip library).
+    // OpenDocument: the first entry is "mimetype", stored uncompressed.
+    for (const kind of ["odt", "ods", "odp"] as const) {
+      const type = { odt: "text", ods: "spreadsheet", odp: "presentation" }[kind];
+      if (contains(b, `mimetypeapplication/vnd.oasis.opendocument.${type}`)) return kind;
+    }
+    // Apple iWork 2013 and later (FT1); iWork '09's index.xml isn't accepted.
+    if (contains(b, "Index/Document.iwa")) return "iwork";
     if (contains(b, "[Content_Types].xml")) {
       if (contains(b, "word/")) return "docx";
       if (contains(b, "xl/")) return "xlsx";
@@ -146,7 +171,8 @@ export async function emailFiles(
 
 // --- One file ------------------------------------------------------------------------
 
-export type CheckedFile = { fileName: string; contentType: string; size: number; sha256: string; data: Buffer };
+// uploadedBy: set on a copy of a saved file, which keeps its uploader (AW5).
+export type CheckedFile = { fileName: string; contentType: string; size: number; sha256: string; data: Buffer; uploadedBy?: string | null };
 
 export function checkFile(name: string, bytes: Uint8Array): { file: CheckedFile } | { error: string } {
   const fileName = safeFileName(name);
@@ -154,11 +180,24 @@ export function checkFile(name: string, bytes: Uint8Array): { file: CheckedFile 
   if (bytes.length > MAX_FILE_BYTES) return { error: `${fileName} is over the 10 MB limit.` };
   const ext = fileName.includes(".") ? fileName.split(".").pop()!.toLowerCase() : "";
   const rule = ALLOWED[ext];
-  if (!rule) return { error: `${fileName}: this file type isn't allowed. Allowed: PDF, Office documents, CSV/TXT, images (PNG, JPG, GIF, WEBP) and ZIP.` };
-  if (sniff(bytes) !== rule.kind) return { error: `${fileName}: the file's content doesn't match its .${ext} extension.` };
+  if (!rule)
+    return {
+      error: `${fileName}: this file type isn't allowed. Allowed: ${FILE_TYPES}.`,
+    };
+  const mismatch = `${fileName}: the file's content doesn't match its .${ext} extension.`;
+  if (sniff(bytes) !== rule.kind) return { error: mismatch };
   if (ext === "csv") {
     const formula = csvFormulaCheck(new TextDecoder().decode(bytes));
     if (formula) return { error: `${fileName}: ${formula}` };
+  }
+  const text = () => new TextDecoder().decode(bytes);
+  if (ext === "rtf" && !text().startsWith("{\\rtf")) return { error: mismatch };
+  if (ext === "json") {
+    try {
+      JSON.parse(text());
+    } catch {
+      return { error: mismatch };
+    }
   }
   const data = Buffer.from(bytes);
   return { file: { fileName, contentType: rule.contentType, size: data.length, sha256: createHash("sha256").update(data).digest("hex"), data } };

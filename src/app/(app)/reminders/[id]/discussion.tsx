@@ -1,5 +1,7 @@
 import { Avatar } from "@/components/avatar";
-import { Button, Section } from "@/components/form";
+import { Button, Checkbox, FileField, Section } from "@/components/form";
+import { ACCEPT, mayRemoveFile } from "@/lib/attachments";
+import { formatSize } from "@/lib/format";
 import type { ThreadComment } from "@/lib/comments";
 import { formatInZone } from "@/lib/time";
 import { deleteCommentAction, editCommentAction, postComment } from "../comment-actions";
@@ -38,8 +40,14 @@ function Body({ text, mentions }: { text: string; mentions: string[] }) {
   );
 }
 
+// PRD 14.6 (CA1): up to 5 files; text may be left empty when there are files.
+const AddFiles = () => <FileField label="Attach files (up to 5)" name="files" multiple accept={ACCEPT} />;
+
 function Comment({ c, threadId, p }: { c: ThreadComment; threadId: string; p: Props }) {
   const mine = c.authorId === p.viewerId;
+  // CE2: editable for 24 hours after posting; deleting stays.
+  const editable = mine && c.editable;
+  const removable = c.files.filter((f) => mayRemoveFile(f, p.viewerId));
   return (
     <article id={`comment-${c.id}`} className={styles.comment}>
       {c.deleted ? <span className={styles.avatarGap} /> : <Avatar name={c.authorName} photo={c.authorId ? p.photos.get(c.authorId) : undefined} />}
@@ -49,7 +57,17 @@ function Comment({ c, threadId, p }: { c: ThreadComment; threadId: string; p: Pr
           <span>{formatInZone(c.createdAt, p.timeZone)}</span>
           {c.edited && !c.deleted && <span>(edited)</span>}
         </header>
-        {c.deleted ? <p className={styles.deleted}>Comment deleted</p> : <Body text={c.body} mentions={c.mentions} />}
+        {c.deleted ? <p className={styles.deleted}>Comment deleted</p> : c.body && <Body text={c.body} mentions={c.mentions} />}
+        {c.files.length > 0 && (
+          <ul className={styles.files}>
+            {c.files.map((f) => (
+              <li key={f.id}>
+                {/* A plain link: the route always downloads (never next/link). */}
+                <a href={`/api/attachments/${f.id}`}>{f.fileName}</a> <span className={styles.size}>{formatSize(f.size)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         {!c.deleted && (
           <>
             {/* The toggles stay in one row; CSS shows the open one's form under it. */}
@@ -57,7 +75,7 @@ function Comment({ c, threadId, p }: { c: ThreadComment; threadId: string; p: Pr
               <details className={`${styles.toggle} ${styles.replyToggle}`}>
                 <summary className={styles.action}>Reply</summary>
               </details>
-              {mine && (
+              {editable && (
                 <details className={`${styles.toggle} ${styles.editToggle}`}>
                   <summary className={styles.action}>Edit</summary>
                 </details>
@@ -73,10 +91,11 @@ function Comment({ c, threadId, p }: { c: ThreadComment; threadId: string; p: Pr
             <form action={postComment} className={`${styles.form} ${styles.replyForm}`}>
               <input type="hidden" name="reminderId" value={p.reminderId} />
               <input type="hidden" name="parentId" value={threadId} />
-              <MentionTextarea people={p.people} label="Reply" />
+              <MentionTextarea people={p.people} label="Reply" required={false} />
+              <AddFiles />
               <Button size="small">Post reply</Button>
             </form>
-            {mine && (
+            {editable && (
               <form action={editCommentAction} className={`${styles.form} ${styles.editForm}`}>
                 <input type="hidden" name="reminderId" value={p.reminderId} />
                 <input type="hidden" name="commentId" value={c.id} />
@@ -85,7 +104,13 @@ function Comment({ c, threadId, p }: { c: ThreadComment; threadId: string; p: Pr
                   label="Edit comment"
                   defaultValue={c.body}
                   defaultMentions={p.people.filter((x) => c.mentions.includes(x.name)).map((x) => x.id)}
+                  required={false}
                 />
+                {/* AW1: your own files, for 24 hours after uploading. */}
+                {removable.map((f) => (
+                  <Checkbox key={f.id} label={`Remove ${f.fileName}`} name="removeFiles" value={f.id} />
+                ))}
+                <AddFiles />
                 <Button size="small">Save</Button>
               </form>
             )}
@@ -115,7 +140,8 @@ export function Discussion(p: Props) {
       ))}
       <form action={postComment} className={styles.form}>
         <input type="hidden" name="reminderId" value={p.reminderId} />
-        <MentionTextarea people={p.people} label="Add a comment" />
+        <MentionTextarea people={p.people} label="Add a comment" required={false} />
+        <AddFiles />
         <Button>Post comment</Button>
       </form>
     </Section>

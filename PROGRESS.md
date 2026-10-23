@@ -2,6 +2,57 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-23 — comments and attachments: edit windows, files on comments, more types (spec 15)
+
+- Spec approved as written ("spec is fine"), including AW3: after 24 hours a
+  file is locked for everyone, the creator and admins too. Deleting the
+  reminder or the comment still removes it.
+- **Files on comments are `attachments` rows with `comment_id`** (migration
+  0054), still under the comment's reminder. The download route's existing
+  check (RLS plus `reminderAccess` on the reminder) covers them unchanged.
+  Rejected: a separate comment-files table, which would have needed a second
+  download route and a second access check.
+  - The cost: every read of "a reminder's files" must leave them out (CA6).
+    The `ownFiles` filter does this in reminders.ts, and the worker and Send
+    test filter on it too.
+  - Deleting a comment deletes its file rows (CA5) rather than hiding them.
+    The comment row stays (soft delete), so the FK cascade wouldn't fire.
+- **Windows:** `mayRemoveFile` = your own file, uploaded under 24 hours ago.
+  Checked in the save (`assertRemovable`), so a forged removal is refused;
+  the form only offers ticks for those. Leaving a file off an "only this one"
+  copy counts as removing it. Copies keep each file's uploader (AW5) via
+  `CheckedFile.uploadedBy`. The 24 hours restart on the copy because it's a
+  new row. Comments: `editComment` refuses after 24 hours from `created_at`
+  (an edit doesn't restart it); the Edit toggle is hidden then.
+- **Types:**
+  - ODF by its uncompressed `mimetype` entry.
+  - iWork 2013+ by `Index/Document.iwa` (iWork '09 refused, FT1).
+  - RTF and JSON are UTF-8 text with a prefix check and a `JSON.parse` check.
+
+  The byte scan stays (no unzip library), so the checks are as strong as the
+  Office ones.
+- Known edge: a file added to a comment at hour 23 can only be removed for the
+  hour the comment is still editable, since removal goes through the comment's
+  edit form.
+- Independent spec tests (fresh agent, `spec-comments-files.test.ts`, real
+  zips built in the test): 24 of 25 passed first time. AW6 failed: the library
+  let a deactivated uploader remove their own file (only sign-in stopped
+  them). Fixed by requiring an active uploader in both removal paths. Now 27
+  pass, 5 skips (browser and HTTP parts).
+- M7 (calendar, "this and following") failed in 2 of 3 full runs: right
+  dates, wrong order. The test helper read the calendar's day map in
+  insertion order, which shifts when the live worker moves other reminders
+  in the test company. The calendar page looks days up by date, so users
+  don't see it. The helper now sorts by day. That isn't a weaker check:
+  order was never part of M7.
+- **Verified:** typecheck, lint, my tests (3), spec section 15, and
+  spec-calendar alone. The last full run failed M7 (now fixed) plus UP5 and
+  GC18. Both pass alone, and both belong to the known race between the
+  tests and the live worker (two workers are running locally).
+  - **Not verified:** anything in a browser: the comment file picker, the
+    files under comments, the remove ticks, the Edit toggle disappearing
+    after 24 hours, and the locked-files hint in the reminder form.
+
 ## 2026-10-23 — events: "Cancelled" sent twice with two workers
 
 - How it showed up: UP5 failed only in full test runs. A deleted event's
