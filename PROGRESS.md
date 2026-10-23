@@ -2,6 +2,21 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-23 — comments: image files show a preview
+
+- The user's comment image showed only as a file name. Spec 15 had left file
+  previews out. Now an image file (PNG, JPEG, GIF or WebP, already checked by
+  its bytes) gets a small `<img>` above its name, linking to the download.
+- No change to `/api/attachments`: it still serves every file with
+  `Content-Disposition: attachment` and `nosniff`. Browsers render an
+  attachment-disposition image in an `<img>` anyway, so the download-only
+  rule (FT6) and the access check stay as they were. Rejected: an
+  `?inline=1` mode on the route, which would mean a second way to serve files.
+- Size: up to 320×200, whole (`object-fit: contain`), lazy-loaded.
+- **Verified** in Chrome through ngrok as Maya on the user's own comment: the
+  657×260 PNG renders at 318×126, with no console errors. Not checked: dark
+  theme or narrow windows (CSS read only: max-width 100%).
+
 ## 2026-10-23 — dev console: about 35 CSP errors a page from the Next dev overlay
 
 - The user saw about 35 console errors on every page. Driving Chrome through

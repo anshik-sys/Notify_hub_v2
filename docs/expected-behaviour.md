@@ -820,8 +820,10 @@ Rules marked **(proposed)** are mine; confirm or change them before building.
 
 ### Not in this step
 
-Previews of files in the browser, editing a file in place, and files on Slack
-replies.
+Previews of other files in the browser, editing a file in place, and files on
+Slack replies. Added after building (user's request, 2026-10-23): an image on a
+comment (PNG, JPEG, GIF, WebP) shows a small preview above its name; the file
+is still served only as a download.
 
 ## 16. Browser push notifications (v2, PRD 14.7)
 

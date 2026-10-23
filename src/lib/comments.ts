@@ -256,7 +256,7 @@ const commentFiles = (companyId: string, commentId: string) =>
       .orderBy(attachments.createdAt),
   );
 
-export type CommentFile = { id: string; fileName: string; size: number; uploadedBy: string | null; createdAt: Date };
+export type CommentFile = { id: string; fileName: string; contentType: string; size: number; uploadedBy: string | null; createdAt: Date };
 
 export type ThreadComment = {
   id: string;
@@ -303,7 +303,7 @@ export async function listComments(companyId: string, reminderId: string) {
       : [];
     const files = rows.length
       ? await tx
-          .select({ id: attachments.id, commentId: attachments.commentId, fileName: attachments.fileName, size: attachments.size, uploadedBy: attachments.uploadedBy, createdAt: attachments.createdAt })
+          .select({ id: attachments.id, commentId: attachments.commentId, fileName: attachments.fileName, contentType: attachments.contentType, size: attachments.size, uploadedBy: attachments.uploadedBy, createdAt: attachments.createdAt })
           .from(attachments)
           .where(inArray(attachments.commentId, rows.map((r) => r.id)))
           .orderBy(attachments.createdAt)

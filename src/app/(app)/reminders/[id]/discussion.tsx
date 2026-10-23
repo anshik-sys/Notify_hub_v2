@@ -62,6 +62,14 @@ function Comment({ c, threadId, p }: { c: ThreadComment; threadId: string; p: Pr
           <ul className={styles.files}>
             {c.files.map((f) => (
               <li key={f.id}>
+                {/* Images (PNG, JPEG, GIF, WebP, checked by their bytes) get a preview: an <img> shows
+                    them even though the route serves every file as a download. */}
+                {f.contentType.startsWith("image/") && (
+                  <a href={`/api/attachments/${f.id}`} className={styles.thumbLink}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- a private, signed-in file; the optimizer can't fetch it */}
+                    <img className={styles.thumb} src={`/api/attachments/${f.id}`} alt={f.fileName} loading="lazy" />
+                  </a>
+                )}
                 {/* A plain link: the route always downloads (never next/link). */}
                 <a href={`/api/attachments/${f.id}`}>{f.fileName}</a> <span className={styles.size}>{formatSize(f.size)}</span>
               </li>
