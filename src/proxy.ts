@@ -8,7 +8,10 @@ import { NextRequest, NextResponse } from "next/server";
 // - style-src-attr 'unsafe-inline': style="" attributes (report bars), not <style>;
 // - frame-src 'self': the email preview's sandboxed srcdoc iframe;
 // - form-action: Google sign-in and Slack connect redirect out from a form post;
-// - worker-src 'self': only our own /sw.js may run as a worker (browser push, PRD 14.7).
+// - worker-src 'self': only our own /sw.js may run as a worker (browser push, PRD 14.7);
+// - dev only: style-src 'unsafe-inline' for Next's dev overlay, whose <style> tags carry
+//   no nonce (about 35 console errors a page otherwise). A nonce makes browsers ignore
+//   'unsafe-inline', so dev drops it; production keeps the nonce and stays strict.
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const dev = process.env.NODE_ENV === "development";
@@ -16,7 +19,7 @@ export function proxy(request: NextRequest) {
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
-    `style-src 'self' 'nonce-${nonce}'`,
+    dev ? "style-src 'self' 'unsafe-inline'" : `style-src 'self' 'nonce-${nonce}'`,
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",

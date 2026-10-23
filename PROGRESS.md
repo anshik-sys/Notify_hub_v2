@@ -2,6 +2,22 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-23 — dev console: about 35 CSP errors a page from the Next dev overlay
+
+- The user saw about 35 console errors on every page. Driving Chrome through
+  ngrok with a throwaway session showed they were all "Applying inline style
+  violates style-src". The source was Next's dev overlay (`nextjs-portal`),
+  whose 17 shadow-DOM `<style>` tags have no nonce. None came from NotifyHub
+  code, and no page had any other error.
+- The user's call (asked first, per AGENTS): in dev only, style-src is
+  `'self' 'unsafe-inline'`. It can't keep the nonce too: browsers ignore
+  `'unsafe-inline'` when a nonce is present. Production (`NODE_ENV` not
+  development) keeps the nonce rule unchanged.
+- **Verified:** the same 14 pages show 0 console errors in dev. The dev header
+  shows the relaxed rule. The production rule is the unchanged branch of the
+  same line; it wasn't re-checked with a build, since the user's `pnpm dev`
+  holds the folder.
+
 ## 2026-10-23 — platform password reset leads back to the platform sign-in
 
 - The user reset the owner password from `/platform/sign-in` and landed on the
