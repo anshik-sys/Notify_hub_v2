@@ -19,6 +19,13 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
   turns, and a quiet Clear. Used by Reminders, Team, Audit log and Reports.
 - **Not verified in a browser** (design work is the user's check): the four
   filter bars, the reminder form's dropdowns, dark theme, narrow windows.
+- Follow-up the same day: the user saw the dropdowns still grey. The cause was
+  an older kit rule, `.input:read-only { background: var(--surface) }`, meant
+  for read-only text fields. Browsers count every `<select>` as `:read-only`,
+  and the rule was more specific than `select.input`, so it turned all
+  dropdowns grey and its `background` shorthand wiped the new arrow. Now it
+  applies to `input` and `textarea` only. That's also why the first change
+  showed no dropdown difference anywhere.
 
 ## 2026-10-23 — comments: image files show a preview
 

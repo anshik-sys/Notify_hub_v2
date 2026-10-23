@@ -243,7 +243,10 @@ select.input {
   cursor: pointer;
 }
 
-.input:read-only {
+/* Read-only text fields only: browsers count every <select> as :read-only, and
+   this used to turn all dropdowns grey (and wipe their arrow). */
+input.input:read-only,
+textarea.input:read-only {
   background: var(--surface);
 }
 
