@@ -2,6 +2,22 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-23 — platform password reset leads back to the platform sign-in
+
+- The user reset the owner password from `/platform/sign-in` and landed on the
+  company `/sign-in` (with the Google button), which looked like the wrong
+  app. That was the 2026-10-12 shortcut ("after a reset the owner signs in on
+  /sign-in and /onboarding forwards them").
+- Now `?for=platform` rides along: platform link → `/forgot-password` →
+  `redirectTo` → Better Auth's emailed link (it keeps the extra query
+  parameter when it adds `token`) → `/reset-password` → back to
+  `/platform/sign-in`. The marker only picks the page you return to. Owner
+  checks, the IP allow list and 2FA are unchanged.
+- **Verified** in Chrome through ngrok: the platform link, the request, the
+  Mailpit email's link carrying `for=platform`, and the reset form keeping it.
+  The final "Change password" step wasn't clicked, to leave the user's new
+  password alone. An unused reset email for the owner is left in Mailpit.
+
 ## 2026-10-23 — browser push (spec 16, PU1-PU14)
 
 - The user approved the spec and said yes to all three questions:

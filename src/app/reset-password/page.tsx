@@ -11,8 +11,10 @@ import { auth } from "@/lib/auth";
 async function reset(formData: FormData) {
   "use server";
   const token = String(formData.get("token") ?? "");
+  // A platform owner's reset (for=platform) leads back to the platform's own sign-in.
+  const platform = formData.get("for") === "platform";
   const [password, confirm] = [String(formData.get("password") ?? ""), String(formData.get("confirm") ?? "")];
-  const back = (m: string) => redirect(errorUrl(`/reset-password?token=${encodeURIComponent(token)}`, m));
+  const back = (m: string) => redirect(errorUrl(`/reset-password?${platform ? "for=platform&" : ""}token=${encodeURIComponent(token)}`, m));
   const limited = await limits([[`reset:ip:${clientIp(await headers())}`, 10, 3600]]);
   if (limited) back(limited);
   if (password !== confirm) back("The passwords don't match.");
@@ -22,12 +24,13 @@ async function reset(formData: FormData) {
     if (e instanceof APIError) back(/token/i.test(e.message) ? "This link has expired or was already used. Ask for a new one." : e.message);
     throw e;
   }
-  redirect(`/sign-in?notice=${encodeURIComponent("Password changed. Sign in with the new one.")}`);
+  redirect(`${platform ? "/platform/sign-in" : "/sign-in"}?notice=${encodeURIComponent("Password changed. Sign in with the new one.")}`);
 }
 
 export default async function ResetPassword(props: PageProps<"/reset-password">) {
   const sp = await props.searchParams;
   const token = firstParam(sp.token) ?? "";
+  const platform = firstParam(sp.for) === "platform";
   // Better Auth sends ?error=INVALID_TOKEN when the link is bad or used.
   const error = firstParam(sp.error) === "INVALID_TOKEN" ? "This link has expired or was already used. Ask for a new one." : firstParam(sp.error);
   return (
@@ -35,13 +38,14 @@ export default async function ResetPassword(props: PageProps<"/reset-password">)
       {token ? (
         <Form action={reset}>
           <input type="hidden" name="token" value={token} />
+          {platform && <input type="hidden" name="for" value="platform" />}
           <Field label="New password" name="password" type="password" autoComplete="new-password" minLength={8} required />
           <Field label="Repeat it" name="confirm" type="password" autoComplete="new-password" minLength={8} required />
           <Button>Change password</Button>
         </Form>
       ) : (
         <Hint>
-          <Link href="/forgot-password">Ask for a new link</Link>
+          <Link href={platform ? "/forgot-password?for=platform" : "/forgot-password"}>Ask for a new link</Link>
         </Hint>
       )}
     </Page>

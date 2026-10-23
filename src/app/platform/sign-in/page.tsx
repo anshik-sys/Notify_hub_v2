@@ -58,7 +58,7 @@ export default async function PlatformSignIn(props: PageProps<"/platform/sign-in
         <Button>Sign in</Button>
       </Form>
       <Hint>
-        <Link href="/forgot-password">Forgot your password?</Link>
+        <Link href="/forgot-password?for=platform">Forgot your password?</Link>
       </Hint>
     </Page>
   );
