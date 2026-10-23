@@ -422,18 +422,26 @@ test("RB4: 1 week and 1 day: each once per assignee per date, in time order; a l
 
 // --- RB5 -----------------------------------------------------------------------------
 
-test("RB5: a time before sending, a custom 0, or more than 5 times are refused in the form", async (t) => {
+test("RB5: a time before sending, a custom 0, or more than 5 times are refused in the form; the lone 1-day default is dropped", async (t) => {
   const MSG = /Remind before due must be less than the time between sending and due/;
   const SEND = new Date("2031-06-02T09:00:00Z");
   const err = (o: Omit<TaskOpts, "sendAt">) => parse({ sendAt: SEND, ...o }).error ?? `(accepted, saved ${JSON.stringify(parse({ sendAt: SEND, ...o }).input?.notifyBefore)})`;
   const count = async () => Number((await q("select count(*) from reminders where company_id = $1", [s.companyId]))[0].count);
   const before = await count();
 
-  await t.test("a preset before sending: due 2 hours after sending, '1 day before'", () => {
-    assert.match(err({ due: new Date(SEND.getTime() + 2 * 60 * MIN), remind: ["1440"] }), MSG);
+  // Decided 2026-10-23: "1 day" alone is the form's default, so it's dropped, not refused.
+  await t.test("the default alone before sending: due 2 hours after sending, '1 day before' is dropped", () => {
+    const r = parse({ sendAt: SEND, due: new Date(SEND.getTime() + 2 * 60 * MIN), remind: ["1440"] });
+    assert.equal(r.error, undefined);
+    assert.deepEqual(r.input?.notifyBefore ?? [], []);
   });
-  await t.test("a preset exactly at sending: due 1 day after sending, '1 day before' (not less than)", () => {
-    assert.match(err({ due: new Date(SEND.getTime() + DAY), remind: ["1440"] }), MSG);
+  await t.test("the default alone exactly at sending: due 1 day after sending, '1 day before' is dropped", () => {
+    const r = parse({ sendAt: SEND, due: new Date(SEND.getTime() + DAY), remind: ["1440"] });
+    assert.equal(r.error, undefined);
+    assert.deepEqual(r.input?.notifyBefore ?? [], []);
+  });
+  await t.test("a preset before sending with another time: due 2 hours after, '1 day' and '1 hour'", () => {
+    assert.match(err({ due: new Date(SEND.getTime() + 2 * 60 * MIN), remind: ["1440", "60"] }), MSG);
   });
   await t.test("a custom time before sending", () => {
     assert.match(err({ due: new Date(SEND.getTime() + 2 * 60 * MIN), custom: "3", unit: "hours" }), MSG);

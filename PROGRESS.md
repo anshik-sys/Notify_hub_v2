@@ -2,6 +2,15 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-23 — RB5 decided: the 1-day default is dropped, not refused
+
+- The user chose option (a): keep the code as built. "1 day" ticked alone on
+  a task due within a day is dropped silently; any other time that doesn't
+  fit is still refused. The spec was wrong, not the product.
+- Spec RB5 reworded; its test now expects the lone default dropped and
+  still refuses "1 day" plus "1 hour" on a task due in 2 hours.
+- **Verified:** remind-before tests 37 pass, 2 browser skips; typecheck.
+
 ## 2026-10-22 — tasks: remind before due (spec 14, RB1-RB9)
 
 - Spec section 14 approved ("spec is fine"). The user dropped the PRD's
