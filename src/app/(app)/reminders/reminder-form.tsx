@@ -182,6 +182,7 @@ export function ReminderForm({
   defaultSender,
   slackChannels,
   attachments = [],
+  cover,
   brand,
   nextLabel,
   occursAt,
@@ -196,6 +197,8 @@ export function ReminderForm({
   slackChannels: { id: string; name: string }[] | null;
   /** Edit: files already on the reminder. */
   attachments?: { id: string; fileName: string; size: number }[];
+  /** Edit: the task's cover image URL, if it has one. */
+  cover?: string | null;
   /** The company's name and logo, for the email preview's header. */
   brand?: Brand;
   /** Edit of a scheduled series: its next occurrence, for "only the next one" (PRD 5.6). */
@@ -433,6 +436,10 @@ export function ReminderForm({
             <Field label={`Due (${timeZone})`} name="due" type="datetime-local" defaultValue={defaults.dueLocal} />
             <Hint>Anyone not done by then gets a reminder every day until they are.</Hint>
             <RemindBefore minutes={defaults.isTask ? (defaults.notifyBefore ?? []) : [1440]} />
+            {/* PRD 14.5: shown only on the task's page (CV5). */}
+            <FileField label={cover ? "Replace the cover image" : "Cover image"} name="cover" accept=".png,.jpg,.jpeg,.gif,.webp" />
+            <Hint>Shown across the top of the task’s page. PNG, JPEG, GIF or WebP, up to 5 MB.</Hint>
+            {cover && <Checkbox label="Remove the cover image" name="removeCover" />}
           </div>
           {/* PRD 14.3: the start is "When to send" above. */}
           <div className={styles.event}>

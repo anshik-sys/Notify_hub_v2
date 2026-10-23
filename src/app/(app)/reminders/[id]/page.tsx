@@ -5,7 +5,7 @@ import { List, ListRow } from "@/components/list";
 import { Badge, Muted, Table } from "@/components/table";
 import { can } from "@/lib/permissions";
 import { describe } from "@/lib/recurrence";
-import { deliveryLog, getReminder, isDelayed, listAttachments, mayDecide as canDecide, reminderAccess, statusLabel } from "@/lib/reminders";
+import { coverUrl, deliveryLog, getReminder, isDelayed, listAttachments, mayDecide as canDecide, reminderAccess, statusLabel } from "@/lib/reminders";
 import { formatSize } from "@/lib/format";
 import { markReadForReminder } from "@/lib/notifications";
 import { requireMember } from "@/lib/session";
@@ -66,7 +66,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   // PRD 14.3: answers, once guests can see it (not while waiting for approval).
   const guests = r.isEvent && ["scheduled", "paused", "sent"].includes(r.status) ? await eventGuests(companyId, r) : null;
   const myAnswer = guests?.list.find((g) => g.id === user.id && !g.organiser);
-  const [files, thread, people, photos] = await Promise.all([
+  const [files, thread, people, photos, cover] = await Promise.all([
     listAttachments(companyId, r.id),
     listComments(companyId, r.id),
     // The mention list is the directory: only for those allowed to see it.
@@ -74,6 +74,7 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
       ? listUsers(companyId).then((x) => x.users.filter((u) => !u.deactivatedAt).map(({ id, name, email }) => ({ id, name, email })))
       : [],
     photoUrls(companyId),
+    r.isTask ? coverUrl(companyId, r.id) : null,
   ]);
   const { error: errorParam, notice: noticeParam } = await props.searchParams;
   const [error, notice] = [firstParam(errorParam), firstParam(noticeParam)];
@@ -102,6 +103,11 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
         )
       }
     >
+      {/* PRD 14.5 (CV2): decorative, the title says what it is. */}
+      {cover && (
+        // eslint-disable-next-line @next/next/no-img-element -- a private, signed-in image; the optimizer can't fetch it
+        <img className={styles.cover} src={cover} alt="" />
+      )}
       <p className={styles.status}>
         <span className={styles.badge}>{statusLabel(r)}</span>
         <span>{r.shortId}</span>

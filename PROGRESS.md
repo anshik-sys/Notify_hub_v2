@@ -2,6 +2,32 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-23 — tasks: cover image (spec 14, CV1-CV6)
+
+- 5 MB confirmed by the user. A new table `reminder_covers` (migration 0051),
+  one row per task, not a flagged `attachments` row: attachments go into
+  emails, count toward the 20-file limit and are listed on the page, and every
+  one of those places would have needed a "but not the cover" filter (CV5).
+- Checked like the photo and logo (`checkImage`: raster only, by its bytes).
+  Served by `/api/cover/<task id>`, which runs `reminderAccess` as attachments
+  do, so the URL alone opens nothing (CV3). Cached privately with `?v=`.
+- **The cover field is in the form for every type, hidden by CSS**, like
+  remind-before. The action only reads it for a task, and saving a task as a
+  reminder or event drops the cover. Not in the spec: my call (CV6).
+- Copies keep it: duplicate, "this one" and "this and following" copy the
+  row in SQL (`copyCover`). Removing it in a "this one" edit leaves the
+  series' own cover alone.
+- **Sub-tasks get covers when sub-tasks exist**: nothing built for them yet.
+- Independent spec tests (fresh agent): CV1-CV6 all pass the first time, 3
+  browser skips. The agent flagged one gap: the route was never called
+  signed in, so the 404 for someone who can't open the task is checked
+  through `reminderAccess`, not the route itself.
+- **Verified:** typecheck, lint, my tests (3), RLS, spec CV1-CV6, full suite
+  521 pass / 2 fail, both RC2 (the known flaky events daily-limit test, see
+  2026-10-22); its file passes 14/14 twice alone.
+  - **Not verified:** anything in a browser (the banner, the form field, the
+    route signed in as someone who can't open the task).
+
 ## 2026-10-23 — RB5 decided: the 1-day default is dropped, not refused
 
 - The user chose option (a): keep the code as built. "1 day" ticked alone on

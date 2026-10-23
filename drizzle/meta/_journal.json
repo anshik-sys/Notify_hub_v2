@@ -358,6 +358,13 @@
       "when": 1792671200360,
       "tag": "0050_remind_before_due",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1792731414226,
+      "tag": "0051_task_covers",
+      "breakpoints": true
     }
   ]
 }

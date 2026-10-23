@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import { db, withTenant } from "./index";
-import { attachmentBlobs, attachments, auditLog, departments, emailSuppressions, eventResponses, googleCalendarEntries, googleCalendars, groupMembers, groups, notificationMutes, reminderColors, reminderShares, userPhotos, notifications, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
+import { attachmentBlobs, attachments, auditLog, departments, emailSuppressions, eventResponses, googleCalendarEntries, googleCalendars, groupMembers, groups, notificationMutes, reminderColors, reminderCovers, reminderShares, userPhotos, notifications, reminders, roles, slackInstallations, taskAssignments, user } from "./schema";
 import { ALL_PERMISSIONS, COMPANY_ADMIN_ROLE_ID, loadAccess, MEMBER_ROLE_ID } from "@/lib/permissions";
 
 // Seeds as the owner (bypasses RLS), then reads through the app role.
@@ -96,6 +96,9 @@ test("slack installations and task assignments are tenant-isolated", async () =>
   await owner.query("insert into reminder_colors (user_id, reminder_id, company_id, color) values ($1, $2, $3, 'sage')", [`u-${b}`, colored, b]);
   assert.equal((await withTenant(a, (tx) => tx.select().from(reminderColors))).length, 0);
   assert.equal((await withTenant(b, (tx) => tx.select().from(reminderColors))).length, 1);
+  await owner.query("insert into reminder_covers (reminder_id, company_id, content_type, data) values ($1, $2, 'image/png', '\\x89')", [colored, b]);
+  assert.equal((await withTenant(a, (tx) => tx.select().from(reminderCovers))).length, 0);
+  assert.equal((await withTenant(b, (tx) => tx.select().from(reminderCovers))).length, 1);
   await owner.query("insert into event_responses (reminder_id, user_id, company_id, answer) values ($1, $2, $3, 'yes')", [colored, `u-${b}`, b]);
   assert.equal((await withTenant(a, (tx) => tx.select().from(eventResponses))).length, 0);
   assert.equal((await withTenant(b, (tx) => tx.select().from(eventResponses))).length, 1);

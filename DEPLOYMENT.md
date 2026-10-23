@@ -39,6 +39,10 @@ Both processes need a container host with a persistent process (Fly, Railway, EC
 versions. Migrations create roles `notifyhub_app` and `notifyhub_auth` without
 passwords; set them out of band: `ALTER ROLE notifyhub_app PASSWORD '...'` (same for `notifyhub_auth`).
 
+Migration 0051: `reminder_covers` (a task's cover image, one per task, tenant
+RLS, audited without the bytes). `/api/cover/*` is private: if a CDN sits in
+front, don't cache it publicly.
+
 Migration 0050: remind before due (PRD 14.5). `deliveries.kind` gains
 `due`, sharing the "starts soon" unique index and keying check. Restart the
 worker with it.
@@ -339,6 +343,7 @@ ids, and makes the earliest user of each existing company its Company Admin.
 - [ ] Send a reminder to a colleague: their sidebar shows "Notifications 1"; clicking it in Notifications opens the reminder and the count goes away. "Mark all read" clears the rest.
 - [ ] Notifications → Preferences: untick approval emails; a new out-of-scope reminder shows up in Notifications but sends no approval email. "Someone commented on my reminder" starts unticked; tick its email, and a colleague's comment emails you once.
 - [ ] Profile → Photo: upload a PNG → it shows in the sidebar, top bar, Team and Discussion; an SVG or a 2 MB file is refused; signed out, `/api/avatar/<id>` goes to sign-in.
+- [ ] A task with a cover image: the banner shows on its page, not in the email or Slack DM; someone who can't open the task gets a 404 from `/api/cover/<id>`; a 6 MB image or an SVG is refused.
 - [ ] Home: each stat card's number matches the list it opens. Reminders: search by a recipient's name finds it; filters and page 2 survive a reload and the back button.
 - [ ] Tags: add "Finance, Q3" to a reminder → shown as chips; clicking one lists reminders with that tag.
 - [ ] My tasks: Mark done moves it to Done and stays on the page; Calendar shows a daily reminder on each remaining day, not on a skipped one.

@@ -6,6 +6,7 @@ import { type CheckedFile, checkFile, MAX_FILES_PER_SAVE } from "@/lib/attachmen
 import { can } from "@/lib/permissions";
 import {
   cancelReminder,
+  checkCover,
   createReminder,
   decideReminder,
   deleteEntry,
@@ -63,7 +64,11 @@ export async function saveReminder(fd: FormData) {
   // Files: every one is checked (content, type, CSV formulas) before anything
   // is saved, so one bad file means nothing is written.
   const uploads = fd.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
-  if (uploads.length) {
+  // PRD 14.5: a task's cover image. The field is in the page for every type (hidden by
+  // CSS), so it only counts for a task; saving anything else drops the cover.
+  const coverUpload = parsed.input.isTask ? fd.get("cover") : null;
+  const coverFile = coverUpload instanceof File && coverUpload.size > 0 ? coverUpload : null;
+  if (uploads.length || coverFile) {
     const limited = await limits([[`upload:user:${user.id}`, 30, 3600]]);
     if (limited) redirect(errorUrl(back, limited));
   }
@@ -73,6 +78,12 @@ export async function saveReminder(fd: FormData) {
     const checked = checkFile(u.name, new Uint8Array(await u.arrayBuffer()));
     if ("error" in checked) redirect(errorUrl(back, checked.error));
     files.push(checked.file);
+  }
+  let cover: CheckedFile | null | undefined = fd.get("removeCover") ? null : undefined;
+  if (coverFile) {
+    const checked = checkCover(coverFile.name, new Uint8Array(await coverFile.arrayBuffer()));
+    if ("error" in checked) redirect(errorUrl(back, checked.error));
+    cover = checked.image;
   }
   const removeAttachmentIds = all(fd, "removeAttachments");
   if (!removeAttachmentIds.every(isUuid)) notFound();
@@ -87,16 +98,16 @@ export async function saveReminder(fd: FormData) {
     // From the calendar, "this one" can be any upcoming date of the series.
     const occurs = str(fd, "occursAt") ? new Date(str(fd, "occursAt")) : undefined;
     if (occurs && Number.isNaN(occurs.getTime())) notFound();
-    const made = await detachOccurrence(me, companyId, id, parsed.input, files, removeAttachmentIds, occurs);
+    const made = await detachOccurrence(me, companyId, id, parsed.input, files, removeAttachmentIds, occurs, false, cover);
     if ("error" in made) redirect(errorUrl(back, made.error));
     redirect(`/reminders/${made.id}${notice || `?notice=${encodeURIComponent("Saved as a separate reminder. The series skips that date.")}`}`);
   }
   if (id) {
-    const error = await updateReminder(me, companyId, id, parsed.input, files, removeAttachmentIds);
+    const error = await updateReminder(me, companyId, id, parsed.input, files, removeAttachmentIds, cover);
     if (error) redirect(errorUrl(back, error));
     redirect(`/reminders/${id}${notice}`);
   }
-  const created = await createReminder(me, companyId, parsed.input, files);
+  const created = await createReminder(me, companyId, parsed.input, files, cover);
   if ("error" in created) redirect(errorUrl(back, created.error));
   redirect(`/reminders/${created.id}${notice}`);
 }

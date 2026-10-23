@@ -700,12 +700,12 @@ chains. Open questions answered 2026-10-22 (see the end of the section).
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| CV1 | Add a cover image to a task or sub-task | PNG, JPEG, GIF or WebP up to 5 MB, content-checked like attachments (not by name or browser type); anything else refused | PRD 14.5 "same checks as 5.7"; **(proposed: 5 MB)** | |
-| CV2 | Its page | Shown as a banner across the top | PRD 14.5 | |
-| CV3 | Who sees it | Whoever can open the task; the image's link checks that too (no public URL) | PRD 5.7 | |
-| CV4 | Replace or remove it | The old file is deleted | | |
-| CV5 | Emails, Slack, calendar, Google | No image: only the task page shows it | User's decision 2026-10-22 | |
-| CV6 | Only on tasks and sub-tasks | Reminders and events have no cover option | PRD 14.5 | |
+| CV1 | Add a cover image to a task or sub-task | PNG, JPEG, GIF or WebP up to 5 MB, content-checked like attachments (not by name or browser type); anything else refused | PRD 14.5 "same checks as 5.7"; 5 MB: user's decision 2026-10-23 || PASS (tasks; sub-tasks not built yet) |
+| CV2 | Its page | Shown as a banner across the top | PRD 14.5 || PASS (URL); the banner itself is a browser check |
+| CV3 | Who sees it | Whoever can open the task; the image's link checks that too (no public URL) | PRD 5.7 || PASS (access rule and company isolation); the route signed in as another member is a browser check |
+| CV4 | Replace or remove it | The old file is deleted | || PASS |
+| CV5 | Emails, Slack, calendar, Google | No image: only the task page shows it | User's decision 2026-10-22 || PASS (email, Slack, in-app calendar, notifications, Google) |
+| CV6 | Only on tasks and sub-tasks | Reminders and events have no cover option | PRD 14.5 || PASS; saving a task as a reminder or event drops its cover (decided while building); the form showing the field only for tasks is a browser check |
 
 ### Sub-tasks
 
@@ -751,7 +751,7 @@ images on reminders or events.
 
 1. Follow-up wording: **keep "Overdue"** everywhere; the PRD 14.5 wording change is dropped.
 2. **RB1:** presets plus Custom; 1 day ticked by default when it fits.
-3. **CV5:** the cover image only on the task's page. (CV1's 5 MB limit not discussed: still proposed.)
+3. **CV5:** the cover image only on the task's page. CV1: 5 MB, confirmed 2026-10-23.
 4. **ST3 / ST10:** as proposed.
 5. **ST2 / ST4:** each sub-task has its own due time and is sent with the parent; the parent is done only when all sub-tasks are.
 6. **CH3:** B starts when everyone has done A.

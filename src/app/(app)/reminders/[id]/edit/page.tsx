@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Button, firstParam, Page } from "@/components/form";
-import { getReminder, listAttachments, mayChange } from "@/lib/reminders";
+import { coverUrl, getReminder, listAttachments, mayChange } from "@/lib/reminders";
 import { requireMember } from "@/lib/session";
 import { companyBrand, senderDefault } from "@/lib/company";
 import { brandFor } from "@/lib/email-render";
@@ -23,10 +23,11 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
   // Same rule as updateReminder, and not yet sent.
   if (!r || !(await mayChange(companyId, { id: user.id, access }, r.createdBy))) notFound();
   if (!["pending_approval", "rejected", "scheduled", "paused"].includes(r.status)) notFound();
-  const [choices, slackChannels, files] = await Promise.all([
+  const [choices, slackChannels, files, cover] = await Promise.all([
     recipientChoices(companyId, user.id, access),
     channelChoices(companyId),
     listAttachments(companyId, r.id),
+    r.isTask ? coverUrl(companyId, r.id) : null,
   ]);
   const sp = await props.searchParams;
   const error = firstParam(sp.error);
@@ -45,6 +46,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
         {...choices}
         slackChannels={slackChannels}
         attachments={files}
+        cover={cover}
         timeZone={company.timeZone}
         defaultSender={senderDefault(company)}
         nextLabel={r.recurrence && r.status === "scheduled" ? formatInZone(occurs ?? r.sendAt, r.timeZone) : undefined}

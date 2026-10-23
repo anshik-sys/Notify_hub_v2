@@ -6,7 +6,8 @@ import { type CheckedFile, MAX_FILES_PER_REMINDER } from "./attachments";
 import { sendMail } from "./mail";
 import { addNotifications, mutedFor, planTell, sendTell } from "./notifications";
 import { dmLink } from "./slack-installations";
-import { getBlob, putBlob } from "./storage";
+import { checkImage } from "./company";
+import { copyCover, deleteCover, getBlob, getCover, putBlob, putCover } from "./storage";
 import { resolveRecipients, type Target, type Tx } from "./recipients";
 import { type Access, can, COMPANY_ADMIN_ROLE_ID, loadAccess } from "./permissions";
 import { firstAtOrAfter, nextAfter, type RepeatFields, type Rule, ruleFromForm, shiftSeries, splitRule } from "./recurrence";
@@ -537,6 +538,26 @@ export function listAttachments(companyId: string, reminderId: string) {
   );
 }
 
+// PRD 14.5 cover image (CV1): one raster image per task, checked by its bytes.
+export const COVER_MAX_BYTES = 5 * 1024 * 1024;
+export const checkCover = (fileName: string, bytes: Uint8Array) => checkImage(fileName, bytes, COVER_MAX_BYTES, "cover image");
+
+// cover: undefined keeps it, null removes it, a file replaces it (CV4). Only
+// tasks have one (CV6): turning a task into a reminder or event drops it.
+async function saveCover(tx: Tx, companyId: string, reminderId: string, isTask: boolean, cover: CheckedFile | null | undefined) {
+  if (!isTask || cover === null) await deleteCover(tx, reminderId);
+  else if (cover) await putCover(tx, companyId, reminderId, cover.contentType, cover.data);
+}
+
+// The task page's banner; ?v= changes with the image, so it can be cached.
+export async function coverUrl(companyId: string, reminderId: string) {
+  const c = await withTenant(companyId, (tx) => getCover(tx, reminderId));
+  return c ? `/api/cover/${reminderId}?v=${c.updatedAt.getTime()}` : null;
+}
+
+// For /api/cover/<reminder id>; the route checks the viewer can open the task (CV3).
+export const coverFile = (companyId: string, reminderId: string) => withTenant(companyId, (tx) => getCover(tx, reminderId));
+
 // Wakes the worker (LISTEN reminders_due) so "now" means now. Postgres only
 // delivers it if this transaction commits. The worker's minute tick catches
 // anything a missed notification would have left behind. A scheduled event
@@ -556,12 +577,12 @@ async function refusals<T>(fn: () => Promise<T>): Promise<T | { error: string }>
 
 // files: already checked (checkFile in src/lib/attachments.ts); stored in the
 // same transaction as the reminder, so a reminder never exists half-saved.
-export async function createReminder(actor: Actor, companyId: string, input: ReminderInput, files: CheckedFile[] = []) {
+export async function createReminder(actor: Actor, companyId: string, input: ReminderInput, files: CheckedFile[] = [], cover?: CheckedFile | null) {
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
       const out = await checked(tx, companyId, actor, input);
       const status: ReminderStatus = out.length ? "pending_approval" : "scheduled";
-      const id = await insertReminder(tx, companyId, actor.id, { ...input, createdBy: actor.id, status }, files);
+      const id = await insertReminder(tx, companyId, actor.id, { ...input, createdBy: actor.id, status }, files, cover);
       return { id, approvers: status === "pending_approval" ? await approversToTell(tx, companyId, id) : [] };
     }),
   );
@@ -578,6 +599,7 @@ async function insertReminder(
   actorId: string,
   input: ReminderInput & Pick<typeof reminders.$inferInsert, "createdBy" | "status" | "decidedBy" | "decidedAt" | "replacesSeriesId" | "replacesOccursAt">,
   files: CheckedFile[],
+  cover?: CheckedFile | null,
 ) {
   const { targets, shares, ...fields } = input;
   let id = "";
@@ -593,6 +615,7 @@ async function insertReminder(
   await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
   await saveShares(tx, companyId, id, actorId, shares);
   await saveAttachments(tx, companyId, id, actorId, files, []);
+  await saveCover(tx, companyId, id, input.isTask, cover);
   await notifyIfDue(tx, fields.status, input.sendAt, "isEvent" in input && input.isEvent);
   return id;
 }
@@ -620,6 +643,7 @@ export async function updateReminder(
   input: ReminderInput,
   files: CheckedFile[] = [],
   removeAttachmentIds: string[] = [],
+  cover?: CheckedFile | null,
 ) {
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
@@ -668,6 +692,7 @@ export async function updateReminder(
       await tx.insert(reminderTargets).values(targets.map((t) => ({ ...t, reminderId: id, companyId })));
       await saveShares(tx, companyId, id, actor.id, shares);
       await saveAttachments(tx, companyId, id, actor.id, files, removeAttachmentIds);
+      await saveCover(tx, companyId, id, input.isTask, cover);
       await notifyIfDue(tx, status, input.sendAt, "isEvent" in input && input.isEvent);
       return {
         approvers: status === "pending_approval" ? await approversToTell(tx, companyId, id) : [],
@@ -702,6 +727,7 @@ export async function detachOccurrence(
   // A calendar move: only the time changes, never the recipients, so the copy
   // keeps the series' status and approval (decided 2026-10-20, spec M6).
   moveOnly = false,
+  cover?: CheckedFile | null,
 ) {
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
@@ -745,8 +771,10 @@ export async function detachOccurrence(
           ...(status === "scheduled" && passOn ? { decidedBy: series.decidedBy, decidedAt: series.decidedAt } : {}),
         },
         [...copies, ...files],
+        cover,
       );
       await copyColors(tx, id, newId);
+      if (cover === undefined && input.isTask) await copyCover(tx, id, newId);
       // Waiting for approval: the series keeps that date for now. The worker
       // skips it on the day only if the copy has been approved by then
       // (decided 2026-10-19), so an unapproved change never loses a send.
@@ -847,6 +875,7 @@ export async function duplicateReminder(actor: Actor & { email: string }, compan
       const status: ReminderStatus = out.length ? "pending_approval" : "scheduled";
       const files = await filesOf(tx, id);
       const newId = await insertReminder(tx, companyId, actor.id, { ...input, createdBy: actor.id, status }, files);
+      await copyCover(tx, id, newId);
       return { id: newId, approvers: status === "pending_approval" ? await approversToTell(tx, companyId, newId) : [] };
     }),
   );
@@ -1006,6 +1035,7 @@ export async function moveEntry(actor: Actor, companyId: string, id: string, occ
         await filesOf(tx, id),
       );
       await copyColors(tx, id, newId);
+      await copyCover(tx, id, newId);
       // Skips from that date on, and the dates waiting copies replace, go to the
       // new series (moved the same way), so no date sends twice.
       const shift = (d: Date) => zonedToUtc(shiftSeries(series.recurrence, local(d), local(occursAt), local(newAt)).anchorLocal, r.timeZone)!;

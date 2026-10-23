@@ -244,6 +244,12 @@ pnpm fake-slack  # dev: a fake Slack on :4999 (the .env SLACK_* values point at 
   request; URLs carry `?v=<updated_at>` and are cached privately for a year.
   Changing your photo revalidates the layout, since the shell shows it.
   `erase_person()` deletes it; the export includes it (base64).
+- **Task cover images (`reminder_covers`, `/api/cover/<reminder id>`):** like
+  photos, raster only and checked by their bytes (`checkCover`, 5 MB), but the
+  route also runs `reminderAccess`: only someone who can open the task gets
+  the image. Only the task page shows it (never emails, Slack or calendars).
+  Copies and splits (duplicate, "this one", "this and following") copy it in
+  SQL (`copyCover`); saving a task as a reminder or event drops it.
 - **Theme comes from a cookie, read on the server** (`src/lib/theme.ts`). The
   root layout puts `data-theme` on `<html>`, so the first paint is right: no
   flash, no client JS. No attribute means following the device. This is why

@@ -712,6 +712,24 @@ export const userPhotos = pgTable(
   () => [tenantPolicy("company_id")],
 ).enableRLS();
 
+// A task's cover image (PRD 14.5), one per task; replacing overwrites. Bytes
+// only through src/lib/storage.ts.
+export const reminderCovers = pgTable(
+  "reminder_covers",
+  {
+    reminderId: uuid()
+      .primaryKey()
+      .references(() => reminders.id, { onDelete: "cascade" }),
+    companyId: uuid()
+      .notNull()
+      .references(() => companies.id),
+    contentType: text().notNull(),
+    data: bytea().notNull(),
+    updatedAt: ts().notNull().defaultNow(),
+  },
+  () => [tenantPolicy("company_id")],
+).enableRLS();
+
 export const attachmentBlobs = pgTable(
   "attachment_blobs",
   {
