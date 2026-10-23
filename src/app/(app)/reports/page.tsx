@@ -1,9 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FilterBar } from "@/components/filters";
 import { Field, LinkButton, Page, Section, SelectField } from "@/components/form";
 import { StatCards } from "@/components/stats";
-import { Bar, Muted, Table } from "@/components/table";
+import { Bar, Table } from "@/components/table";
 import { Tabs } from "@/components/tabs";
 import { can } from "@/lib/permissions";
 import { parseReportFilters, type ReportFilters } from "@/lib/reports";
@@ -31,7 +30,7 @@ export default async function Reports(props: PageProps<"/reports">) {
       title="Reports"
       actions={
         can(access, "reports.export") && (
-          <LinkButton href={`/reports/export?${qs(f)}`} variant="secondary">
+          <LinkButton href={`/reports/export?${qs(f)}`} variant="secondary" plain>
             Export CSV
           </LinkButton>
         )
@@ -70,15 +69,14 @@ export default async function Reports(props: PageProps<"/reports">) {
       {"totals" in t && t.totals && (
         <StatCards
           items={(["email", "slack"] as const).flatMap((c) => [
-            { label: `${c === "email" ? "Email" : "Slack"} sent`, value: t.totals![c].sent, href: "#volume" },
-            { label: `${c === "email" ? "Email" : "Slack"} failed`, value: t.totals![c].failed, href: "#volume", tone: "danger" as const },
+            { label: `${c === "email" ? "Email" : "Slack"} sent`, value: t.totals![c].sent },
+            { label: `${c === "email" ? "Email" : "Slack"} failed`, value: t.totals![c].failed, tone: "danger" as const },
           ])}
         />
       )}
       {"totals" in t && t.totals && (
         <p className={styles.rates}>
-          Success rate: email {t.pct(t.totals.email.rate)}, Slack {t.pct(t.totals.slack.rate)}
-          <Muted> (sent ÷ sent + failed, {f.from} to {f.to}, {timeZone})</Muted>
+          Delivered: email {t.pct(t.totals.email.rate)} · Slack {t.pct(t.totals.slack.rate)}
         </p>
       )}
       {f.report === "overdue" && <p className={styles.rates}>Open tasks past their due time, right now.</p>}
@@ -104,17 +102,11 @@ export default async function Reports(props: PageProps<"/reports">) {
       {"detail" in t && t.detail && t.detail.length > 0 && (
         <Section title="Overdue tasks">
           <Table
-            columns={["Person", "Task", "Was due", "Days overdue"]}
+            columns={["Task", "Person", "Was due", "Days overdue"]}
             rows={t.detail.map((d, i) => ({
               key: `${d.reminder_id}-${i}`,
-              cells: [
-                d.person,
-                <Link key="t" href={`/reminders/${d.reminder_id}`}>
-                  {d.title}
-                </Link>,
-                d.due,
-                d.daysOverdue,
-              ],
+              href: `/reminders/${d.reminder_id}`,
+              cells: [d.title, d.person, d.due, d.daysOverdue],
             }))}
           />
         </Section>

@@ -40,7 +40,7 @@ export default async function AuditLog(props: PageProps<"/settings/audit">) {
   const qs = query({ ...f, page: 1 });
 
   return (
-    <Page title="Audit log" actions={<LinkButton href={`/settings/audit/export${qs ? `?${qs}` : ""}`} variant="secondary">Export CSV</LinkButton>}>
+    <Page title="Audit log" actions={<LinkButton href={`/settings/audit/export${qs ? `?${qs}` : ""}`} variant="secondary" plain>Export CSV</LinkButton>}>
       <FilterBar action="/settings/audit" clearHref={qs ? "/settings/audit" : undefined}>
         <Field label="Search" name="q" type="search" placeholder="Object name or title" defaultValue={f.q} />
         <SelectField label="Who" name="actor" defaultValue={f.actor ?? ""} options={[any, ...actors.map((a) => ({ value: a.id!, label: a.name ?? a.id! }))]} />

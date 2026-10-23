@@ -92,8 +92,10 @@
   color: var(--danger-fg);
 }
 
+/* "Saved." and the like: a quiet green box, so it reads as a message, not loose text. */
 .notice {
-  background: var(--bg);
+  background: var(--success-bg);
+  color: var(--success-fg);
 }
 
 /* A white card on the page panel. */
@@ -327,6 +329,10 @@ textarea.input:read-only {
   font-size: 0.875rem;
 }
 
+.hintError {
+  color: var(--danger-fg);
+}
+
 .group {
   display: flex;
   flex-direction: column;
@@ -479,4 +485,23 @@ textarea.input:read-only {
 .fileInput {
   font: inherit;
   font-weight: 400;
+}
+
+/* The browser's grey "Choose file" button, drawn as a secondary pill. */
+.fileInput::file-selector-button {
+  margin-right: 12px;
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fileInput::file-selector-button:hover {
+  border-color: var(--primary-bg);
+  background: var(--surface);
 }

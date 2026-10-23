@@ -93,8 +93,9 @@
   list-style: none; /* Safari's marker; ours is the chevron */
 }
 
-.optionsSummary::-webkit-details-marker {
-  display: none;
+/* It has its own chevron icon on the right. */
+.optionsSummary::before {
+  content: none;
 }
 
 .optionsSummary:hover {

@@ -28,16 +28,16 @@ export default async function PlatformHome(props: PageProps<"/platform">) {
     <Page title="Companies" error={firstParam(sp.error)} notice={firstParam(sp.notice)}>
       <StatCards
         items={[
-          { label: "Queued now", value: q.queued, href: "#queue" },
-          { label: "Sending now", value: q.sending, href: "#queue" },
-          { label: "Failed (24 h)", value: q.failed_24h, href: "#queue", tone: "danger" },
-          { label: "Due, not dispatched", value: q.overdue_reminders, href: "#queue", tone: "danger" },
+          { label: "Queued now", value: q.queued },
+          { label: "Sending now", value: q.sending },
+          { label: "Failed (24 h)", value: q.failed_24h, tone: "danger" },
+          { label: "Due, not dispatched", value: q.overdue_reminders, tone: "danger" },
         ]}
       />
-      <p id="queue">
+      <Hint>
         Oldest queued: {age(q.oldest_queued_seconds)} · Worker last ticked {age(q.worker_seconds)} ago{" "}
         {workerOk ? <Badge tone="success">Running</Badge> : <Badge tone="danger">Not running</Badge>}
-      </p>
+      </Hint>
 
       <Table
         columns={["Company", "People", "Scheduled", "Sent 24h", "Failed 24h", "Sent 30d", "Admins", ""]}

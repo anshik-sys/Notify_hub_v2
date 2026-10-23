@@ -25,6 +25,7 @@ const PATHS = {
   system: "M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM8 20h8M12 16v4",
   logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
   plus: "M12 5v14M5 12h14",
+  close: "M18 6 6 18M6 6l12 12",
   arrow: "M7 17 17 7M8 7h9v9",
   chevron: "M6 15l6-6 6 6",
   left: "M15 18l-6-6 6-6",

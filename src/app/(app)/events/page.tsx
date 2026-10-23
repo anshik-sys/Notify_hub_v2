@@ -62,7 +62,7 @@ export default async function Events(props: PageProps<"/events">) {
                 ))}
               </form>
             ) : (
-              (e.answer && ANSWER_LABEL[e.answer]) ?? <Muted key="a">No answer</Muted>
+              (e.answer && ANSWER_LABEL[e.answer]) ?? <Muted key="a">Not answered</Muted>
             ),
             `${e.going.yes} yes · ${e.going.maybe} maybe · ${e.going.no} no`,
           ],

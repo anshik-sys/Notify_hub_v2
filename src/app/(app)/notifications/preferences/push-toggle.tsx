@@ -79,10 +79,10 @@ export function PushToggle({ vapidKey }: { vapidKey: string }) {
           ? "On in this browser. Other browsers you use have their own setting."
           : "Off in this browser. Turn it on to get a desktop notification for everything in your notifications, even when NotifyHub isn’t open."}
       </Hint>
-      {error && <Hint>{error}</Hint>}
+      {error && <Hint error>{error}</Hint>}
       <div>
         <Button type="button" variant={state === "on" ? "secondary" : "primary"} disabled={busy} onClick={state === "on" ? turnOff : turnOn}>
-          {state === "on" ? "Turn off in this browser" : "Turn on in this browser"}
+          {state === "on" ? "Turn off" : "Turn on"}
         </Button>
       </div>
     </>

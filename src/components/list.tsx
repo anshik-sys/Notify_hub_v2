@@ -13,6 +13,7 @@ export function ListRow({
   title,
   meta,
   badge,
+  danger,
   plain,
   children,
 }: {
@@ -22,13 +23,15 @@ export function ListRow({
   title: React.ReactNode;
   meta?: React.ReactNode;
   badge?: string;
+  /** The badge is a warning (e.g. "Overdue"), red as Badge tone="danger". */
+  danger?: boolean;
   children?: React.ReactNode;
 }) {
   const text = (
     <div className={styles.text}>
       <span className={styles.title}>
         {title}
-        {badge && <span className={styles.badge}>{badge}</span>}
+        {badge && <span className={danger ? `${styles.badge} ${styles.danger}` : styles.badge}>{badge}</span>}
       </span>
       {meta && <span className={styles.meta}>{meta}</span>}
     </div>

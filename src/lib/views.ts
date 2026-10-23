@@ -216,7 +216,8 @@ export function upcoming(companyId: string, viewer: Viewer, limit = 8) {
     tx
       .select({ id: reminders.id, title: reminders.title, sendAt: reminders.sendAt, recurrence: reminders.recurrence, isTask: reminders.isTask })
       .from(reminders)
-      .where(and(eq(reminders.status, "scheduled"), lt(reminders.sendAt, WAITING_AT), overseeWhere(viewer)))
+      // Events have Home's own "Upcoming events" list.
+      .where(and(eq(reminders.status, "scheduled"), eq(reminders.isEvent, false), lt(reminders.sendAt, WAITING_AT), overseeWhere(viewer)))
       .orderBy(asc(reminders.sendAt))
       .limit(limit),
   );

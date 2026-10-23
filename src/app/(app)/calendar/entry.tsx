@@ -75,7 +75,7 @@ export function Entry({
           <span className={`${styles.dot} ${styles[e.color]}`} aria-hidden="true" />
           <h3 className={styles.title}>{e.title}</h3>
           <button type="button" popoverTarget={id} popoverTargetAction="hide" className={styles.close} aria-label="Close">
-            ×
+            <Icon name="close" size={16} />
           </button>
         </div>
         <p className={styles.meta}>
@@ -85,14 +85,20 @@ export function Entry({
               ? `${day(e.at, tz)} · ${time12(e.at, tz)} – ${time12(ends, tz)}`
               : `${day(e.at, tz)} · ${time12(e.at, tz)}`}
           {e.isTask && " · Task"}
-          {stateLabel && <span className={styles.badge}>{stateLabel}</span>}
+          {/* Only "Needs approval" is a warning; Sent and Past are just facts. */}
+          {stateLabel && <span className={`${styles.badge} ${e.state === "pending" ? styles.warn : ""}`}>{stateLabel}</span>}
         </p>
         {e.event?.location && <p className={styles.meta}>{e.event.location}</p>}
         {e.repeat && <p className={styles.meta}>{e.repeat}</p>}
         {e.recipients && <p className={styles.meta}>To: {e.recipients}</p>}
-        {e.event && (
+        {/* Only with guests (the organiser alone counts as one yes), and only the counts there are. */}
+        {e.event && e.event.going.yes + e.event.going.maybe + e.event.going.no > 1 && (
           <p className={styles.meta}>
-            Going: {e.event.going.yes} yes · {e.event.going.maybe} maybe · {e.event.going.no} no
+            Going:{" "}
+            {(["yes", "maybe", "no"] as const)
+              .filter((k) => e.event!.going[k])
+              .map((k) => `${e.event!.going[k]} ${k}`)
+              .join(" · ")}
           </p>
         )}
         {mayAnswer && (

@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button, Form, Hint, Page, SelectField, TextArea, firstParam } from "@/components/form";
+import { Button, Form, Hint, LinkButton, Page, Section, SelectField, TextArea, firstParam } from "@/components/form";
 import { Badge } from "@/components/table";
 import { listDepartments } from "@/lib/departments";
 import { can } from "@/lib/permissions";
@@ -8,7 +7,6 @@ import { requireMember } from "@/lib/session";
 import { setupStatus } from "@/lib/setup";
 import { listUsers } from "@/lib/users";
 import { addDepartmentsAction, dismissSetupAction, invitePeopleAction, setManagerAction } from "./actions";
-import styles from "./page.module.css";
 
 // PRD 3.1: the guided setup after onboarding. Progress comes from the real
 // data (src/lib/setup.ts), so doing a step elsewhere in the app counts too.
@@ -24,11 +22,7 @@ export default async function Setup(props: PageProps<"/setup">) {
   const needManager = departments.filter((d) =>
     people.every((p) => !p.departments.some((x) => x.name === d.name && x.isManager)),
   );
-  const step = (n: number, title: string, done: boolean, optional = false) => (
-    <h2 className={styles.step}>
-      <span className={styles.num}>{n}</span> {title} {done ? <Badge tone="success">Done</Badge> : optional ? <Badge>Optional</Badge> : null}
-    </h2>
-  );
+  const badge = (done: boolean, optional = false) => (done ? <Badge tone="success">Done</Badge> : optional ? <Badge>Optional</Badge> : null);
 
   return (
     <Page title={`Set up ${company.name}`} error={firstParam(sp.error)} notice={firstParam(sp.notice)}>
@@ -37,17 +31,15 @@ export default async function Setup(props: PageProps<"/setup">) {
         Everything here can also be done later from the menu.
       </Hint>
 
-      <section className={styles.card}>
-        {step(1, "Create your departments", status.steps.departments)}
+      <Section step={1} title="Create your departments" badge={badge(status.steps.departments)}>
         {departments.length > 0 && <Hint>Departments: {departments.map((d) => d.name).join(", ")}</Hint>}
         <Form action={addDepartmentsAction}>
           <TextArea label="Department names, one per line" name="names" rows={3} placeholder={"Operations\nSales"} />
           <Button variant={status.steps.departments ? "secondary" : "primary"}>Add departments</Button>
         </Form>
-      </section>
+      </Section>
 
-      <section className={styles.card}>
-        {step(2, "Invite your people", status.steps.people)}
+      <Section step={2} title="Invite your people" badge={badge(status.steps.people)}>
         <Form action={invitePeopleAction}>
           <TextArea label="Emails, one per line" name="emails" rows={3} placeholder="ana@company.com" />
           {departments.length > 0 && (
@@ -60,13 +52,12 @@ export default async function Setup(props: PageProps<"/setup">) {
           )}
           <Button variant={status.steps.people ? "secondary" : "primary"}>Send invites</Button>
         </Form>
-        <Hint>
-          Many people? <Link href="/users/import">Import a CSV</Link>.
-        </Hint>
-      </section>
+        <LinkButton href="/users/import" variant="secondary">
+          Import a CSV instead
+        </LinkButton>
+      </Section>
 
-      <section className={styles.card}>
-        {step(3, "Choose a manager for each department", status.steps.managers)}
+      <Section step={3} title="Choose a manager for each department" badge={badge(status.steps.managers)}>
         {!departments.length ? (
           <Hint>Create a department first.</Hint>
         ) : needManager.length === 0 ? (
@@ -80,28 +71,30 @@ export default async function Setup(props: PageProps<"/setup">) {
             </Form>
           ))
         )}
-        <Hint>Invited people can be picked once they’ve accepted.</Hint>
-      </section>
+        {needManager.length > 0 && <Hint>Invited people can be picked once they’ve accepted.</Hint>}
+      </Section>
 
-      <section className={styles.card}>
-        {step(4, "Connect Slack", status.steps.slack, true)}
+      <Section step={4} title="Connect Slack" badge={badge(status.steps.slack, true)}>
         {status.steps.slack ? (
           <Hint>Slack is connected.</Hint>
         ) : process.env.SLACK_CLIENT_ID ? (
-          <Hint>
-            <Link href="/settings/integrations">Connect Slack</Link> to send reminders as Slack messages too.
-          </Hint>
+          <>
+            <Hint>Send reminders as Slack messages too.</Hint>
+            <LinkButton href="/settings/integrations" variant="secondary">
+              Connect Slack
+            </LinkButton>
+          </>
         ) : (
           <Hint>Slack isn’t available on this server.</Hint>
         )}
-      </section>
+      </Section>
 
-      <section className={styles.card}>
-        {step(5, "Send your first reminder", status.steps.reminder, true)}
-        <Hint>
-          <Link href="/reminders/new">Create a reminder</Link> for a department, a few people or everyone.
-        </Hint>
-      </section>
+      <Section step={5} title="Send your first reminder" badge={badge(status.steps.reminder, true)}>
+        <Hint>For a department, a few people or everyone.</Hint>
+        <LinkButton href="/reminders/new" variant="secondary">
+          Create a reminder
+        </LinkButton>
+      </Section>
 
       {!status.dismissed && (
         <form action={dismissSetupAction}>

@@ -28,10 +28,10 @@ export default async function PlatformCompany(props: PageProps<"/platform/compan
       </Hint>
       <StatCards
         items={[
-          { label: "Active people", value: c.people, href: "#" },
-          { label: "Scheduled reminders", value: c.scheduled, href: "#" },
-          { label: "Sent (30 days)", value: c.sent_30d, href: "#" },
-          { label: "Failed (30 days)", value: c.failed_30d, href: "#", tone: "danger" },
+          { label: "Active people", value: c.people },
+          { label: "Scheduled reminders", value: c.scheduled },
+          { label: "Sent (30 days)", value: c.sent_30d },
+          { label: "Failed (30 days)", value: c.failed_30d, tone: "danger" },
         ]}
       />
 

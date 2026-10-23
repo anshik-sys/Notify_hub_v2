@@ -50,6 +50,7 @@ export default async function Home(props: PageProps<"/">) {
             href={`/reminders/${t.reminderId}`}
             title={t.title}
             badge={isOverdue(t.dueAt) ? "Overdue" : undefined}
+            danger={isOverdue(t.dueAt)}
             meta={t.dueAt ? `Due ${formatInZone(t.dueAt, t.timeZone)}` : undefined}
           />
         ))}
@@ -70,13 +71,13 @@ export default async function Home(props: PageProps<"/">) {
             meta={e.when}
           />
         ))}
-        <ListRow href="/events" title="All events" />
+        <ListRow href="/events" title="See all events" />
       </List>
     </Section>
   );
 
   const upcomingSection = seesReminders && (
-    <Section title="Upcoming">
+    <Section title="Upcoming reminders">
       {next.length ? (
         <List>
           {next.map((r) => (
@@ -88,7 +89,7 @@ export default async function Home(props: PageProps<"/">) {
               meta={`${formatInZone(r.sendAt, tz)}${r.recurrence ? " · repeats" : ""}`}
             />
           ))}
-          <ListRow href="/calendar" title="Open the calendar" />
+          <ListRow href="/calendar" title="See the calendar" />
         </List>
       ) : (
         <Hint>Nothing scheduled.</Hint>

@@ -24,7 +24,7 @@ export default async function Tasks(props: PageProps<"/tasks">) {
       <input type="hidden" name="assignmentId" value={t.assignmentId} />
       <input type="hidden" name="done" value={String(done)} />
       <input type="hidden" name="next" value={next} />
-      <Button size="small" variant={done ? "primary" : "secondary"}>
+      <Button size="small" variant="secondary">
         {done ? "Mark done" : "Undo"}
       </Button>
     </form>
@@ -49,7 +49,7 @@ export default async function Tasks(props: PageProps<"/tasks">) {
             cells: [
               t.title,
               <span key="d" className={styles.due}>
-                {t.dueAt ? formatInZone(t.dueAt, t.timeZone) : "—"}
+                {t.dueAt ? formatInZone(t.dueAt, t.timeZone) : <Muted>—</Muted>}
                 {isOverdue(t.dueAt) && <Badge tone="danger">Overdue</Badge>}
               </span>,
               toggle(t, true),

@@ -13,7 +13,7 @@ export default async function Approvals() {
 
   return (
     <Page title="Approvals">
-      {!decider && <Hint>Your company has named approvers (Company settings), so these are for them to decide.</Hint>}
+      {!decider && pending.length > 0 && <Hint>Only your company’s named approvers can decide these.</Hint>}
       <Table
         columns={["Reminder", "From", "Sends"]}
         empty="Nothing waiting for approval."

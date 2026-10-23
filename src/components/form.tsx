@@ -67,6 +67,7 @@ export function Section({
   title,
   required,
   step,
+  badge,
   children,
 }: {
   /** For in-page links, e.g. `#discussion`. */
@@ -75,6 +76,8 @@ export function Section({
   required?: boolean;
   /** A numbered step in a StepsForm: shown as a small circle before the title. */
   step?: number;
+  /** After the title, e.g. a "Done" Badge. */
+  badge?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -92,6 +95,7 @@ export function Section({
             <span className={styles.hidden}> (required)</span>
           </>
         )}
+        {badge && <> {badge}</>}
       </h2>
       {children}
     </section>
@@ -296,8 +300,15 @@ export function LinkButton({
   );
 }
 
-export function Hint({ children }: { children: React.ReactNode }) {
-  return <p className={styles.hint}>{children}</p>;
+// error: a problem to fix, read out by screen readers (role="alert").
+export function Hint({ children, error }: { children: React.ReactNode; error?: boolean }) {
+  return error ? (
+    <p role="alert" className={`${styles.hint} ${styles.hintError}`}>
+      {children}
+    </p>
+  ) : (
+    <p className={styles.hint}>{children}</p>
+  );
 }
 
 export const errorUrl = (path: string, message: string) => `${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`;

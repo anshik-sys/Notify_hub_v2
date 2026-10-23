@@ -33,7 +33,15 @@ function read(form: HTMLFormElement, defaultSender: string, timeZone: string): V
         return [];
       }
     });
-  const due = fd.get("isTask") === "on" && str("due") ? `${str("due").replace("T", " ")} (${timeZone})` : undefined;
+  // The type is the "kind" radio; a task waiting for another task is due a while after it starts.
+  const due =
+    fd.get("kind") !== "task"
+      ? undefined
+      : fd.get("when") === "after"
+        ? `${str("dueIn") || "1"} ${str("dueUnit") || "days"} after it starts`
+        : str("due")
+          ? `${str("due").replace("T", " ")} (${timeZone})`
+          : undefined;
   return {
     title: str("title") || "Your title",
     description: str("description"),
@@ -127,7 +135,6 @@ export function ReminderPreview({ defaultSender, timeZone, brand }: { defaultSen
               </div>
             </div>
           )}
-          <p className={styles.muted}>Attachments are added to the email when it’s sent (up to 20 MB).</p>
         </>
       )}
     </div>

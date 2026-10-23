@@ -124,6 +124,8 @@
 }
 
 .close {
+  display: inline-grid;
+  place-items: center;
   width: 28px;
   height: 28px;
   margin: -4px -6px 0 0;
@@ -152,10 +154,15 @@
   margin-left: 8px;
   padding: 1px 8px;
   border-radius: 999px;
-  background: var(--warning-bg);
-  color: var(--warning-fg);
+  background: var(--surface);
+  color: var(--muted);
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+.warn {
+  background: var(--warning-bg);
+  color: var(--warning-fg);
 }
 
 .actions {
@@ -276,10 +283,16 @@
 }
 
 .fold summary {
+  display: inline-flex;
+  align-items: center;
   color: var(--muted);
   font-size: 0.875rem;
   font-weight: 600;
-  cursor: pointer;
+}
+
+
+.fold summary:hover {
+  color: var(--fg);
 }
 
 .foldForm {

@@ -211,6 +211,48 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Folds (<details>): no browser triangle (it differs per browser, and a flex
+   summary loses it in Chrome); one small chevron that turns when open. A summary
+   that draws its own control sets ::before { content: none }. */
+summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+summary::before {
+  content: "";
+  display: inline-block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-right: 10px;
+  vertical-align: 2px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--duration) var(--ease-out);
+}
+
+details[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+/* Links in running text keep an underline (the colour is the text's, so it's
+   the only cue), drawn light so a paragraph doesn't look busy. */
+a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
 a {
   color: inherit;
 }

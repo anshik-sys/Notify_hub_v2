@@ -78,6 +78,11 @@
   white-space: nowrap;
 }
 
+.danger {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
 .meta {
   overflow: hidden;
   color: var(--muted);

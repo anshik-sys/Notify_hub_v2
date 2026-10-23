@@ -62,33 +62,12 @@
 .moreToggle {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   width: fit-content;
   color: var(--muted);
   font-size: 0.875rem;
   font-weight: 500;
-  list-style: none;
-  cursor: pointer;
 }
 
-.moreToggle::-webkit-details-marker {
-  display: none;
-}
-
-/* A chevron that turns down when open. */
-.moreToggle::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(-45deg);
-  transition: transform var(--duration) var(--ease-out);
-}
-
-.more[open] > .moreToggle::before {
-  transform: rotate(45deg);
-}
 
 .moreToggle:hover {
   color: var(--fg);
@@ -130,4 +109,9 @@
 
 .pager a {
   color: var(--fg);
+  text-decoration: none;
+}
+
+.pager a:hover {
+  text-decoration: underline;
 }

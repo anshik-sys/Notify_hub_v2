@@ -2,6 +2,7 @@
   font-weight: 600;
 }
 
+/* The page's gap spaces it. */
 .more {
-  margin-top: 16px;
+  margin: 0;
 }

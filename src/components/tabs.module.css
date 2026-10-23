@@ -1,7 +1,8 @@
+/* The page's own gap spaces it; wraps rather than overflow on a narrow window. */
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
-  margin-bottom: 16px;
 }
 
 .tabs a {

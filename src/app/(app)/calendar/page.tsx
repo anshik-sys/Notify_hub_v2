@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button, Checkbox, firstParam, LinkButton, Page } from "@/components/form";
+import { Button, Checkbox, firstParam, LinkButton, Page, SelectField } from "@/components/form";
 import { Icon } from "@/components/icon";
 import { can } from "@/lib/permissions";
 import { requireMember } from "@/lib/session";
@@ -154,9 +154,11 @@ export default async function Calendar(props: PageProps<"/calendar">) {
       <DragMove next={here} />
       <div className={styles.layout} data-rail>
         <aside className={styles.side}>
-          <LinkButton href="/reminders/new">
-            <Icon name="plus" /> Create
-          </LinkButton>
+          {canCreate && (
+            <LinkButton href="/reminders/new">
+              <Icon name="plus" /> Create
+            </LinkButton>
+          )}
 
           <MiniMonth month={mini} today={today} selected={v.date} href={href} />
 
@@ -164,17 +166,12 @@ export default async function Calendar(props: PageProps<"/calendar">) {
             <form action="/calendar" className={styles.panel}>
               {hidden(["person"])}
               <AutoSubmit />
-              <label className={styles.label}>
-                Meet with…
-                <select name="person" defaultValue={person?.id ?? ""} className={styles.select}>
-                  <option value="">Nobody: just my calendar</option>
-                  {people.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SelectField
+                label="Show a colleague’s calendar"
+                name="person"
+                defaultValue={person?.id ?? ""}
+                options={[{ value: "", label: "Just mine" }, ...people.map((p) => ({ value: p.id, label: p.name }))]}
+              />
               <noscript>
                 <Button size="small" variant="secondary">
                   Show
@@ -206,21 +203,28 @@ export default async function Calendar(props: PageProps<"/calendar">) {
             <section className={styles.results} aria-label="Search results">
               <div className={styles.resultsHead}>
                 <strong>{results.total ? `${results.total} found for “${q}”` : `Nothing found for “${q}”`}</strong>
-                <Link href={href({ q: null })}>Clear</Link>
+                <Link href={href({ q: null })} className={styles.textLink}>
+                  Clear
+                </Link>
               </div>
               {results.rows.slice(0, 10).map((r) => {
                 const day = toLocalInput(r.sendAt, tz).slice(0, 10);
                 return (
                   <Link key={r.id} href={href({ date: day, q: null })} className={styles.result}>
-                    <span className={styles.time}>{day}</span> {r.title}
+                    <span className={styles.time}>{r.sendAt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: tz })}</span> {r.title}
                   </Link>
                 );
               })}
+              {results.total > 10 && (
+                <Link href={`/reminders?q=${encodeURIComponent(q)}`} className={styles.textLink}>
+                  Showing 10 of {results.total}: see them all in Reminders
+                </Link>
+              )}
             </section>
           )}
           {(person || cal.truncated) && (
             <p className={styles.hint}>
-              {person && `Outlined: ${person.name}’s. `}
+              {person && `Outlined: ${person.name}’s reminders. `}
               {cal.truncated && `Only the first ${CALENDAR_LIMIT} reminders are shown; use Reminders to filter.`}
             </p>
           )}
