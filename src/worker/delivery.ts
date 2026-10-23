@@ -576,7 +576,8 @@ export async function dispatchChanges(enqueue: (deliveryIds: string[]) => Promis
   for (const { id } of events) {
     const ids = await ownerDb.transaction(async (tx) => {
       const [r] = await tx.select().from(reminders).where(eq(reminders.id, id)).for("update", { skipLocked: true });
-      if (!r) return [];
+      // Another worker may have announced the cancellation since the list was read (UP5: once).
+      if (!r || r.announced?.cancelled) return [];
       const save = (announced: Announced) => tx.execute(sql`update reminders set announced = ${JSON.stringify(announced)}::jsonb where id = ${r.id}`);
       const current = announce(r, await exdatesOf(tx, r), r.announced?.version ?? 0);
       // First time scheduled: this is what the invites tell.

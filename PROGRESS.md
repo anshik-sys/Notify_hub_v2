@@ -2,6 +2,26 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-23 — events: "Cancelled" sent twice with two workers
+
+- How it showed up: UP5 failed only in full test runs. A deleted event's
+  guests had two "Cancelled" notices (versions 1 and 2). Two worker processes
+  were running locally, the user's own and the test suite's.
+- Cause: `dispatchChanges` reads the list of events (which leaves out ones
+  already announced as cancelled), then locks each event in turn. A second
+  worker that read the list before the first one committed then locked the row
+  and announced the cancellation again. Fix: after taking the lock, skip an
+  event whose `announced.cancelled` is already set. Updates didn't have this
+  problem: they compare against `announced`, which they re-read after the lock.
+- Test: four `dispatchChanges` runs at once on three cancelled events. It's a
+  race, so it could pass by luck. Without the fix it failed 3 runs out of 3;
+  with it, it passed 3 out of 3.
+- **Verified:** typecheck, lint, `changes.test.ts` alone 3 times, and the full
+  suite (614 pass). UP7 failed once in the full run and passed on its own 3 out
+  of 3. It doesn't touch cancellations; it's the known race between the tests
+  and the live worker (the live worker claims the event and the test reads
+  before it commits), the same kind as RC2.
+
 ## 2026-10-23 — tasks: chains, start when a task is done (spec 14, CH1-CH12)
 
 - The user said "continue" without answering the proposed rules (CH5, CH7,
@@ -42,11 +62,8 @@ Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 - My test for B being sent flaked under the full run. The live worker claims B
   the moment it starts (skip locked), so my tick skipped it. The test now waits
   for whichever process sends it.
-- **Found, not fixed (pre-existing, not chains):** `dispatchChanges` re-reads
-  the locked event but doesn't re-check `announced.cancelled`. With two
-  workers (two are running locally), a deleted event's guests can get
-  "Cancelled" twice; UP5 failed that way in full runs. One-line fix, waiting
-  for the user.
+- Found while testing: "Cancelled" could be sent twice with two workers
+  (see the next entry up, fixed the same day).
 - **Verified:** typecheck, lint, my tests (4, passed 4 times in a row), spec
   CH1-CH12, full suite 613 pass with 1 fail (the UP5 race above). An earlier
   run also failed RC2, the known flake.

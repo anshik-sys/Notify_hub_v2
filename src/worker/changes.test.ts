@@ -103,6 +103,14 @@ test("UP5: cancelled or deleted: 'Cancelled' to everyone invited, once; a past o
   assert.deepEqual(await notices(past), []);
 });
 
+test("UP5: several workers at once still send 'Cancelled' once", async () => {
+  const ids = [await event(), await event(), await event()];
+  await q("update reminders set status = 'cancelled' where id = any($1)", [ids]);
+  // ponytail: a race, so it can pass by luck; it failed this way in full runs before the fix.
+  await Promise.all([run(), run(), run(), run()]);
+  for (const id of ids) assert.deepEqual(await notices(id), ["cancel:1:alice", "cancel:1:bob"]);
+});
+
 test("UP6: a date of a series skipped or moved: 'Not on' and an EXDATE", async () => {
   const id = await event(`recurrence = '{"freq":"weekly","interval":1,"end":{"type":"never"}}'`);
   await q("insert into reminder_occurrences (company_id, reminder_id, occurs_at, status) values ($1, $2, '2031-03-10T10:00Z', 'skipped')", [s.companyId, id]);
