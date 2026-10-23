@@ -345,6 +345,9 @@ export const reminders = pgTable(
     // PRD 14.5 sub-task: a one-time task saved and sent with its parent task,
     // which itself sends nothing and is done when all of these are.
     parentId: uuid().references((): AnyPgColumn => reminders.id, { onDelete: "cascade" }),
+    // PRD 14.5 chain: starts when this task is done. Until then send_at is
+    // WAITING_AT (src/lib/reminders.ts), so nothing time-based picks it up.
+    afterId: uuid().references((): AnyPgColumn => reminders.id, { onDelete: "set null" }),
     createdAt: ts().notNull().defaultNow(),
     updatedAt: ts()
       .notNull()
@@ -356,6 +359,7 @@ export const reminders = pgTable(
     index("reminders_send_now_idx").on(t.sendNowAt).where(sql`${t.sendNowAt} is not null`),
     index("reminders_tags_idx").using("gin", t.tags),
     index("reminders_parent_idx").on(t.parentId).where(sql`${t.parentId} is not null`),
+    index("reminders_after_idx").on(t.afterId).where(sql`${t.afterId} is not null`),
     check("reminders_task_due", sql`not ${t.isTask} or ${t.dueAfterMinutes} > 0`),
     check("reminders_event_kind", sql`not (${t.isTask} and ${t.isEvent})`),
     check("reminders_event_length", sql`not ${t.isEvent} or ${t.durationMinutes} > 0`),
@@ -818,7 +822,7 @@ export const notifications = pgTable(
     uniqueIndex().on(t.userId, t.dedupeKey),
     check(
       "notifications_kind_valid",
-      sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed','escalated','rsvp','invite','calendar')`,
+      sql`${t.kind} in ('reminder','task','approval','mention','comment','decided','tasks_done','failed','escalated','rsvp','invite','calendar','chain')`,
     ),
     tenantPolicy("company_id"),
   ],

@@ -49,6 +49,7 @@ export async function saveReminder(fd: FormData) {
   const onlyNext = Boolean(id) && fd.get("scope") === "one";
   if (onlyNext) raw.repeat = { ...raw.repeat, repeat: "none" };
   if (![...raw.departmentIds, ...raw.groupIds, ...raw.shareDepartmentIds, ...raw.shareGroupIds].every(isUuid)) notFound();
+  if (raw.when === "after" && raw.afterId && !isUuid(raw.afterId)) notFound();
   const back = id ? `/reminders/${id}/edit` : "/reminders/new";
 
   const parsed = validateInput(

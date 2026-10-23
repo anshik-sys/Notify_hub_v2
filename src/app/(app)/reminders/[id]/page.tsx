@@ -9,7 +9,8 @@ import { coverUrl, deliveryLog, getReminder, isDelayed, listAttachments, mayDeci
 import { formatSize } from "@/lib/format";
 import { markReadForReminder } from "@/lib/notifications";
 import { requireMember } from "@/lib/session";
-import { myTaskStatus, subTasks, taskProgress } from "@/lib/tasks";
+import { isWaiting, myTaskStatus, subTasks, taskProgress } from "@/lib/tasks";
+import { nextSteps } from "@/lib/views";
 import { beforeLabel, formatInZone } from "@/lib/time";
 import { eventGuests } from "@/lib/events";
 import { ANSWER_LABEL, answerOpen, eventWhen } from "@/lib/invite";
@@ -70,6 +71,10 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
   const parent = r.parentId ? await getReminder(companyId, r.parentId) : null;
   const subs = r.isTask ? await subTasks(companyId, parent?.id ?? r.id) : [];
   const parentOpen = parent ? Boolean(await reminderAccess(companyId, { id: user.id, email: user.email, access }, parent)) : false;
+  // PRD 14.5 chains (CH10): the task this waits for, and what waits for this one.
+  const before = r.afterId ? await getReminder(companyId, r.afterId) : null;
+  const beforeOpen = before ? Boolean(await reminderAccess(companyId, { id: user.id, email: user.email, access }, before)) : false;
+  const then = r.isTask ? await nextSteps(companyId, { id: user.id, access }, r.id) : [];
   const [files, thread, people, photos, cover] = await Promise.all([
     listAttachments(companyId, r.id),
     listComments(companyId, r.id),
@@ -175,9 +180,27 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
                         : `Next: ${formatInZone(r.sendAt, tz)} (${tz})`}
                   </Hint>
                 </>
-              ) : r.isEvent ? null : (
+              ) : r.isEvent || isWaiting(r) ? null : (
                 <Hint>
                   {r.status === "sent" ? "Sent" : "Sends"} {formatInZone(r.sendAt, tz)} ({tz})
+                </Hint>
+              )}
+              {before && (
+                <Hint>
+                  {isWaiting(r) ? "Starts when" : "Started after"} {beforeOpen ? <Link href={`/reminders/${before.id}`}>{before.title}</Link> : `“${before.title}”`}{" "}
+                  {isWaiting(r) ? "is done" : "was done"}
+                  {r.isTask && r.dueAfterMinutes && isWaiting(r) ? `, due ${beforeLabel(r.dueAfterMinutes)} after that` : ""}.
+                </Hint>
+              )}
+              {then.length > 0 && (
+                <Hint>
+                  Then:{" "}
+                  {then.map((t, i) => (
+                    <span key={t.id}>
+                      {i > 0 && ", "}
+                      <Link href={`/reminders/${t.id}`}>{t.title}</Link>
+                    </span>
+                  ))}
                 </Hint>
               )}
               <Hint>
@@ -451,6 +474,11 @@ export default async function ReminderDetail(props: PageProps<"/reminders/[id]">
 
             {(seeAs === "full" || mayDelete) && (
               <Section title="Actions">
+                {r.isTask && !r.recurrence && !r.parentId && can(access, "reminders.create") && !["cancelled", "rejected"].includes(r.status) && (
+                  <LinkButton href={`/reminders/new?task=1&after=${r.id}`} variant="secondary">
+                    Add a next step
+                  </LinkButton>
+                )}
                 {seeAs === "full" && !r.isEvent && (
                   <form action={sendTestAction}>
                     <input type="hidden" name="id" value={r.id} />

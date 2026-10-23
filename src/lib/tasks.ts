@@ -3,6 +3,7 @@ import { withTenant } from "@/db";
 import { notifications, reminderOccurrences, reminders, taskAssignments, user } from "@/db/schema";
 import { planTell, sendTell, type Tell } from "./notifications";
 import { recipientLabels } from "./recipients";
+import { toLocalInput } from "./time";
 
 type Tx = Parameters<Parameters<typeof withTenant>[1]>[0];
 
@@ -40,11 +41,12 @@ export async function notifyIfAllDone(tx: Tx, companyId: string, occurrenceId: s
     .where(eq(reminderOccurrences.id, occurrenceId))
     .for("update", { of: reminderOccurrences });
   if (!occ) return null;
-  if (occ.parentId) return syncParent(tx, companyId, occ.parentId);
   const [{ open }] = await tx
     .select({ open: sql<number>`count(*) filter (where ${taskAssignments.doneAt} is null)::int` })
     .from(taskAssignments)
     .where(eq(taskAssignments.occurrenceId, occurrenceId));
+  if (open === 0) await startAfter(tx, occ.reminderId); // CH2, CH3, CH12
+  if (occ.parentId) return syncParent(tx, companyId, occ.parentId);
   if (open > 0) return null;
   return tellDone(tx, companyId, { ...occ, occurrenceId });
 }
@@ -64,9 +66,29 @@ async function tellDone(tx: Tx, companyId: string, occ: { occurrenceId: string; 
   });
 }
 
-// PRD 14.5: a sub-task is done when all its assignees are, or, with nobody in
-// the company assigned, when its single "done" is set. In a query on reminders.
-const subTaskDone = sql<boolean>`exists (select 1 from reminder_occurrences o where o.reminder_id = "reminders"."id"
+// PRD 14.5 chains: a reminder or task waiting for another task (after_id)
+// sends at this instant, i.e. never, until that task is done. Every
+// time-based query (the worker, calendar, Google, volume alerts, "due soon")
+// skips it without knowing about chains.
+// ponytail: a sentinel date instead of a "waiting" flag; anything that shows
+// send_at checks isWaiting first.
+export const WAITING_AT = new Date("9999-01-01T00:00:00Z");
+export const isWaiting = (r: { sendAt: Date }) => r.sendAt.getTime() === WAITING_AT.getTime();
+
+// CH2: the task is done, so what waits for it goes out now (B's due time
+// counts from here). Waiting for approval, it goes once approved (CH9).
+export async function startAfter(tx: Tx, taskId: string, now = new Date()) {
+  const waiting = await tx
+    .select({ id: reminders.id, timeZone: reminders.timeZone })
+    .from(reminders)
+    .where(and(eq(reminders.afterId, taskId), eq(reminders.sendAt, WAITING_AT), isNull(reminders.deletedAt), sql`${reminders.status} <> 'cancelled'`));
+  for (const b of waiting) await tx.update(reminders).set({ sendAt: now, anchorLocal: toLocalInput(now, b.timeZone) }).where(eq(reminders.id, b.id));
+  if (waiting.length) await tx.execute(sql`select pg_notify('reminders_due', '')`); // delivered on commit
+}
+
+// PRD 14.5: a task (or sub-task) is done when all its assignees are, or, with
+// nobody in the company assigned, when its single "done" is set. In a query on reminders.
+export const taskDone = sql<boolean>`exists (select 1 from reminder_occurrences o where o.reminder_id = "reminders"."id"
   and o.status in ('sending', 'sent') and case when exists (select 1 from task_assignments a where a.occurrence_id = o.id)
     then not exists (select 1 from task_assignments a where a.occurrence_id = o.id and a.done_at is null)
     else o.done_at is not null end)`;
@@ -82,13 +104,14 @@ export async function syncParent(tx: Tx, companyId: string, parentId: string): P
     .for("update", { of: reminderOccurrences });
   if (!occ) return null;
   const [{ all }] = await tx
-    .select({ all: sql<boolean>`coalesce(bool_and(${subTaskDone}), false)` })
+    .select({ all: sql<boolean>`coalesce(bool_and(${taskDone}), false)` })
     .from(reminders)
     .where(and(eq(reminders.parentId, parentId), isNull(reminders.deletedAt)));
   await tx
     .update(reminderOccurrences)
     .set({ doneAt: all ? sql`coalesce(${reminderOccurrences.doneAt}, now())` : null })
     .where(eq(reminderOccurrences.id, occ.occurrenceId));
+  if (all) await startAfter(tx, parentId);
   return all ? tellDone(tx, companyId, occ) : null;
 }
 
@@ -102,7 +125,7 @@ export function subTasks(companyId: string, parentId: string) {
         status: reminders.status,
         sendAt: reminders.sendAt,
         dueAfterMinutes: reminders.dueAfterMinutes,
-        done: subTaskDone,
+        done: taskDone,
         people: recipientLabels,
         targets: sql<{ kind: string; ref: string | null }[]>`(select coalesce(json_agg(json_build_object('kind', t.kind, 'ref', t.ref)), '[]')
           from reminder_targets t where t.reminder_id = "reminders"."id")`,

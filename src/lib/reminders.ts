@@ -11,7 +11,7 @@ import { copyCover, deleteCover, getBlob, getCover, putBlob, putCover } from "./
 import { resolveRecipients, type Target, type Tx } from "./recipients";
 import { type Access, can, COMPANY_ADMIN_ROLE_ID, loadAccess } from "./permissions";
 import { firstAtOrAfter, nextAfter, type RepeatFields, type Rule, ruleFromForm, shiftSeries, splitRule } from "./recurrence";
-import { syncParent } from "./tasks";
+import { isWaiting, startAfter, syncParent, taskDone, WAITING_AT } from "./tasks";
 import { toLocalInput, zonedToUtc } from "./time";
 
 export type { Target };
@@ -42,6 +42,8 @@ export type ReminderInput = {
   // PRD 14.5 sub-tasks of a one-time task. Left out = unchanged on an update;
   // [] removes them.
   subTasks?: SubTask[];
+  // PRD 14.5 chain: starts when this task is done (sendAt is WAITING_AT till then).
+  afterId?: string | null;
 };
 // userIds empty = the task's own recipients. row = its row in the form (covers
 // are matched by it); cover as in saveCover.
@@ -66,7 +68,10 @@ export type RawReminder = {
   groupIds: string[];
   userIds: string[];
   emails: string;
-  when: string; // "now" | "later"
+  when: string; // "now" | "later" | "after" (when a task is done, PRD 14.5)
+  afterId?: string;
+  dueIn?: string; // a chained task: due this long after it starts
+  dueUnit?: string; // "hours" | "days"
   sendAtLocal: string;
   repeat: RepeatFields;
   isTask: boolean;
@@ -115,6 +120,9 @@ export function formToRaw(fd: FormData): RawReminder {
     emails: str("emails"),
     when: str("when"),
     sendAtLocal: str("sendAt"),
+    afterId: str("after"),
+    dueIn: str("dueIn"),
+    dueUnit: str("dueUnit"),
     channels: all("channels"),
     slackChannelIds: all("slackChannels"),
     tags: str("tags"),
@@ -218,6 +226,13 @@ export function validateInput(
   if (targets.length === 0) return { error: "Choose at least one recipient." };
 
   let sendAt = now;
+  // CH1: waits for a task instead of a send time.
+  const after = raw.when === "after";
+  if (after) {
+    if (!raw.afterId) return { error: "Pick the task it waits for." };
+    if (raw.repeat.repeat !== "none") return { error: "Something that waits for a task can’t repeat." };
+    sendAt = WAITING_AT;
+  }
   if (raw.when === "later") {
     const at = zonedToUtc(raw.sendAtLocal, timeZone);
     if (!at) return { error: "Pick a date and time to send." };
@@ -287,9 +302,17 @@ export function validateInput(
   let dueAfterMinutes: number | null = null;
   let remind: Pick<ReminderInput, "notifyBefore"> = {};
   if (raw.isTask && !raw.isEvent) {
-    const due = zonedToUtc(raw.dueLocal, timeZone);
-    if (!due) return { error: "A task needs a due date and time." };
-    dueAfterMinutes = Math.round((due.getTime() - sendAt.getTime()) / 60_000);
+    if (after) {
+      // CH2: due a while after it starts, as that time isn't known yet.
+      const n = Number(raw.dueIn);
+      const unit = UNIT_MINUTES[raw.dueUnit ?? ""];
+      if (!Number.isInteger(n) || n < 1 || !unit) return { error: "Say how long after it starts the task is due." };
+      dueAfterMinutes = n * unit;
+    } else {
+      const due = zonedToUtc(raw.dueLocal, timeZone);
+      if (!due) return { error: "A task needs a due date and time." };
+      dueAfterMinutes = Math.round((due.getTime() - sendAt.getTime()) / 60_000);
+    }
     if (dueAfterMinutes < 1) return { error: "The due time must be after it's sent." };
     if (dueAfterMinutes > 365 * 24 * 60) return { error: "The due time must be within a year of sending." };
     const before = remindBefore(raw, dueAfterMinutes);
@@ -304,6 +327,7 @@ export function validateInput(
     if (!raw.isTask || raw.isEvent || !subTitle) continue;
     if (subTitle.length > 200) return { error: "A sub-task’s title must be at most 200 characters." };
     if (recurrence) return { error: "A repeating task can’t have sub-tasks." };
+    if (after) return { error: "A task that waits for another can’t have sub-tasks." };
     const due = zonedToUtc(s.dueLocal, timeZone);
     if (!due) return { error: `Sub-task “${subTitle}” needs a due date and time.` };
     const minutes = Math.round((due.getTime() - sendAt.getTime()) / 60_000);
@@ -340,6 +364,7 @@ export function validateInput(
       ...event,
       ...remind,
       subTasks,
+      afterId: after ? raw.afterId! : null,
       // An all-day event is anchored at midnight on its first day.
       ...(event.allDay ? { anchorLocal: `${raw.sendAtLocal.slice(0, 10)}T00:00` } : {}),
     } satisfies ReminderInput,
@@ -556,6 +581,41 @@ async function checkedAll(tx: Tx, companyId: string, actor: Actor, input: Remind
 // The reminders row's own columns, and what's saved in other tables.
 const split = <T extends ReminderInput>({ targets, shares, subTasks, ...fields }: T) => ({ targets, shares, subTasks, fields });
 
+// CH7: what a reminder can wait for: a one-time task the actor can open, not
+// done, cancelled or deleted; never itself or something waiting for it.
+async function checkAfter(tx: Tx, companyId: string, actor: Actor, afterId: string, selfId?: string) {
+  const [a] = await tx
+    .select({ id: reminders.id, createdBy: reminders.createdBy, isTask: reminders.isTask, recurrence: reminders.recurrence, status: reminders.status, done: taskDone })
+    .from(reminders)
+    .where(and(eq(reminders.id, afterId), isNull(reminders.deletedAt)));
+  const [me] = await tx.select({ email: user.email }).from(user).where(eq(user.id, actor.id));
+  if (!a || !me || !(await reminderAccess(companyId, { ...actor, email: me.email }, a))) throw new Refused("The task it waits for wasn’t found.");
+  if (!a.isTask || a.recurrence) throw new Refused("It can only wait for a task that doesn’t repeat.");
+  if (a.status === "cancelled" || a.status === "rejected") throw new Refused("The task it waits for was cancelled or not approved.");
+  if (a.done) throw new Refused("The task it waits for is already done.");
+  for (let at: string | null = afterId, steps = 0; at && steps < 100; steps++) {
+    if (at === selfId) throw new Refused("That would make it wait for itself.");
+    [{ at }] = await tx.select({ at: reminders.afterId }).from(reminders).where(eq(reminders.id, at));
+  }
+}
+
+// CH8: what waits for a cancelled or deleted task (or one of its sub-tasks)
+// is cancelled too, and so is whatever waits for that; their creators are
+// told in the app.
+async function cancelWaiting(tx: Tx, companyId: string, taskId: string) {
+  const gone: { rows: { id: string; created_by: string }[] } = await tx.execute(sql`
+    with recursive w(id) as (
+      select id from reminders where (after_id = ${taskId} or after_id in (select id from reminders where parent_id = ${taskId}))
+        and send_at = ${WAITING_AT} and deleted_at is null and status <> 'cancelled'
+      union
+      select r.id from reminders r join w on r.after_id = w.id where r.send_at = ${WAITING_AT} and r.deleted_at is null and r.status <> 'cancelled')
+    update reminders r set status = 'cancelled' from w where r.id = w.id returning r.id, r.created_by`);
+  await addNotifications(
+    tx,
+    gone.rows.map((b) => ({ companyId, userId: b.created_by, kind: "chain", reminderId: b.id, text: "Cancelled: the task it waited for was cancelled or deleted" })),
+  );
+}
+
 // Sub-tasks change only through their task's form (ST1).
 function notSubTask(r: { parentId: string | null }) {
   if (r.parentId) throw new Refused("This is a sub-task: change it from its task.");
@@ -681,6 +741,7 @@ async function refusals<T>(fn: () => Promise<T>): Promise<T | { error: string }>
 export async function createReminder(actor: Actor, companyId: string, input: ReminderInput, files: CheckedFile[] = [], cover?: CheckedFile | null) {
   const result = await refusals(() =>
     withTenant(companyId, async (tx) => {
+      if (input.afterId) await checkAfter(tx, companyId, actor, input.afterId);
       const out = await checkedAll(tx, companyId, actor, input);
       const status: ReminderStatus = out.length ? "pending_approval" : "scheduled";
       const id = await insertReminder(tx, companyId, actor.id, { ...input, createdBy: actor.id, status }, files, cover);
@@ -754,6 +815,7 @@ export async function updateReminder(
       if (!current || !(await mayChange(companyId, actor, current.createdBy))) throw new Refused("Reminder not found.");
       notSubTask(current);
       if (!EDITABLE.includes(current.status)) throw new Refused("This reminder can no longer be edited.");
+      if (input.afterId) await checkAfter(tx, companyId, actor, input.afterId, id);
 
       // The scope check runs as the creator (it's their send) and, when someone
       // else edits, as the editor too: the stricter wins. Otherwise an editor
@@ -1254,6 +1316,7 @@ export async function cancelReminder(actor: Actor, companyId: string, id: string
       if (!EDITABLE.includes(current.status)) throw new Refused("This reminder can no longer be cancelled.");
       await tx.update(reminders).set({ status: "cancelled" }).where(eq(reminders.id, id));
       await toSubTasks(tx, id, { status: "cancelled" });
+      await cancelWaiting(tx, companyId, id);
       return null;
     }),
   );
@@ -1285,6 +1348,7 @@ export async function deleteReminder(actor: Actor, companyId: string, id: string
       await tx.update(reminders).set({ status: "cancelled", deletedAt: new Date() }).where(and(inArray(reminders.id, family), isNull(reminders.deletedAt)));
       await tx.update(taskAssignments).set({ snoozedUntil: null }).where(inArray(taskAssignments.reminderId, family));
       await tx.delete(notifications).where(inArray(notifications.reminderId, family));
+      await cancelWaiting(tx, companyId, id);
       return null;
     }),
   );
@@ -1310,6 +1374,7 @@ export async function setOccurrenceDone(actor: Actor, companyId: string, occurre
       const [sub] = await tx.select({ id: reminders.id }).from(reminders).where(and(eq(reminders.parentId, o.reminderId), isNull(reminders.deletedAt))).limit(1);
       if (sub) throw new Refused("It’s done once all its sub-tasks are."); // ST4
       await tx.update(reminderOccurrences).set({ doneAt: done ? new Date() : null }).where(eq(reminderOccurrences.id, occurrenceId));
+      if (done) await startAfter(tx, o.reminderId); // CH4
       return o.parentId ? syncParent(tx, companyId, o.parentId) : null;
     }),
   );
@@ -1557,8 +1622,9 @@ export function isDelayed(r: { status: ReminderStatus; sendAt: Date; updatedAt: 
 }
 
 // A series that has run out says "Ended" rather than "Sent".
-export const statusLabel = (r: { status: ReminderStatus; recurrence: Rule | null }) =>
-  r.recurrence && r.status === "sent" ? "Ended" : STATUS_LABELS[r.status];
+// One waiting for a task (PRD 14.5) says "Waiting".
+export const statusLabel = (r: { status: ReminderStatus; recurrence: Rule | null; sendAt?: Date }) =>
+  r.recurrence && r.status === "sent" ? "Ended" : r.status === "scheduled" && r.sendAt && isWaiting({ sendAt: r.sendAt }) ? "Waiting" : STATUS_LABELS[r.status];
 
 export const STATUS_LABELS: Record<ReminderStatus, string> = {
   pending_approval: "Needs approval",

@@ -5,7 +5,8 @@ import { requireMember } from "@/lib/session";
 import { companyBrand, senderDefault } from "@/lib/company";
 import { brandFor } from "@/lib/email-render";
 import { formatInZone, toLocalInput } from "@/lib/time";
-import { subTasks } from "@/lib/tasks";
+import { isWaiting, subTasks } from "@/lib/tasks";
+import { chainChoices } from "@/lib/views";
 import { isUuid } from "@/lib/validate";
 import { fieldsFromRule, firstAtOrAfter } from "@/lib/recurrence";
 import { channelChoices } from "@/lib/slack-installations";
@@ -26,13 +27,17 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
   if (!["pending_approval", "rejected", "scheduled", "paused"].includes(r.status)) notFound();
   // A sub-task is edited with its task (PRD 14.5).
   if (r.parentId) redirect(`/reminders/${r.parentId}/edit`);
-  const [choices, slackChannels, files, cover, subs] = await Promise.all([
+  const [choices, slackChannels, files, cover, subs, chainTasks] = await Promise.all([
     recipientChoices(companyId, user.id, access),
     channelChoices(companyId),
     listAttachments(companyId, r.id),
     r.isTask ? coverUrl(companyId, r.id) : null,
     r.isTask ? subTasks(companyId, r.id) : [],
+    chainChoices(companyId, { id: user.id, access }, r.id),
   ]);
+  // Waiting for a task (PRD 14.5): due a whole number of days, or else hours, after it starts.
+  const waiting = isWaiting(r) && r.afterId;
+  const dueDays = r.dueAfterMinutes && r.dueAfterMinutes % 1440 === 0;
   const subCovers = await Promise.all(subs.map((x) => coverUrl(companyId, x.id)));
   const keys = (ts: { kind: string; ref: string | null }[]) => ts.map((t) => `${t.kind}:${t.ref}`).sort().join();
   const sp = await props.searchParams;
@@ -52,6 +57,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
         {...choices}
         slackChannels={slackChannels}
         attachments={files}
+        chainTasks={chainTasks}
         cover={cover}
         timeZone={company.timeZone}
         defaultSender={senderDefault(company)}
@@ -70,8 +76,11 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           emails: refs("email").join("\n"),
           // A "Now" reminder (or one whose time has passed while it waited for
           // approval) reopens as "Now"; a past "later" time would fail validation.
-          when: isPast(r.sendAt) ? "now" : "later",
-          sendAtLocal: occurs ? toLocalInput(occurs, r.timeZone) : isPast(r.sendAt) ? "" : toLocalInput(r.sendAt, r.timeZone),
+          when: waiting ? "after" : isPast(r.sendAt) ? "now" : "later",
+          sendAtLocal: occurs ? toLocalInput(occurs, r.timeZone) : isPast(r.sendAt) || waiting ? "" : toLocalInput(r.sendAt, r.timeZone),
+          afterId: r.afterId ?? undefined,
+          dueIn: waiting && r.dueAfterMinutes ? String(r.dueAfterMinutes / (dueDays ? 1440 : 60)) : undefined,
+          dueUnit: dueDays ? "days" : "hours",
           tags: r.tags.join(", "),
           // Saved shares are explicit department ids ("my departments" was expanded at save).
           shareMine: false,
@@ -83,7 +92,7 @@ export default async function EditReminder(props: PageProps<"/reminders/[id]/edi
           channels: r.channels,
           slackChannelIds: refs("slack_channel"),
           // Same gap after the (next) send as before; "now" if that time has passed.
-          dueLocal: r.isTask && r.dueAfterMinutes ? toLocalInput(dueFrom(r.sendAt, r.dueAfterMinutes), r.timeZone) : "",
+          dueLocal: r.isTask && r.dueAfterMinutes && !waiting ? toLocalInput(dueFrom(r.sendAt, r.dueAfterMinutes), r.timeZone) : "",
           // An event's end, from its (next) start and length.
           isEvent: r.isEvent,
           allDay: r.allDay,

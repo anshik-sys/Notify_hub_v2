@@ -8,14 +8,21 @@ import { fieldsFromRule } from "@/lib/recurrence";
 import { channelChoices } from "@/lib/slack-installations";
 import { toLocalInput, zonedToUtc } from "@/lib/time";
 import { QUICK_TASK_DUE_MINUTES } from "@/lib/reminders";
+import { chainChoices } from "@/lib/views";
 import { recipientChoices } from "../form-data";
 import { REMINDER_FORM_ID, ReminderForm } from "../reminder-form";
 
 export default async function NewReminder(props: PageProps<"/reminders/new">) {
   const { user, companyId, company, access, timeZone } = await requireMember();
   if (!can(access, "reminders.create")) notFound();
-  const [choices, slackChannels] = await Promise.all([recipientChoices(companyId, user.id, access), channelChoices(companyId)]);
+  const [choices, slackChannels, chainTasks] = await Promise.all([
+    recipientChoices(companyId, user.id, access),
+    channelChoices(companyId),
+    chainChoices(companyId, { id: user.id, access }),
+  ]);
   const sp = await props.searchParams;
+  // A task page's "Add a next step" (PRD 14.5): waits for that task.
+  const after = chainTasks.find((t) => t.id === firstParam(sp.after));
   const error = firstParam(sp.error);
   // From the calendar's quick create (Q5): title, time and type carried over.
   // The calendar's time is in the viewer's zone; the form's is the company's.
@@ -30,6 +37,7 @@ export default async function NewReminder(props: PageProps<"/reminders/new">) {
         brand={brandFor("", companyId, company.name, (await companyBrand(companyId)).logoVersion)}
         {...choices}
         slackChannels={slackChannels}
+        chainTasks={chainTasks}
         timeZone={company.timeZone}
         defaultSender={senderDefault(company)}
         defaults={{
@@ -42,7 +50,8 @@ export default async function NewReminder(props: PageProps<"/reminders/new">) {
           groupIds: [],
           userIds: picked ? [user.id] : [],
           emails: "",
-          when: picked ? "later" : "now",
+          when: after ? "after" : picked ? "later" : "now",
+          afterId: after?.id,
           sendAtLocal: picked ? local(picked) : "",
           tags: "",
           shareMine: false,

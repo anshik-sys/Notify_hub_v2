@@ -54,6 +54,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Reminders are soft-deleted (`deleted_at`, also set to cancelled). A new query that reads `reminders` outside `canViewWhere`/`overseeWhere`/`getReminder` skips `deleted_at is not null` unless it already skips cancelled.
 - A new recipient kind (like `group`) must be handled in `resolveRecipients` (with an explicit `company_id` filter: the worker bypasses RLS), the channel rules in `validateInput`, `outOfScope` if it can widen, the `getReminder` labels and the recipient search in `src/lib/views.ts`.
 - Sub-tasks are `reminders` rows with `parent_id`. Anything new that changes a reminder's status or send time refuses a sub-task (`notSubTask`) and carries the change to its sub-tasks (`toSubTasks`); the parent itself sends nothing.
+- A reminder waiting for a task (chains) has `send_at = WAITING_AT` (`src/lib/tasks.ts`). Anything new that shows `send_at` checks `isWaiting` first; anything new that marks a task done calls `startAfter`.
 - An event's invites are `deliveries` with `kind = 'invite'` and no occurrence. Anything new that joins deliveries to occurrences must handle `occurrence_id` null.
 - Mail goes through `sendMail()` in `src/lib/mail.ts`, one recipient per call. Dev mail lands in Mailpit (http://localhost:8025).
 - Do not "simplify" the three DB roles, the transaction-local `set_config`, or the `nullif` in the policy. See README.

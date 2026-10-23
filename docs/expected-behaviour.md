@@ -728,18 +728,18 @@ chains. Open questions answered 2026-10-22 (see the end of the section).
 
 | ID | Scenario | Expected | Source | Status |
 |---|---|---|---|---|
-| CH1 | Create a reminder or task B with "Start when <task A> is done" instead of a send time | Saved as "Waiting for <A>"; nothing is sent | PRD 14.5 | |
-| CH2 | A is done | B is sent at once (B's due time counts from then, e.g. "due 2 days after it starts") | PRD 14.5 | |
-| CH3 | A has several assignees | B starts when **all** of them are done (A is done) | PRD 14.5; user's decision 2026-10-22 | |
-| CH4 | A was sent only outside (no assignees) | B starts when the creator marks A done (the single "done") | | |
-| CH5 | Someone un-marks A after B started | B stays sent | **(proposed)** | |
-| CH6 | Steps in a row: A → B → C | Each starts when the one before is done | PRD 14.5 "step-by-step workflows" | |
-| CH7 | Which tasks A can be | Only one-time tasks I can see, not yet done, not cancelled; B can't start itself or form a loop | **(proposed)** | |
-| CH8 | A is cancelled or deleted | B is cancelled too, and B's creator is told in the app | User's decision 2026-10-22 | |
-| CH9 | Approval | B is approved (if it needs it) when it's created, not when it starts. If B is still waiting for approval when A is done, it's sent once approved | PRD 5.9 | |
-| CH10 | B's page and the list | "Starts when <A> is done" with a link to A; A's page says "Then: <B>" | **(proposed)** | |
-| CH11 | B in the calendar and Google before it starts | Not shown (it has no date yet) | **(proposed)** | |
-| CH12 | A sub-task as A | Allowed: B starts when that sub-task is done | **(proposed)** | |
+| CH1 | Create a reminder or task B with "Start when <task A> is done" instead of a send time | Saved as "Waiting"; nothing is sent. It can't repeat or be an event, and a waiting task can't have sub-tasks. A task's due time is given as "due N hours/days after it starts". Send now sends it at once without waiting | PRD 14.5; the limits and Send now decided while building 2026-10-23 || PASS |
+| CH2 | A is done | B is sent at once (B's due time counts from then, e.g. "due 2 days after it starts") | PRD 14.5 || PASS |
+| CH3 | A has several assignees | B starts when **all** of them are done (A is done) | PRD 14.5; user's decision 2026-10-22 || PASS |
+| CH4 | A was sent only outside (no assignees) | B starts when the creator marks A done (the single "done") | || PASS |
+| CH5 | Someone un-marks A after B started | B stays sent | Proposed; built as written on the user's "continue" 2026-10-23 || PASS |
+| CH6 | Steps in a row: A → B → C | Each starts when the one before is done | PRD 14.5 "step-by-step workflows" || PASS |
+| CH7 | Which tasks A can be | Only one-time tasks I can see, not yet done, not cancelled or rejected; B can't start itself or form a loop | Proposed; built as written on the user's "continue" 2026-10-23 || PASS |
+| CH8 | A is cancelled or deleted | B is cancelled too, and B's creator is told in the app | User's decision 2026-10-22 || PASS |
+| CH9 | Approval | B is approved (if it needs it) when it's created, not when it starts. If B is still waiting for approval when A is done, it's sent once approved | PRD 5.9 || PASS |
+| CH10 | B's page and the list | "Starts when <A> is done" with a link to A; A's page says "Then: <B>" (only what the viewer can open) and has "Add a next step", which opens a new task already waiting for A | Proposed; built as written on the user's "continue" 2026-10-23 || PASS (library); the page and list wording, the link to A and "Add a next step" are a browser check |
+| CH11 | B in the calendar and Google before it starts | Not shown (it has no date yet) | Proposed; built as written on the user's "continue" 2026-10-23 || PASS after a fix (first run FAIL: the calendar still showed B on the placeholder date in 9999; product bug, fixed) |
+| CH12 | A sub-task as A | Allowed: B starts when that sub-task is done | Proposed; built as written on the user's "continue" 2026-10-23 || PASS |
 
 ### Not in this step
 

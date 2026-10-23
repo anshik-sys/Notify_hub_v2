@@ -106,7 +106,11 @@ export type ReminderDefaults = {
   groupIds: string[];
   userIds: string[];
   emails: string;
-  when: "now" | "later";
+  when: "now" | "later" | "after";
+  // PRD 14.5 chain: the task it waits for, and a task's due time after it starts.
+  afterId?: string;
+  dueIn?: string;
+  dueUnit?: string;
   sendAtLocal: string;
   repeat: RepeatFields;
   isTask: boolean;
@@ -236,6 +240,7 @@ export function ReminderForm({
   brand,
   nextLabel,
   occursAt,
+  chainTasks = [],
 }: {
   defaults: ReminderDefaults;
   departments: DepartmentChoice[];
@@ -255,6 +260,8 @@ export function ReminderForm({
   nextLabel?: string;
   /** A chosen upcoming date (the calendar's "Edit → This one"): "only this one" is preselected. */
   occursAt?: string;
+  /** Tasks it can wait for (PRD 14.5 chains). */
+  chainTasks?: { id: string; title: string }[];
 }) {
   const mine = departments.filter((d) => d.mine);
   const others = departments.filter((d) => !d.mine);
@@ -461,8 +468,22 @@ export function ReminderForm({
             options={[
               { value: "now", label: "Now" },
               { value: "later", label: "At a set time" },
+              { value: "after", label: "When a task is done" },
             ]}
           />
+          <div className={styles.afterPick}>
+            {chainTasks.length > 0 ? (
+              <SelectField
+                label="The task"
+                name="after"
+                defaultValue={defaults.afterId ?? ""}
+                options={[{ value: "", label: "Pick a task…" }, ...chainTasks.map((t) => ({ value: t.id, label: t.title }))]}
+              />
+            ) : (
+              <Hint>There’s no open one-time task you can see to wait for.</Hint>
+            )}
+            <Hint>It goes out as soon as everyone has marked that task done. It doesn’t repeat.</Hint>
+          </div>
           <div className={styles.sendAt}>
             <Field label={`Date and time (${timeZone})`} name="sendAt" type="datetime-local" defaultValue={defaults.sendAtLocal} />
             <Hint>For a repeating reminder, this is the first one.</Hint>
@@ -485,7 +506,22 @@ export function ReminderForm({
             ]}
           />
           <div className={styles.due}>
-            <Field label={`Due (${timeZone})`} name="due" type="datetime-local" defaultValue={defaults.dueLocal} />
+            <div className={styles.dueAt}>
+              <Field label={`Due (${timeZone})`} name="due" type="datetime-local" defaultValue={defaults.dueLocal} />
+            </div>
+            {/* Waiting for a task: its start isn't known, so it's due a while after. */}
+            <div className={`${styles.dueIn} ${styles.everyRow}`}>
+              <Field label="Due after it starts" name="dueIn" type="number" inputMode="numeric" min={1} max={999} defaultValue={defaults.dueIn ?? "1"} />
+              <SelectField
+                label="Unit"
+                name="dueUnit"
+                defaultValue={defaults.dueUnit ?? "days"}
+                options={[
+                  { value: "hours", label: "hours" },
+                  { value: "days", label: "days" },
+                ]}
+              />
+            </div>
             <Hint>Anyone not done by then gets a reminder every day until they are.</Hint>
             <RemindBefore minutes={defaults.isTask ? (defaults.notifyBefore ?? []) : [1440]} />
             {/* PRD 14.5: shown only on the task's page (CV5). */}

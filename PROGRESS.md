@@ -2,6 +2,58 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-23 — tasks: chains, start when a task is done (spec 14, CH1-CH12)
+
+- The user said "continue" without answering the proposed rules (CH5, CH7,
+  CH10-CH12). I built them as written and noted that in the spec. They're
+  worth a look.
+- **Waiting = `send_at` set to `WAITING_AT` (year 9999)**, plus `after_id`
+  pointing at A (migration 0053). Rejected: a `waiting` flag. Every time-based
+  query (the worker, calendar, Google, volume alerts, "due soon", Home's
+  upcoming list) would have needed it, and missing one sends B early. With the
+  sentinel they all skip B without knowing about chains. The cost: anything
+  that *shows* `send_at` must check `isWaiting` first. The list, the reminder
+  page and Home's upcoming list do.
+- **Starting B** (`startAfter`) runs wherever a task becomes done:
+  - the last assignee's Mark done (web and Slack, through `notifyIfAllDone`);
+  - the single "done" of a task sent only outside;
+  - a parent whose last sub-task is done.
+
+  B's `send_at` becomes now and the worker is woken. B's approval was settled
+  at creation (CH9).
+- **CH8:** cancelling or deleting A cancels what waits for it, recursively
+  (A → B → C, one recursive SQL update). B's creator gets a new notification
+  kind, `chain`.
+- **Decided while building:**
+  - B can't repeat or be an event.
+  - A waiting task can't have sub-tasks (their due times are absolute and B's
+    start is unknown).
+  - B's due time is "N hours/days after it starts".
+  - A rejected task can't be waited for.
+  - Send now on a waiting B sends it at once.
+  - A's page has an "Add a next step" button, which opens a new task already
+    waiting for A.
+- **Not handled:** a rejected A leaves B waiting until A is edited and
+  approved (only cancel and delete cascade).
+- Independent spec tests (fresh agent, `spec-chains.test.ts`): 11 of 12 passed
+  first time. CH11 failed: the calendar showed B on its 9999 placeholder date,
+  so it only hid B because nobody looks that far ahead. Fixed with an explicit
+  exclusion; now 36 pass, 1 browser skip.
+- My test for B being sent flaked under the full run. The live worker claims B
+  the moment it starts (skip locked), so my tick skipped it. The test now waits
+  for whichever process sends it.
+- **Found, not fixed (pre-existing, not chains):** `dispatchChanges` re-reads
+  the locked event but doesn't re-check `announced.cancelled`. With two
+  workers (two are running locally), a deleted event's guests can get
+  "Cancelled" twice; UP5 failed that way in full runs. One-line fix, waiting
+  for the user.
+- **Verified:** typecheck, lint, my tests (4, passed 4 times in a row), spec
+  CH1-CH12, full suite 613 pass with 1 fail (the UP5 race above). An earlier
+  run also failed RC2, the known flake.
+  - **Not verified:** anything in a browser: the "When a task is done"
+    option, "due after it starts", the Waiting label, "Starts when" / "Then:",
+    "Add a next step".
+
 ## 2026-10-23 — tasks: sub-tasks (spec 14, ST1-ST12)
 
 - The user confirmed the proposed rules (ST5-7, ST9, ST12).

@@ -179,6 +179,7 @@
 }
 
 .sendAt,
+.afterPick,
 .due,
 .event,
 .endsAt,
@@ -188,7 +189,11 @@
   gap: 8px;
 }
 
-.when:has(input[name="when"][value="now"]:checked) .sendAt,
+.when:not(:has(input[name="when"][value="later"]:checked)) .sendAt,
+.when:not(:has(input[name="when"][value="after"]:checked)) .afterPick,
+.when:has(input[name="when"][value="after"]:checked) .repeat,
+form:has(input[name="when"][value="after"]:checked) .dueAt,
+form:not(:has(input[name="when"][value="after"]:checked)) .dueIn,
 .task:not(:has(input[name="kind"][value="task"]:checked)) .due,
 .task:not(:has(input[name="kind"][value="event"]:checked)) .event,
 .event:has(input[name="allDay"]:checked) .endsAt,

@@ -14,7 +14,7 @@ import { linkDm } from "./slack";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Tx = Pick<PgTransaction<any, any, any>, "select" | "insert">;
-export type NotificationKind = "reminder" | "task" | "approval" | "mention" | "comment" | "decided" | "tasks_done" | "failed" | "escalated" | "rsvp" | "invite" | "calendar";
+export type NotificationKind = "reminder" | "task" | "approval" | "mention" | "comment" | "decided" | "tasks_done" | "failed" | "escalated" | "rsvp" | "invite" | "calendar" | "chain";
 export type NewNotification = typeof notifications.$inferInsert & { kind: NotificationKind };
 
 // The events a person can mute, and on which channels they're sent.

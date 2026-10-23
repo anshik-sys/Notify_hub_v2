@@ -3,6 +3,7 @@ import { withTenant } from "@/db";
 import { type CalendarColor, type EventAnswer, REMINDER_STATUSES, reminderOccurrences, reminderShares, reminders, taskAssignments, user, type ReminderStatus } from "@/db/schema";
 import { type Access, can } from "./permissions";
 import { recipientLabels } from "./recipients";
+import { taskDone, WAITING_AT } from "./tasks";
 import { between, describe, type Rule } from "./recurrence";
 import { invitedSql, sharedWithSql } from "./reminders";
 import { toLocalInput, zonedToUtc } from "./time";
@@ -215,7 +216,7 @@ export function upcoming(companyId: string, viewer: Viewer, limit = 8) {
     tx
       .select({ id: reminders.id, title: reminders.title, sendAt: reminders.sendAt, recurrence: reminders.recurrence, isTask: reminders.isTask })
       .from(reminders)
-      .where(and(eq(reminders.status, "scheduled"), overseeWhere(viewer)))
+      .where(and(eq(reminders.status, "scheduled"), lt(reminders.sendAt, WAITING_AT), overseeWhere(viewer)))
       .orderBy(asc(reminders.sendAt))
       .limit(limit),
   );
@@ -338,6 +339,7 @@ export async function calendarRange(companyId: string, viewer: Viewer, timeZone:
         and(
           inArray(reminders.status, ["scheduled", "pending_approval"]),
           lt(reminders.sendAt, end),
+          lt(reminders.sendAt, WAITING_AT), // CH11: waiting for a task has no date yet
           // An event that started before the range but runs into it counts too.
           or(
             sql`${reminders.recurrence} is not null`,
@@ -557,5 +559,38 @@ export function visibleCreators(companyId: string, viewer: Viewer) {
       .innerJoin(user, eq(user.id, reminders.createdBy))
       .where(canViewWhere(viewer))
       .orderBy(user.name),
+  );
+}
+
+// CH7: the tasks something can wait for, for the form's "When a task is done":
+// one-time tasks the viewer can open, not done, cancelled, rejected or deleted.
+export function chainChoices(companyId: string, viewer: Viewer, exclude?: string) {
+  return withTenant(companyId, (tx) =>
+    tx
+      .select({ id: reminders.id, title: reminders.title })
+      .from(reminders)
+      .where(
+        and(
+          canViewWhere(viewer),
+          eq(reminders.isTask, true),
+          sql`${reminders.recurrence} is null`,
+          sql`${reminders.status} not in ('cancelled', 'rejected')`,
+          sql`not ${taskDone}`,
+          exclude ? sql`${reminders.id} <> ${exclude}` : undefined,
+        ),
+      )
+      .orderBy(asc(reminders.title))
+      .limit(200),
+  );
+}
+
+// CH10: on a task's page, "Then: …": what waits for it (or started from it).
+export function nextSteps(companyId: string, viewer: Viewer, taskId: string) {
+  return withTenant(companyId, (tx) =>
+    tx
+      .select({ id: reminders.id, title: reminders.title })
+      .from(reminders)
+      .where(and(eq(reminders.afterId, taskId), canViewWhere(viewer)))
+      .orderBy(asc(reminders.createdAt)),
   );
 }

@@ -7,6 +7,7 @@ import { REMINDER_STATUSES } from "@/db/schema";
 import { can } from "@/lib/permissions";
 import { describe } from "@/lib/recurrence";
 import { isDelayed, STATUS_LABELS, statusLabel } from "@/lib/reminders";
+import { isWaiting } from "@/lib/tasks";
 import { requireMember } from "@/lib/session";
 import { formatInZone } from "@/lib/time";
 import { filterUrl, PAGE_SIZE, parseFilters, searchReminders, SORTS, visibleCreators } from "@/lib/views";
@@ -132,6 +133,8 @@ export default async function Reminders(props: PageProps<"/reminders">) {
                   {describe(r.recurrence, r.anchorLocal)}
                   {r.status === "scheduled" && <Muted> · next {formatInZone(r.sendAt, r.timeZone)}</Muted>}
                 </span>
+              ) : isWaiting(r) ? (
+                <Muted key="w">When a task is done</Muted>
               ) : (
                 formatInZone(r.sendAt, r.timeZone)
               ),
