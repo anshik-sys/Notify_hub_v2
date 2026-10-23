@@ -2,6 +2,24 @@
 
 Daily log, newest first. Committed, not gitignored, so worktrees merge it.
 
+## 2026-10-23 — filter bars and dropdowns look like the rest of the kit
+
+- The user: the Reminders filters "don't have any CSS, a bit messy". The CSS
+  did load (one screenshot to rule out a broken stylesheet). What looked
+  unstyled:
+  - the browser's own grey selects next to white text fields;
+  - a fixed 140px grid that clipped "Send time, soonest first", the date
+    fields and the search placeholder, and left an empty gap on row 1;
+  - the browser's default "More filters" triangle and an underlined Clear.
+- In the kit, not per page: `select.input` drops the native look (white,
+  same border, a two-gradient arrow in `--muted`, so it follows the theme). It
+  changes every dropdown in the app (12 files use SelectField), which is the
+  point. The filter bar is a wrapping flex row (search 2×, dropdowns share the
+  rest, buttons at the end); More filters uses 190px columns, a chevron that
+  turns, and a quiet Clear. Used by Reminders, Team, Audit log and Reports.
+- **Not verified in a browser** (design work is the user's check): the four
+  filter bars, the reminder form's dropdowns, dark theme, narrow windows.
+
 ## 2026-10-23 — comments: image files show a preview
 
 - The user's comment image showed only as a file name. Spec 15 had left file

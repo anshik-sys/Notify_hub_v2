@@ -230,6 +230,19 @@
   font-weight: 400;
 }
 
+/* Dropdowns look like the text fields (the browser's own is grey with a system
+   arrow). The arrow is two gradient triangles, so it follows the theme. */
+select.input {
+  appearance: none;
+  padding-right: 32px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
 .input:read-only {
   background: var(--surface);
 }

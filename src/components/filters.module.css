@@ -1,6 +1,8 @@
+/* One row that wraps: the search twice a dropdown's width, the dropdowns sharing
+   the rest, the buttons at the end. No fixed grid, so no empty cells. */
 .bar {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: end;
   padding: 16px 20px;
@@ -10,23 +12,17 @@
   box-shadow: var(--shadow-card);
 }
 
-/* The search box takes a whole row's start. */
-.bar > :first-child {
-  grid-column: span 2;
+.bar > * {
+  flex: 1 1 160px;
+  min-width: 0;
 }
 
-/* Very narrow windows: one column, so nothing pushes the page sideways. */
-@media (max-width: 400px) {
-  .bar {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .bar > :first-child {
-    grid-column: auto;
-  }
+.bar > :first-child {
+  flex: 2 1 280px;
 }
 
 .buttons {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -58,25 +54,50 @@
   transform: scale(0.97);
 }
 
-/* The folded filters: a full row under the main one, same grid inside. */
+/* The folded filters: a full row under the main one. */
 .more {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
 }
 
 .moreToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   width: fit-content;
   color: var(--muted);
   font-size: 0.875rem;
+  font-weight: 500;
+  list-style: none;
   cursor: pointer;
+}
+
+.moreToggle::-webkit-details-marker {
+  display: none;
+}
+
+/* A chevron that turns down when open. */
+.moreToggle::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--duration) var(--ease-out);
+}
+
+.more[open] > .moreToggle::before {
+  transform: rotate(45deg);
 }
 
 .moreToggle:hover {
   color: var(--fg);
 }
 
+/* Wide enough for a date and "Send time, soonest first". */
 .moreFields {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 12px;
   align-items: end;
   margin-top: 12px;
@@ -91,6 +112,12 @@
 .clear {
   color: var(--muted);
   font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.clear:hover {
+  color: var(--fg);
 }
 
 .pager {
